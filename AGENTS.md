@@ -2,87 +2,96 @@
 
 ## Source of truth
 
-Before doing any work, read `CODEX_MASTER_PROMPT.md` completely. It defines the product scope, architecture, platform limitations, security rules, stage plan, acceptance criteria, release process, and required completion report.
+Before doing any work, read `CODEX_MASTER_PROMPT.md` completely. It defines product scope, platform limits, security, local-first architecture, low-resource requirements, stage gates, artifacts, cleanup, feedback, and approval.
 
-This repository uses a strict stage gate. Work on only the stage named in `docs/stages/stage-status.json` or explicitly named by the developer. Never begin a later stage early.
+Work only on the stage named by the developer or by `docs/stages/stage-status.json`. Never begin a later stage early.
 
-## Stage workflow
+When instructions conflict, use this order:
 
-For every stage:
+1. Safety, legality, privacy, and platform rules.
+2. Security and data integrity.
+3. The approved stage scope.
+4. Low-disk, low-memory, and local-first requirements.
+5. Convenience.
 
-1. Restate the stage objective, scope, exclusions, assumptions, and acceptance criteria.
-2. Synchronize from `main` and create `stage/<stage-id>-<short-name>`.
-3. Update the stage specification and status file.
-4. Implement only the approved scope.
-5. Add or update automated tests and documentation.
-6. Run all relevant checks and record the exact commands/results.
-7. Build honest developer artifacts for supported native platforms.
-8. Publish artifacts with SHA-256 checksums and signed/unsigned status.
-9. Push the branch and open a draft pull request.
-10. Return the mandatory Stage Completion Report from `CODEX_MASTER_PROMPT.md`.
-11. Stop at `AWAITING DEVELOPER TEST RESULT`.
+## Mandatory stage flow
 
-Feedback must be fixed on the same stage branch/PR unless the developer explicitly instructs otherwise. Do not broaden scope while addressing feedback. Do not merge, release, or proceed without the exact approval commands defined in the master prompt.
+For every stage and every retest:
+
+1. Restate objective, included scope, exclusions, assumptions, acceptance criteria, and resource limits.
+2. Inspect Git state, free disk, repository size, project-owned build output, and project-started processes.
+3. State the smallest build/test plan and exact safe-cleanup plan.
+4. Create or continue `stage/<stage-id>-<short-name>`.
+5. Implement only the approved scope and reuse canonical source files.
+6. Run checks from lightest to heaviest with constrained concurrency.
+7. Produce one honest release-candidate installer/artifact per affected platform.
+8. Generate SHA-256 checksums and state signing/entitlement status.
+9. Stop all project processes and clean temporary project-owned output.
+10. Re-measure free disk and report retained files/processes/simulator state.
+11. Push the branch and open or update one draft pull request.
+12. Return the exact Stage Completion Report from the master prompt.
+13. Stop at `AWAITING DEVELOPER TEST RESULT`.
+
+Feedback remains on the same branch and pull request. Replace the prior local RC after the new artifact is verified; do not accumulate candidates. Do not merge, release, or proceed without the exact developer commands in the master prompt.
+
+## Non-negotiable resource rules
+
+- Keep at least 5 GiB free on the development volume. Do not begin a heavy local build that could cross that floor.
+- Use one checkout, one active stage branch, one platform build directory, one simulator at most, and one current local RC.
+- Default to one or two build workers.
+- Prefer unit/protocol tests before UI, simulator, installer, or full integration tests.
+- Do not create VMs, containers, new simulator runtimes, duplicate clones, or Git worktrees without explicit approval.
+- Never create a Windows VM on the low-space Mac by default; use Windows hardware or CI.
+- Shut down simulators, mock agents, watchers, test hosts, dev servers, browser drivers, and log streams immediately after their check.
+- Delete only repository-owned build output. Never delete unrelated caches, simulators, files, or repositories.
+- Never run `git clean -fdx` or broad unscoped recursive deletion without explicit approval.
+- Do not commit Derived Data, `.build`, `bin`, `obj`, publish output, `node_modules`, archives, installers, logs, diagnostics, test results, simulator data, or dependency caches.
+- Do not retain duplicate `.app`, `.pkg`, `.dmg`, `.zip`, `.xcarchive`, `.ipa`, or `.msi` copies.
+- Use one canonical protocol, policy specification, fixture set, and icon source. Link or generate; do not copy.
+- Update existing documents rather than creating duplicate reports or READMEs.
+- Do not create future empty directory trees or placeholder files solely to keep directories.
+- If local capacity is insufficient, run the platform build in configured CI or report it blocked. Never fake success.
+
+## Local-first product rules
+
+- The Apple-silicon Parent Controller is the local authority.
+- Core desktop pairing, status, policy, commands, and chat operate directly over the authenticated LAN.
+- Controller data stays in local SQLite; secrets stay in Keychain.
+- Endpoints cache and locally enforce the last valid signed policy.
+- No public relay, hosted database, SaaS telemetry, or mandatory cloud account in stages 00–12.
+- APNs is permitted only for honest iPad notification behavior; iPad schedule enforcement must use supported local Apple frameworks.
+- A relay is optional, separately approved work. Local operation must continue without it.
 
 ## Platform truth
 
-Never fake or overstate a capability.
+- Parent Controller: native Swift/SwiftUI on Apple silicon.
+- macOS endpoint: visible universal Apple-silicon/Intel app, supported launchd/Service Management startup, authenticated IPC, public APIs, administrator installer/uninstaller.
+- Windows endpoint: automatic service, visible per-user UI, authenticated named pipes, documented APIs, administrator MSI; build on Windows hardware or CI.
+- iPadOS: FamilyControls, DeviceActivity, ManagedSettings, ManagedSettingsUI, app extensions, Keychain, App Group, and public APIs only. It is not a persistent desktop agent and cannot truthfully report current apps/tabs, hardware MAC, reliable uptime, desktop login state, global logout, restart, or shutdown.
+- Supervised iPad MDM is optional and requires explicit approval.
+- Browser tabs require a separately installed visible extension. Never inspect page content, forms, cookies, passwords, private sessions, or network traffic.
 
-- macOS endpoint: use public APIs, a visible app, supported Service Management/launchd mechanisms, authenticated IPC, and a universal Apple-silicon/Intel build.
-- Windows endpoint: use a Windows Service, visible per-user UI, authenticated named pipes, documented Windows APIs, and an administrator installer.
-- iPadOS standard app: use FamilyControls, DeviceActivity, ManagedSettings, ManagedSettingsUI, app extensions, APNs, and public Apple APIs only. It is not a persistent desktop agent. Do not claim current apps, browser tabs, reliable uptime, hardware MAC address, desktop login state, global logout, restart, or shutdown.
-- Supervised iPad MDM is a separate optional stage and must not start without explicit approval.
-- Desktop browser tabs require a separately installed, visible browser extension. Never inspect page content, forms, cookies, passwords, private/incognito sessions, or network traffic.
+## Security and transparency
 
-## Security and privacy
+This is visible parental-control software, not covert surveillance.
 
-This is a transparent parental-control product, not covert surveillance software.
+Never implement hidden installation, stealth persistence, keylogging, screenshots, camera/microphone recording, clipboard capture, password/content collection, TLS interception, private APIs, exploits, security bypasses, arbitrary shell/PowerShell/AppleScript execution, unrestricted process launch, or a universal override code.
 
-Never implement hidden installation, stealth persistence, keylogging, screenshots, camera/microphone recording, clipboard capture, password collection, file/message contents, TLS interception, private APIs, security bypasses, arbitrary remote shell/PowerShell/AppleScript execution, or unrestricted process launch.
+Use explicit pairing, per-device identity, TLS-protected transport, replay protection, secure key storage, signed/versioned policy, allowlisted commands, least privilege, authenticated IPC, bounded/redacted logs, short retention, visible disclosure, and audited adult overrides.
 
-Use:
+The repository is public. Never commit real secrets, certificates, profiles, APNs/MDM keys, family device identifiers, IP/MAC logs, chat data, or private screenshots.
 
-- explicit pairing;
-- per-device identity;
-- TLS-protected transport;
-- replay protection;
-- secure platform key storage;
-- signed/versioned policy;
-- allowlisted commands;
-- least privilege;
-- authenticated local IPC;
-- bounded/redacted logs;
-- short configurable retention;
-- visible endpoint disclosure;
-- audited adult overrides.
-
-The repository is public. Never commit real credentials, certificates, provisioning profiles, APNs/MDM keys, device identifiers, IP/MAC logs, chat data, private screenshots, or other personal data. Use examples and synthetic fixtures only.
-
-A child desktop account must be a standard non-administrator account for meaningful enforcement. Do not attempt to defeat an authorized local administrator.
-
-## Engineering rules
-
-- Prefer native, supported platform frameworks.
-- Record material design choices in ADRs.
-- Keep privileged services narrow; UI processes must not run as root or LocalSystem.
-- Do not add an arbitrary command executor.
-- Do not disable tests to make CI pass.
-- Do not claim checks passed unless they ran.
-- Clearly separate local checks, CI checks, physical-device tests, and signing/entitlement blockers.
-- Treat warnings as errors where practical.
-- Add unit, integration, protocol-contract, policy-golden, security, and installer tests appropriate to the stage.
-- Run formatting, linting, static analysis, dependency/secret/license scans, and SBOM generation for production stages.
-- Keep commits focused and update installation, rollback, privacy, security, and release notes with behavior changes.
+A child desktop account must be a standard non-administrator account. Do not attempt to defeat an authorized local administrator.
 
 ## Product behavior
 
-- Show `Offline` and last-seen time for an unreachable device; do not infer power-off without a reliable shutdown event.
-- Cache and enforce the last valid signed policy while a desktop endpoint is offline.
-- Default enforcement action is lock, not shutdown.
+- Display `Offline` plus last-seen time; do not infer power-off.
+- Default enforcement is lock, not shutdown.
 - Warn before enforcement and protect unsaved work.
-- Endpoint settings are read-only to the child. Changes require authenticated remote approval or a rate-limited local adult code; there is no default or master backdoor code.
-- All high-impact actions must be authenticated, capability-checked, confirmed where appropriate, and audit logged.
+- Child settings are read-only. Changes require authenticated remote approval or a rate-limited local adult code; OS administrator authorization still applies where required.
+- All high-impact actions are authenticated, capability-checked, confirmed where appropriate, and audited.
+- Runtime collection and queues are event-driven, bounded, pruned, and resource-measured.
 
 ## Current starting instruction
 
-Unless the developer has approved and advanced the project, begin with `STAGE-00` only, as defined in `CODEX_MASTER_PROMPT.md`, and stop after its developer-test release candidate is ready.
+Unless the developer has approved and advanced the project, execute `STAGE-00` only, including the resource-safe `.gitignore`, cleanup scripts, CI controls, and resource evidence required by `CODEX_MASTER_PROMPT.md`. Then stop.
