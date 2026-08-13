@@ -83,26 +83,26 @@ public final class LocalHub: @unchecked Sendable {
     self.server = server
     server.onReady = { [weak self] port in
       guard let self else { return }
-      lock.lock()
+      self.lock.lock()
       self.port = port
-      lock.unlock()
-      startHeartbeatTimer()
-      publishStatus()
+      self.lock.unlock()
+      self.startHeartbeatTimer()
+      self.publishStatus()
     }
     server.onPeer = { [weak self] peer in
       peer.onMessage = { [weak self, weak peer] data in
         guard let self, let peer else { return }
-        do { try handle(data: data, from: peer) } catch {
-          try? database.appendAudit(
+        do { try self.handle(data: data, from: peer) } catch {
+          try? self.database.appendAudit(
             HubAuditRecord(
               event: "message.rejected", deviceID: nil,
               detail: String(describing: error)))
-          onError?(error)
+          self.onError?(error)
         }
       }
       peer.onDisconnect = { [weak self, weak peer] in
         guard let self, let peer else { return }
-        disconnect(peerID: peer.id)
+        self.disconnect(peerID: peer.id)
       }
     }
     server.onFailure = { [weak self] error in self?.onError?(error) }
