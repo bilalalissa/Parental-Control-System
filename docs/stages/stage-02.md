@@ -2,7 +2,7 @@
 
 - Version: `0.2.0-rc.1`
 - Branch: `stage/02-local-hub-pairing`
-- Status: `APPROVED`
+- Status: `MERGED`
 - Platform: Apple-silicon macOS 14 or newer
 
 ## Objective and scope
@@ -88,4 +88,4 @@ The DMG contains `Parental Control.app` and an Applications link. It replaces th
 
 ## Developer approval
 
-The developer approved this release candidate with the exact command `APPROVED: STAGE-02 0.2.0-rc.1` on 2026-08-13. The stage is approved but remains unmerged and unreleased. Merging still requires the separate exact `MERGE` command, and Stage 03 must not begin without a subsequent exact `PROCEED` command.
+The developer approved this release candidate with the exact command `APPROVED: STAGE-02 0.2.0-rc.1` and separately authorized its merge with the exact command `MERGE` on 2026-08-13. The stage is merged but unreleased. Stage 03 must not begin without a subsequent exact `PROCEED` command.

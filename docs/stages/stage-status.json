@@ -22,7 +22,7 @@
       "id": "STAGE-02",
       "name": "Local controller hub, pairing, and lightweight mock agents",
       "version": "0.2.0-rc.1",
-      "status": "APPROVED",
+      "status": "MERGED",
       "branch": "stage/02-local-hub-pairing",
       "document": "stage-02.md"
     }

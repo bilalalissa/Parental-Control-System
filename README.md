@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00 and 01 are merged. Stage 02 is approved and awaiting merge.** The candidate adds mock-device pairing and authenticated local hub transport but does not enforce policy. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–02 are merged. Stage 03 has not begun.** The controller supports mock-device pairing and authenticated local hub transport but does not enforce policy. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 

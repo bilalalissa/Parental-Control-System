@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.2.0-rc.1 — 2026-08-13
 
-Status: **STAGE-02 approved**
+Status: **STAGE-02 merged**
 
 - Added the local controller hub, one-time pairing, authenticated IPC, pinned TLS WebSocket transport, signed/replay-protected protocol envelopes, persistent bounded device state, receipts, and lightweight concurrent mock-agent coverage.
 - Added Bonjour LAN discovery, adaptive heartbeats, delta snapshots, honest offline/last-seen behavior, revoke/unpair, and parent-process lifecycle management.
