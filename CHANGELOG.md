@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.1.0-rc.2 — 2026-08-13
 
-Status: **STAGE-01 approved**
+Status: **STAGE-01 merged**
 
 - Added the native Apple-silicon SwiftUI Parent Controller shell with dashboard, device, schedule, chat, audit, storage, and settings surfaces.
 - Added local SQLite migrations, bounded synthetic fixtures, deterministic schedule validation, and automated capability/accessibility tests.

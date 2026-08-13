@@ -2,7 +2,7 @@
 
 - Version: `0.1.0-rc.2`
 - Branch: `stage/01-controller-shell`
-- Status: `APPROVED`
+- Status: `MERGED`
 - Platform: Apple-silicon macOS 14 or newer
 
 ## Objective and included scope
@@ -93,4 +93,4 @@ CI evidence is reported on the Stage 01 draft pull request and is intentionally 
 
 ## Developer approval
 
-The developer approved this revision with the exact command `APPROVED: STAGE-01 0.1.0-rc.2` on 2026-08-13. The stage is approved but remains unmerged and unreleased. Merging still requires the separate exact `MERGE` command, and Stage 02 must not begin without a subsequent exact `PROCEED` command.
+The developer approved this revision with the exact command `APPROVED: STAGE-01 0.1.0-rc.2` and separately authorized its merge with the exact command `MERGE` on 2026-08-13. The stage is merged but unreleased. Stage 02 must not begin without a subsequent exact `PROCEED` command.
