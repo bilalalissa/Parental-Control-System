@@ -82,10 +82,10 @@ final class ControllerStore {
         hubStatusMessage = "Local hub unavailable: \(error)"
       }
       while !Task.isCancelled {
-        try? await Task.sleep(for: .seconds(5))
+        try? await Task.sleep(for: .seconds(15))
         guard !Task.isCancelled else { break }
         if let status = try? await hubClient.status() {
-          hubStatus = status
+          if status != hubStatus { hubStatus = status }
           hubStatusMessage = "Local hub ready · TLS 1.3 · Authenticated IPC"
         }
       }
