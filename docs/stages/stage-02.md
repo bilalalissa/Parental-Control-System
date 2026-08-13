@@ -36,14 +36,15 @@ No privileged endpoint component, real device monitoring, policy enforcement, ar
 | TLS restart integration | The certificate fingerprint remained `38:3C:FB:F1:A3:FE:80:0C:99:2E:6B:2E:6A:0A:F4:B5:84:56:77:5E:E4:FC:2D:E1:B1:50:CF:89:B1:F8:83:06`. |
 | App lifecycle | Exactly one controller and one helper ran; two launches of the final binary showed no SecurityAgent prompt; normal quit left none. |
 | Package verification | DMG verification and strict code-signature verification passed; controller, hub, and mock binaries are arm64. |
+| CI packaging resilience | DMG creation and verification each use three bounded attempts with two-second delays; verification remains mandatory and fail-closed. |
 
 The local integration used loopback and disabled Bonjour only for deterministic mock execution; the Bonjour advertisement and browser implementation compiled, and LAN discovery remains a developer manual test. CI and a second physical Mac have not yet run. No simulator, VM, or container was used.
 
 ## Release candidate
 
 - Artifact: `.artifacts/release-candidate/ParentalControlController-0.2.0-rc.1-arm64.dmg`
-- SHA-256: `b720329e89aeba7935f4c8fdfd6bf1a6576ee94f3c932f33feffeed3c3f51e06`
-- Embedded commit: `6214b06c2360`
+- SHA-256: `a8c29f78854739264f3b30557e45e95f2a5d2502eda12d809e0bcb79ccfcbd22`
+- Embedded commit: `8d779df99314`
 - Signing: local ad-hoc signature only; no Developer ID Team ID, notarization, or restricted entitlements
 
 The DMG contains `Parental Control.app` and an Applications link. It replaces the prior local RC; no duplicate installer is retained.
