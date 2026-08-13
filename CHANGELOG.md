@@ -2,6 +2,20 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.1.0-rc.2 — 2026-08-13
+
+Status: **STAGE-01 merged**
+
+- Added the native Apple-silicon SwiftUI Parent Controller shell with dashboard, device, schedule, chat, audit, storage, and settings surfaces.
+- Added local SQLite migrations, bounded synthetic fixtures, deterministic schedule validation, and automated capability/accessibility tests.
+- Added truthful macOS, Windows, and standard-iPad capability displays without endpoint traffic, monitoring, or enforcement.
+- Added a supported Service Management start-at-login control, an original canonical vector icon, constrained build/run scripts, and path-scoped macOS CI.
+- Added an arm64, ad-hoc-signed developer-test DMG with SHA-256 verification.
+- Added local-preview family group chat and all-device parent announcements in response to developer feedback.
+- Replaced the original shelter icon with a new connected-family constellation design.
+
+This release candidate is not Developer ID signed or notarized and contains no Stage 02 pairing or device-control behavior.
+
 ## 0.0.1-rc.1 — 2026-08-13
 
 Status: **STAGE-00 approved**

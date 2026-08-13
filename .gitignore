@@ -21,6 +21,8 @@ secrets/
 
 # Swift, Xcode, and Apple platform output
 .build/
+.swiftpm/
+apps/controller-macos/.artifacts/
 .swiftpm/xcode/package.xcworkspace/xcuserdata/
 DerivedData/
 *.xcarchive/

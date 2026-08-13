@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title description">
+  <title id="title">Parental Control connected family icon</title>
+  <description id="description">Three warm family nodes connected by a bright orbit on a deep teal rounded background.</description>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F766E"/>
+      <stop offset="0.55" stop-color="#115E78"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <linearGradient id="orbit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#CCFBF1"/>
+      <stop offset="1" stop-color="#BAE6FD"/>
+    </linearGradient>
+    <linearGradient id="warm" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FDBA74"/>
+      <stop offset="1" stop-color="#FB7185"/>
+    </linearGradient>
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="24" stdDeviation="24" flood-color="#020617" flood-opacity="0.32"/>
+    </filter>
+  </defs>
+  <rect x="32" y="32" width="960" height="960" rx="220" fill="url(#background)"/>
+  <circle cx="512" cy="512" r="344" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="2"/>
+  <g filter="url(#shadow)">
+    <path d="M286 578C296 382 441 250 616 276C744 295 826 404 809 526C794 633 704 717 589 734" fill="none" stroke="url(#orbit)" stroke-width="62" stroke-linecap="round"/>
+    <path d="M734 708L587 734L647 600" fill="none" stroke="url(#orbit)" stroke-width="62" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="346" cy="518" r="94" fill="url(#warm)"/>
+    <circle cx="632" cy="394" r="86" fill="#FDE68A"/>
+    <circle cx="591" cy="712" r="76" fill="#A7F3D0"/>
+    <circle cx="346" cy="494" r="27" fill="#FFF7ED"/>
+    <path d="M298 558C306 523 327 508 346 508C365 508 386 523 394 558" fill="#FFF7ED"/>
+    <circle cx="632" cy="372" r="24" fill="#7C3AED" fill-opacity="0.78"/>
+    <path d="M589 431C596 400 614 387 632 387C650 387 668 400 675 431" fill="#7C3AED" fill-opacity="0.78"/>
+    <circle cx="591" cy="692" r="21" fill="#0F766E" fill-opacity="0.82"/>
+    <path d="M553 744C559 716 575 704 591 704C607 704 623 716 629 744" fill="#0F766E" fill-opacity="0.82"/>
+  </g>
+</svg>

@@ -35,7 +35,8 @@ $DirectTargets = @(
     ".artifacts/test-results",
     ".artifacts/tmp",
     ".artifacts/package-staging",
-    ".artifacts/diagnostics"
+    ".artifacts/diagnostics",
+    "apps/controller-macos/.artifacts"
 )
 
 $Targets = [System.Collections.Generic.List[string]]::new()
