@@ -2,18 +2,18 @@
 
 Stage 00 defines direction only; it does not generate platform icon catalogs.
 
-The canonical Parent Controller vector source now lives at [`controller-icon.svg`](controller-icon.svg). Platform-ready raster/icon output is generated from that one file in project-owned temporary build output.
+The canonical Parent Controller vector source lives at [`controller-icon.svg`](controller-icon.svg). Platform-ready raster/icon output is generated from that one file in project-owned temporary build output.
 
 ## Shared concept
 
-Use an original, simple **open shelter** shape surrounding a small four-point compass/star. The open side communicates visibility rather than confinement; the compass communicates guidance rather than surveillance. Use geometry that remains recognizable at 16 px, with no text, eyes, cameras, locks copied from another product, platform logos, or trademarked artwork.
+Use an original **connected family constellation**: three warm, human-centered nodes joined by an open forward orbit. The different node sizes suggest an adult guiding children, while the open orbit communicates family connection and communication without implying surveillance or confinement. Use geometry that remains recognizable at 16 px, with no text, eyes, cameras, locks copied from another product, platform logos, or trademarked artwork.
 
 ## Product differentiation
 
-- **Parent Controller:** deep indigo shelter with a warm amber compass.
-- **Desktop Child Agent:** teal shelter with a pale-blue compass and a clearly related silhouette.
-- **iPad child app:** blue-green shelter with a rounded lavender compass, following current Apple icon construction guidance at implementation time.
-- **Browser extension:** one-color shelter/compass mark optimized for small toolbar rendering.
+- **Parent Controller:** teal-to-navy field, pale open orbit, and warm family nodes.
+- **Desktop Child Agent:** one family node with a short orbit segment and a clearly related silhouette.
+- **iPad child app:** rounded aqua family node and orbit treatment following current Apple icon construction guidance at implementation time.
+- **Browser extension:** one-color node/orbit mark optimized for small toolbar rendering.
 
 ## Source and generation rules
 

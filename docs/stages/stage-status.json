@@ -13,8 +13,8 @@
     {
       "id": "STAGE-01",
       "name": "Apple-silicon Parent Controller shell",
-      "version": "0.1.0-rc.1",
-      "status": "READY_FOR_DEVELOPER_TEST",
+      "version": "0.1.0-rc.2",
+      "status": "CHANGES_REQUESTED",
       "branch": "stage/01-controller-shell",
       "document": "stage-01.md"
     }

@@ -11,5 +11,7 @@ struct AccessibilityTests {
     #expect(values.contains("controller.main-window"))
     #expect(values.contains("schedule.save"))
     #expect(values.contains("settings.start-at-login"))
+    #expect(values.contains("chat.audience"))
+    #expect(values.contains("chat.add-local-preview"))
   }
 }

@@ -1,8 +1,8 @@
 # STAGE-01 — Apple-silicon Parent Controller shell
 
-- Version: `0.1.0-rc.1`
+- Version: `0.1.0-rc.2`
 - Branch: `stage/01-controller-shell`
-- Status: `READY_FOR_DEVELOPER_TEST`
+- Status: `CHANGES_REQUESTED`
 - Platform: Apple-silicon macOS 14 or newer
 
 ## Objective and included scope
@@ -21,6 +21,12 @@ No LAN hub, pairing, endpoint connection, real chat transport, application or br
 - Deterministic schedule validation, cross-midnight support, overlap rejection, warnings, quotas, and lock as the safe default.
 - Stable accessibility identifiers, a visible Service Management start-at-login control, and one canonical original vector icon.
 - Constrained two-worker SwiftPM build/run/package scripts and path-scoped macOS CI.
+
+## Developer feedback revision
+
+The `0.1.0-rc.2` retest adds three explicit chat audiences: direct, family group, and parent announcement. Family group and announcement modes address every synthetic child device and show the exact recipients. Composed items are visibly labeled as local previews and are never reported as transmitted or queued while Stage 02 transport remains out of scope. This revision also replaces the shelter/compass icon with a new original connected-family constellation derived from the single canonical SVG source.
+
+Until the replacement RC is built and verified, the artifact details below describe the prior `0.1.0-rc.1` candidate retained under the replace-after-verification rule.
 
 ## Local verification
 

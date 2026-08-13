@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stage 00 is merged and Stage 01 is ready for developer testing.** The current release candidate is a local, mock-data macOS controller shell; it does not yet pair with devices or enforce policy. See [Stage status](docs/stages/stage-status.json).
+> **Stage 00 is merged and the Stage 01 feedback revision is in progress.** The controller remains a local, mock-data macOS shell; it does not yet pair with devices or enforce policy. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
@@ -30,6 +30,7 @@ The full capability contract is in [the capability matrix](docs/architecture/cap
 The native Apple-silicon controller preview in [`apps/controller-macos`](apps/controller-macos/) includes:
 
 - Dashboard, device detail, schedule editor, chat, audit, storage, and settings shells built with SwiftUI
+- Direct chat, family group chat, and all-child-device announcement previews with explicit recipient lists
 - Local SQLite migrations and bounded synthetic macOS, Windows, and standard-iPad fixtures
 - Truthful per-platform capability and limitation displays; `Offline` is never presented as proof of power-off
 - Deterministic schedule validation with lock as the default restriction

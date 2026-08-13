@@ -60,10 +60,10 @@ jobs:
       - name: Upload release candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ParentalControlController-0.1.0-rc.1-arm64
+          name: ParentalControlController-0.1.0-rc.2-arm64
           path: |
-            .artifacts/release-candidate/ParentalControlController-0.1.0-rc.1-arm64.dmg
-            .artifacts/release-candidate/ParentalControlController-0.1.0-rc.1-arm64.dmg.sha256
+            .artifacts/release-candidate/ParentalControlController-0.1.0-rc.2-arm64.dmg
+            .artifacts/release-candidate/ParentalControlController-0.1.0-rc.2-arm64.dmg.sha256
           if-no-files-found: error
           retention-days: 7
 
