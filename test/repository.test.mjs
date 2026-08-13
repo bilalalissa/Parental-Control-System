@@ -73,6 +73,15 @@ test("CI is least-privilege, cancellable, pinned, and short-retention", async ()
   assert.doesNotMatch(workflow, /pull_request_target/);
 });
 
+test("macOS packaging retries transient disk-image failures without skipping verification", async () => {
+  const packaging = await read("script/package_release.sh");
+  assert.match(packaging, /HDIUTIL_ATTEMPTS=3/);
+  assert.match(packaging, /HDIUTIL_RETRY_DELAY_SECONDS=2/);
+  assert.match(packaging, /retry_hdiutil create create_dmg/);
+  assert.match(packaging, /retry_hdiutil verify verify_dmg/);
+  assert.match(packaging, /hdiutil verify/);
+});
+
 test("ignore rules cover generated output without hiding canonical packages", async () => {
   const ignore = await read(".gitignore");
   for (const pattern of ["DerivedData/", "*.xcarchive/", "**/bin/", "**/obj/", "node_modules/", ".artifacts/test-results/", "*.msi", "*.pkg"]) assert.ok(ignore.includes(pattern), pattern);
