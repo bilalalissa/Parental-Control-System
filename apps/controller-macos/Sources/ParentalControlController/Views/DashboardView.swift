@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct DashboardView: View {
@@ -9,7 +10,7 @@ struct DashboardView: View {
       VStack(alignment: .leading, spacing: 20) {
         ScreenHeader(
           title: "Family overview",
-          subtitle: "A local-only Stage 01 preview using synthetic devices."
+          subtitle: "Local-first Stage 02 hub with synthetic shell data and visible mock agents."
         )
 
         HStack(spacing: 14) {
@@ -45,6 +46,53 @@ struct DashboardView: View {
             )
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        SectionCard {
+          VStack(alignment: .leading, spacing: 12) {
+            HStack {
+              Label("Local device hub", systemImage: "network.badge.shield.half.filled")
+                .font(.headline)
+              Spacer()
+              Text("\(store.pairedDevices.count) paired")
+                .foregroundStyle(.secondary)
+            }
+            Text(store.hubStatusMessage)
+              .foregroundStyle(.secondary)
+            if let invitation = store.hubStatus?.invitation {
+              HStack {
+                Text(invitation.code)
+                  .font(.system(.title2, design: .monospaced, weight: .bold))
+                  .textSelection(.enabled)
+                Text("Expires \(invitation.expiresAt.formatted(date: .omitted, time: .shortened))")
+                  .foregroundStyle(.secondary)
+                Spacer()
+              }
+              Text("Use only with the visible Stage 02 mock agent or a later approved endpoint.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              if let token = store.pairingInvitationToken {
+                HStack {
+                  Text("Mock token: \(token.prefix(24))…")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                  Spacer()
+                  Button("Copy mock token") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(token, forType: .string)
+                  }
+                  .accessibilityIdentifier("dashboard.copyMockPairingToken")
+                }
+              }
+            }
+            HStack {
+              Button("Create one-time pairing code") { store.createPairingInvitation() }
+                .accessibilityIdentifier("dashboard.createPairing")
+              if let message = store.pairingStatusMessage {
+                Text(message).font(.caption).foregroundStyle(.secondary)
+              }
+            }
           }
         }
 

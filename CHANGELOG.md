@@ -2,6 +2,13 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.2.0-rc.1 — In progress
+
+Status: **STAGE-02 implementing**
+
+- Building the local controller hub, one-time pairing, authenticated IPC, secure WebSocket transport, persistent device state, bounded queues, receipts, and lightweight concurrent mock-agent coverage.
+- No privileged endpoint behavior, real monitoring, enforcement, public relay, container, or virtual machine is included.
+
 ## 0.1.0-rc.2 — 2026-08-13
 
 Status: **STAGE-01 merged**

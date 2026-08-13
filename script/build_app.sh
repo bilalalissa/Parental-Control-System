@@ -9,7 +9,7 @@ fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 PACKAGE_DIR="$ROOT_DIR/apps/controller-macos"
-DERIVED_DIR="$ROOT_DIR/.artifacts/derived-data/stage-01"
+DERIVED_DIR="$ROOT_DIR/.artifacts/derived-data/stage-02"
 SWIFTPM_DIR="$DERIVED_DIR/swiftpm"
 MODULE_CACHE="$DERIVED_DIR/module-cache"
 CACHE_DIR="$DERIVED_DIR/swiftpm-cache"
@@ -22,7 +22,10 @@ APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
-VERSION="0.1.0-rc.2"
+APP_HELPERS="$APP_CONTENTS/Helpers"
+HUB_BINARY="$APP_HELPERS/ParentalControlHub"
+MOCK_BINARY="$APP_HELPERS/ParentalControlMockAgent"
+VERSION="0.2.0-rc.1"
 COMMIT="$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD)"
 
 mkdir -p "$MODULE_CACHE" "$CACHE_DIR" "$CONFIG_DIR" "$SECURITY_DIR"
@@ -54,15 +57,17 @@ BIN_DIR="$(
 )"
 BUILD_BINARY="$BIN_DIR/$APP_NAME"
 
-if [[ ! -x "$BUILD_BINARY" ]]; then
+if [[ ! -x "$BUILD_BINARY" || ! -x "$BIN_DIR/ParentalControlHub" || ! -x "$BIN_DIR/ParentalControlMockAgent" ]]; then
   echo "Built executable not found: $BUILD_BINARY" >&2
   exit 1
 fi
 
 rm -rf -- "$APP_BUNDLE"
-mkdir -p "$APP_MACOS" "$APP_RESOURCES"
+mkdir -p "$APP_MACOS" "$APP_RESOURCES" "$APP_HELPERS"
 cp "$BUILD_BINARY" "$APP_BINARY"
-chmod +x "$APP_BINARY"
+cp "$BIN_DIR/ParentalControlHub" "$HUB_BINARY"
+cp "$BIN_DIR/ParentalControlMockAgent" "$MOCK_BINARY"
+chmod +x "$APP_BINARY" "$HUB_BINARY" "$MOCK_BINARY"
 "$ROOT_DIR/script/generate_controller_icon.sh" "$APP_RESOURCES/ControllerIcon.icns" >/dev/null
 
 /usr/bin/plutil -create xml1 "$APP_CONTENTS/Info.plist"
@@ -72,7 +77,7 @@ chmod +x "$APP_BINARY"
 /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'Parental Control'" "$APP_CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" "$APP_CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "$APP_CONTENTS/Info.plist"
-/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 1002" "$APP_CONTENTS/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 2001" "$APP_CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :BuildCommit string $COMMIT" "$APP_CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :ProtocolVersion string 1.0" "$APP_CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string ControllerIcon" "$APP_CONTENTS/Info.plist"
@@ -80,6 +85,9 @@ chmod +x "$APP_BINARY"
 /usr/libexec/PlistBuddy -c "Add :LSApplicationCategoryType string public.app-category.utilities" "$APP_CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :NSPrincipalClass string NSApplication" "$APP_CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :NSHighResolutionCapable bool true" "$APP_CONTENTS/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :NSLocalNetworkUsageDescription string 'Pair with visible family devices directly on your local network.'" "$APP_CONTENTS/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :NSBonjourServices array" "$APP_CONTENTS/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :NSBonjourServices:0 string '_parental-control._tcp'" "$APP_CONTENTS/Info.plist"
 
 /usr/bin/codesign --force --deep --sign - "$APP_BUNDLE"
 /usr/bin/codesign --verify --deep --strict "$APP_BUNDLE"

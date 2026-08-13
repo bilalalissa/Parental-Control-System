@@ -2,13 +2,15 @@
 
 ## Status and scope
 
-This document records the Stage 00 target architecture. It does not claim that any runtime component exists. Delivery remains gated by [`stage-status.json`](../stages/stage-status.json).
+This document records the target architecture and the Stage 02 local-hub implementation boundary. Delivery remains gated by [`stage-status.json`](../stages/stage-status.json).
 
 ## Local-first topology
 
 The Apple-silicon macOS Parent Controller is the local policy authority and user interface. It stores operational records in local SQLite and secrets in Keychain. Enrolled desktop endpoints initiate authenticated, TLS-protected LAN connections to the controller. They cache the last valid signed policy, enforce it locally when disconnected, and keep bounded outbound queues for receipts and chat.
 
 The controller never treats an absent heartbeat as proof of shutdown. It displays `Offline` and the last-seen time; `Shutdown confirmed` requires an endpoint event or command receipt.
+
+Stage 02 implements this topology with a bundled ordinary-user hub helper, Bonjour `_parental-control._tcp` advertisement and browsing support, a certificate-pinned TLS 1.3 WebSocket, Ed25519-signed protocol envelopes, and short-lived one-time pairing codes. The GUI authenticates its loopback IPC with an ephemeral HMAC key transferred once through a private child-process pipe. The session key is never written to disk or passed on the command line. Persistent controller signing and TLS private keys remain in Keychain; the self-signed public certificate is retained as a mode-0600 application-support file so routine operation does not imitate a password secret or require password entry.
 
 A standard iPadOS app uses FamilyControls, DeviceActivity, ManagedSettings, and ManagedSettingsUI. It is not a persistent desktop agent. APNs may support honest best-effort notifications, but scheduling and shielding do not depend on a custom cloud database.
 
@@ -31,7 +33,7 @@ Platform code may generate types from these definitions, but copied schemas are 
 
 ## Data flow and retention
 
-Endpoints send capability-negotiated snapshots and bounded deltas. Normal heartbeats target roughly 30 seconds and adapt only for active viewing or approved low-power states. Unchanged full snapshots are not sent every heartbeat. Queues, application records, tab records, logs, chat, and audit records are bounded and pruned.
+Endpoints send capability-negotiated snapshots and bounded deltas. Stage 02 uses a 15-second active heartbeat and backs off to 60 seconds while idle; a device becomes `Offline` after 75 seconds without a valid signed message. Unchanged full snapshots are not sent every heartbeat. Queues, receipts, replay caches, and audit records have tested hard bounds. Later application, tab, and chat records remain stage-gated.
 
 Default design targets are seven days for detailed app/tab metadata, thirty days for chat and connection/audit records, no more than 25 MiB of logs per endpoint, and no more than 50 MiB of controller logs. These are targets until measured in implementation stages.
 

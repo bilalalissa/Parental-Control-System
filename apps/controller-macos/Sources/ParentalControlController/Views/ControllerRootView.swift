@@ -28,9 +28,9 @@ struct ControllerRootView: View {
       .accessibilityIdentifier(AccessibilityID.sidebar.rawValue)
       .safeAreaInset(edge: .bottom) {
         VStack(alignment: .leading, spacing: 5) {
-          Label("Local preview", systemImage: "house.and.flag")
+          Label("Local authority", systemImage: "network.badge.shield.half.filled")
             .font(.caption.weight(.medium))
-          Text("Synthetic data only · No devices paired")
+          Text("\(store.pairedDevices.count) paired · No cloud relay")
             .font(.caption2)
             .foregroundStyle(.secondary)
         }
@@ -57,6 +57,11 @@ struct ControllerRootView: View {
       if let section = notification.object as? AppSection {
         selectedSectionRaw = section.rawValue
       }
+    }
+    .task { store.startHub() }
+    .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) {
+      _ in
+      store.stopHub()
     }
   }
 

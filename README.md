@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00 and 01 are merged. Stage 02 has not begun.** The controller remains a local, mock-data macOS shell; it does not yet pair with devices or enforce policy. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00 and 01 are merged. Stage 02 is in progress.** Pairing and local hub transport are under active implementation; the current merged controller does not enforce policy. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
@@ -25,7 +25,7 @@ The project is intentionally visible and bounded. It will not implement hidden i
 
 The full capability contract is in [the capability matrix](docs/architecture/capability-matrix.md).
 
-## Current Stage 01 shell
+## Current controller and Stage 02 work
 
 The native Apple-silicon controller preview in [`apps/controller-macos`](apps/controller-macos/) includes:
 
@@ -35,8 +35,23 @@ The native Apple-silicon controller preview in [`apps/controller-macos`](apps/co
 - Truthful per-platform capability and limitation displays; `Offline` is never presented as proof of power-off
 - Deterministic schedule validation with lock as the default restriction
 - A visible Service Management start-at-login option and an original generated app icon
+- A local hub helper with Bonjour discovery, TLS 1.3 certificate pinning, Ed25519-signed protocol envelopes, one-time pairing, adaptive heartbeats, delta snapshots, receipts, and bounded SQLite state
+- HMAC-authenticated loopback IPC bootstrapped with an ephemeral in-memory session key, so routine launch and hub controls do not require Keychain password entry
+- A visible ordinary-process mock-agent CLI for safe pairing and concurrency tests
 
-Pairing, real endpoint traffic, monitoring, policy enforcement, and remote actions are intentionally unavailable at this stage.
+Stage 02 adds local pairing and authenticated traffic through visible mock-agent processes. Real endpoint monitoring, policy enforcement, privileged services, and remote device actions remain intentionally unavailable.
+
+To test one mock after installing the developer candidate:
+
+1. On the dashboard, choose **Create one-time pairing code**, then **Copy mock token**.
+2. In Terminal, set `TOKEN` to the copied value and run:
+
+   ```sh
+   "/Applications/Parental Control.app/Contents/Helpers/ParentalControlMockAgent" \
+     --invitation "$TOKEN" --id mock-one --name "Mock One"
+   ```
+
+The command starts one visible, unprivileged mock process. Stop it with `Control-C`. Each additional mock needs a newly generated one-time token and a unique `--id`. The mock reports only synthetic presence/delta data and performs no monitoring or enforcement.
 
 ## Stage 00 foundation
 
@@ -56,7 +71,7 @@ npm test
 npm run cleanup:list
 ```
 
-Building the Stage 01 controller requires Apple-silicon macOS 14 or newer with Xcode and Swift installed. Build work is constrained to two workers and one project-owned output tree:
+Building the Stage 02 controller and local hub requires Apple-silicon macOS 14 or newer with Xcode and Swift installed. Build work is constrained to two workers and one project-owned output tree:
 
 ```sh
 swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests
@@ -66,7 +81,7 @@ swift test --package-path apps/controller-macos --jobs 2
 ./script/package_release.sh
 ```
 
-The formatter checks style without changing files. `swift test` runs the controller unit tests. `build_app.sh` produces a local ad-hoc-signed app, `build_and_run.sh` rebuilds and launches it, and `package_release.sh` replaces the single retained Stage 01 DMG and SHA-256 checksum. For normal development, run the formatter and tests, then use `build_and_run.sh`; use `package_release.sh` only when preparing a release candidate. `build_app.sh` is a lower-level command and is not additionally required because both higher-level scripts call it. Ad-hoc signing is for developer testing only; the app is not Developer ID signed or notarized.
+The formatter checks style without changing files. `swift test` runs the controller, protocol-security, persistence, IPC, and secure-transport tests. `build_app.sh` produces a local ad-hoc-signed app containing the hub and visible mock-agent helpers, `build_and_run.sh` rebuilds and launches it, and `package_release.sh` replaces the single retained Stage 02 DMG and SHA-256 checksum. For normal development, run the formatter and tests, then use `build_and_run.sh`; use `package_release.sh` only when preparing a release candidate. `build_app.sh` is a lower-level command and is not additionally required because both higher-level scripts call it. Ad-hoc signing is for developer testing only; the app is not Developer ID signed or notarized.
 
 The cleanup command only lists repository-owned generated paths. Deletion requires an explicit command:
 

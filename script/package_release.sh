@@ -4,14 +4,14 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 APP_NAME="ParentalControlController"
 DISPLAY_NAME="Parental Control"
-VERSION="0.1.0-rc.2"
+VERSION="0.2.0-rc.1"
 APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
-STAGING_DIR="$ROOT_DIR/.artifacts/package-staging/stage-01"
+STAGING_DIR="$ROOT_DIR/.artifacts/package-staging/stage-02"
 RC_DIR="$ROOT_DIR/.artifacts/release-candidate"
 DMG_NAME="ParentalControlController-$VERSION-arm64.dmg"
 DMG_PATH="$RC_DIR/$DMG_NAME"
 CHECKSUM_PATH="$DMG_PATH.sha256"
-PREVIOUS_DMG_PATH="$RC_DIR/ParentalControlController-0.1.0-rc.1-arm64.dmg"
+PREVIOUS_DMG_PATH="$RC_DIR/ParentalControlController-0.1.0-rc.2-arm64.dmg"
 PREVIOUS_CHECKSUM_PATH="$PREVIOUS_DMG_PATH.sha256"
 
 "$ROOT_DIR/script/build_app.sh" Release >/dev/null

@@ -1,6 +1,6 @@
 {
   "$schema": "./stage-status.schema.json",
-  "activeStage": "STAGE-01",
+  "activeStage": "STAGE-02",
   "stages": [
     {
       "id": "STAGE-00",
@@ -17,6 +17,14 @@
       "status": "MERGED",
       "branch": "stage/01-controller-shell",
       "document": "stage-01.md"
+    },
+    {
+      "id": "STAGE-02",
+      "name": "Local controller hub, pairing, and lightweight mock agents",
+      "version": "0.2.0-rc.1",
+      "status": "IMPLEMENTING",
+      "branch": "stage/02-local-hub-pairing",
+      "document": "stage-02.md"
     }
   ]
 }

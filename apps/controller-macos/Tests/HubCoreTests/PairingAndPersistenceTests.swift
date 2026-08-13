@@ -1,0 +1,132 @@
+import Foundation
+import Testing
+
+@testable import HubCore
+
+@Suite("Pairing and hub persistence")
+struct PairingAndPersistenceTests {
+  @Test("pairing code is one-time, expiring, and rate-limited")
+  func pairingTicket() throws {
+    let coordinator = PairingCoordinator()
+    let now = Date()
+    _ = coordinator.create(
+      host: "127.0.0.1", port: 443, certificateFingerprint: "AA", now: now, code: "123456")
+    #expect(throws: PairingError.invalidCode) {
+      try coordinator.consume(code: "000000", now: now)
+    }
+    try coordinator.consume(code: "123456", now: now)
+    #expect(throws: PairingError.consumed) {
+      try coordinator.consume(code: "123456", now: now)
+    }
+
+    _ = coordinator.create(
+      host: "127.0.0.1", port: 443, certificateFingerprint: "AA", now: now,
+      lifetime: 1, code: "654321")
+    #expect(throws: PairingError.expired) {
+      try coordinator.consume(code: "654321", now: now.addingTimeInterval(2))
+    }
+  }
+
+  @Test("paired device and sequence survive database restart")
+  func restartPersistence() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let identity = try Ed25519Identity(keyID: "device-key")
+    let pairedAt = Date(timeIntervalSince1970: 1_700_000_000)
+    do {
+      let database = try HubDatabase(path: fixture.path)
+      try database.upsertDevice(
+        HubDeviceRecord(
+          id: "mock-one",
+          name: "Mock One",
+          platform: "macOS",
+          keyID: identity.keyID,
+          publicKey: identity.publicKeyData,
+          capabilities: ["presence", "chat"],
+          pairedAt: pairedAt,
+          lastSeen: pairedAt
+        ))
+      try database.updateSeen(
+        deviceID: "mock-one", sequence: 7, snapshotVersion: 3, now: pairedAt.addingTimeInterval(1))
+    }
+    let reopened = try HubDatabase(path: fixture.path)
+    let persistedDevice = try reopened.device(id: "mock-one")
+    let device = try #require(persistedDevice)
+    #expect(device.lastSequence == 7)
+    #expect(device.snapshotVersion == 3)
+    #expect(device.state(now: pairedAt.addingTimeInterval(80)) == .offline)
+  }
+
+  @Test("audit, outbound queues, and receipts stay bounded")
+  func boundedPersistence() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let database = try HubDatabase(path: fixture.path)
+    for index in 0..<(HubDatabase.maximumAuditRecords + 20) {
+      try database.appendAudit(
+        HubAuditRecord(event: "test", deviceID: "mock", detail: "record \(index)"))
+    }
+    for index in 0..<(HubDatabase.maximumQueuedEnvelopesPerDevice + 20) {
+      try database.enqueue(
+        QueuedEnvelope(
+          deviceID: "mock",
+          expiresAt: Date().addingTimeInterval(300),
+          envelope: Data("message-\(index)".utf8)
+        ))
+    }
+    for index in 0..<(HubDatabase.maximumReceipts + 20) {
+      try database.appendReceipt(
+        ReceiptRecord(
+          deviceID: "mock", originalMessageID: UUID(), state: "accepted",
+          timestamp: Date().addingTimeInterval(TimeInterval(index))))
+    }
+    let counts = try database.counts()
+    #expect(counts.audit == HubDatabase.maximumAuditRecords)
+    #expect(counts.queued == HubDatabase.maximumQueuedEnvelopesPerDevice)
+    #expect(counts.receipts == HubDatabase.maximumReceipts)
+  }
+
+  @Test("revocation clears queued traffic and unpair removes the device")
+  func revokeAndUnpair() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let database = try HubDatabase(path: fixture.path)
+    let identity = try Ed25519Identity(keyID: "device-key")
+    try database.upsertDevice(
+      HubDeviceRecord(
+        id: "mock-revoke",
+        name: "Mock Revoke",
+        platform: "mock-macOS",
+        keyID: identity.keyID,
+        publicKey: identity.publicKeyData,
+        capabilities: ["presence"],
+        pairedAt: Date(),
+        lastSeen: Date()))
+    try database.enqueue(
+      QueuedEnvelope(
+        deviceID: "mock-revoke",
+        expiresAt: Date().addingTimeInterval(60),
+        envelope: Data("receipt".utf8)))
+    try database.revoke(deviceID: "mock-revoke")
+    #expect(try database.device(id: "mock-revoke")?.isRevoked == true)
+    #expect(try database.queued(deviceID: "mock-revoke").isEmpty)
+    try database.unpair(deviceID: "mock-revoke")
+    #expect(try database.device(id: "mock-revoke") == nil)
+  }
+}
+
+private struct TemporaryHubDatabase {
+  let directory: URL
+  let path: String
+
+  init() throws {
+    directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("parental-control-hub-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    path = directory.appendingPathComponent("hub.sqlite3").path
+  }
+
+  func remove() {
+    try? FileManager.default.removeItem(at: directory)
+  }
+}

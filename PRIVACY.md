@@ -10,12 +10,14 @@ The project does not collect keystrokes, screenshots, camera or microphone recor
 
 ## Storage and transport
 
-- Controller records are planned for local SQLite storage.
+- Controller and Stage 02 hub records use local SQLite storage.
 - Secrets and private keys must use platform secure storage.
 - Controller/endpoint transport must be authenticated and encrypted.
 - Logs and queues must be bounded, redacted, and pruned.
 - Diagnostic bundles must be user-triggered, reviewable, sanitized, temporary, and compressed only once.
 - Synthetic fixtures are the only device/user data allowed in this public repository.
+
+Stage 02 Bonjour discovery and pairing stay on the local network. The public repository, logs, and audit details do not retain pairing codes, certificate private keys, family network addresses, or real device identifiers. The bundled mock agent emits synthetic presence and delta data only.
 
 Default design targets are seven days for detailed app/tab metadata and thirty days for chat, connection, and audit records, configurable by the parent. Implemented defaults will be documented and tested in their delivery stages.
 

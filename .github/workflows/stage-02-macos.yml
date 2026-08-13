@@ -1,9 +1,9 @@
-name: Stage 01 macOS
+name: Stage 02 macOS
 
 on:
   pull_request:
     paths:
-      - ".github/workflows/stage-01-macos.yml"
+      - ".github/workflows/stage-02-macos.yml"
       - ".gitignore"
       - ".codex/environments/environment.toml"
       - "README.md"
@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: stage-01-macos-${{ github.ref }}
+  group: stage-02-macos-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -26,8 +26,8 @@ jobs:
     timeout-minutes: 25
     env:
       SWIFT_WORKERS: "2"
-      CLANG_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-01/module-cache
-      SWIFT_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-01/module-cache
+      CLANG_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-02/module-cache
+      SWIFT_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-02/module-cache
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -43,15 +43,15 @@ jobs:
       - name: Lint Swift sources
         run: swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests
 
-      - name: Run controller tests
+      - name: Run controller and hub tests
         run: |
           swift test \
             --disable-sandbox \
             --package-path apps/controller-macos \
-            --cache-path "$PWD/.artifacts/derived-data/stage-01/swiftpm-cache" \
-            --config-path "$PWD/.artifacts/derived-data/stage-01/swiftpm-config" \
-            --security-path "$PWD/.artifacts/derived-data/stage-01/swiftpm-security" \
-            --scratch-path "$PWD/.artifacts/derived-data/stage-01/swiftpm" \
+            --cache-path "$PWD/.artifacts/derived-data/stage-02/swiftpm-cache" \
+            --config-path "$PWD/.artifacts/derived-data/stage-02/swiftpm-config" \
+            --security-path "$PWD/.artifacts/derived-data/stage-02/swiftpm-security" \
+            --scratch-path "$PWD/.artifacts/derived-data/stage-02/swiftpm" \
             --jobs "$SWIFT_WORKERS"
 
       - name: Build and package release candidate
@@ -60,10 +60,10 @@ jobs:
       - name: Upload release candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ParentalControlController-0.1.0-rc.2-arm64
+          name: ParentalControlController-0.2.0-rc.1-arm64
           path: |
-            .artifacts/release-candidate/ParentalControlController-0.1.0-rc.2-arm64.dmg
-            .artifacts/release-candidate/ParentalControlController-0.1.0-rc.2-arm64.dmg.sha256
+            .artifacts/release-candidate/ParentalControlController-0.2.0-rc.1-arm64.dmg
+            .artifacts/release-candidate/ParentalControlController-0.2.0-rc.1-arm64.dmg.sha256
           if-no-files-found: error
           retention-days: 7
 
