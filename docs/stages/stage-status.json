@@ -14,7 +14,7 @@
       "id": "STAGE-01",
       "name": "Apple-silicon Parent Controller shell",
       "version": "0.1.0-rc.1",
-      "status": "IMPLEMENTING",
+      "status": "READY_FOR_DEVELOPER_TEST",
       "branch": "stage/01-controller-shell",
       "document": "stage-01.md"
     }

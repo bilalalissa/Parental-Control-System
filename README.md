@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stage 00 is merged and Stage 01 is in progress.** The current work is a local, mock-data macOS controller shell; it does not yet pair with devices or enforce policy. See [Stage status](docs/stages/stage-status.json).
+> **Stage 00 is merged and Stage 01 is ready for developer testing.** The current release candidate is a local, mock-data macOS controller shell; it does not yet pair with devices or enforce policy. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
