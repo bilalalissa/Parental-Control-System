@@ -2,7 +2,8 @@
 
 - Version: `0.0.1-rc.1`
 - Branch: `stage/00-repository-foundation`
-- Status: `READY_FOR_DEVELOPER_TEST`
+- Status: `APPROVED`
+- Approved: `2026-08-13` via `APPROVED: STAGE-00 0.0.1-rc.1`
 
 ## Objective and scope
 
@@ -33,20 +34,22 @@ No application runtime, privileged component, installer, enforcement, live netwo
 
 | Command | Result |
 | --- | --- |
-| `npm test` | Passed locally: 24 checks passed; one Windows-only PowerShell execution check skipped on macOS. |
+| `npm test` | Passed locally and in Ubuntu CI: 24 checks passed; the Windows-only PowerShell execution check is skipped on macOS by design. |
+| Windows cleanup safety CI | Passed on `windows-2025`, covering the PowerShell dry-run and apply paths. |
+| GitGuardian Security Checks | Passed on the draft pull request. |
 | `bash -n tools/cleanup.sh` | Passed locally. |
 | `npm run cleanup:list` | Passed locally; no project-owned generated output remained. |
 | Ruby YAML parse for the workflow and issue templates | Passed locally. |
 | `git diff --check` | Passed locally. |
 | Official action-tag verification with `git ls-remote` | Pinned hashes matched checkout `v4.2.2`, setup-node `v4.4.0`, and upload-artifact `v4.6.2`. |
 
-Local tests ran with the available Node.js `v20.14.0`; the supported repository baseline and CI are Node.js 22. The Windows cleanup execution path is not locally proven because PowerShell is unavailable on this Mac; the focused `windows-2025` CI job runs that test. No physical device, native platform build, or simulator is relevant to this stage.
+Local tests ran with the available Node.js `v20.14.0`; the supported repository baseline and CI are Node.js 22. The Windows cleanup execution path passed in the focused `windows-2025` CI job. No physical device, native platform build, or simulator is relevant to this stage.
 
 ## Artifact, installation, and rollback
 
 Stage 00 is source/contracts only. It has no application, installer, signing identity, entitlement, or binary release artifact, so a SHA-256 artifact checksum and installation/uninstallation steps are not applicable.
 
-To review, check out this branch and run `npm test`. To roll back before merge, delete the branch; after merge, revert the focused Stage 00 commit. Cleanup tooling itself lists targets by default and requires explicit apply mode.
+To review, check out this branch and run `npm test`. To roll back before merge, close the pull request and delete the branch; after merge, revert the Stage 00 commits. Cleanup tooling itself lists targets by default and requires explicit apply mode.
 
 ## Manual developer checklist
 
@@ -60,7 +63,7 @@ To review, check out this branch and run `npm test`. To roll back before merge, 
 
 - This stage provides contracts, not cryptographic, transport, storage, or enforcement implementations.
 - Schema validation is exercised by dependency-free contract checks; production cryptographic verification and protocol-specific payload schemas arrive with their approved implementation stages.
-- The PowerShell cleanup behavior requires Windows CI/developer evidence.
+- PowerShell cleanup is verified in Windows CI; local macOS runs skip that platform-specific execution check.
 - Fixtures contain synthetic identifiers and signatures only. No real family, device, network, chat, credential, or signing data is present.
 - No prohibited surveillance, hidden behavior, privileged operation, arbitrary command execution, public relay, or telemetry was added.
 
@@ -76,3 +79,7 @@ To review, check out this branch and run `npm test`. To roll back before merge, 
 - Simulator/emulator state: not used; existing system CoreSimulator services were not started or modified by this stage.
 - Single artifact retained for developer testing: none; Stage 00 has no installable artifact.
 - Resource-budget exceptions: none; the 5 GiB floor was maintained.
+
+## Approval record
+
+The developer approved this stage with the exact command `APPROVED: STAGE-00 0.0.1-rc.1` on 2026-08-13. The stage is approved but remains unmerged and unreleased. Stage 01 must not begin without the separate `PROCEED` command.

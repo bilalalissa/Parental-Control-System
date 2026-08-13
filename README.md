@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> This repository is at **Stage 00 (architecture and contracts)**. It does not yet contain installable parental-control software or enforce device policy. See [Stage status](docs/stages/stage-status.json).
+> **Stage 00 (architecture and contracts) is approved.** Stage 01 has not begun. This repository does not yet contain installable parental-control software or enforce device policy. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
