@@ -2,7 +2,7 @@
 
 - Version: `0.2.0-rc.1`
 - Branch: `stage/02-local-hub-pairing`
-- Status: `READY_FOR_DEVELOPER_TEST`
+- Status: `APPROVED`
 - Platform: Apple-silicon macOS 14 or newer
 
 ## Objective and scope
@@ -86,4 +86,6 @@ The DMG contains `Parental Control.app` and an Applications link. It replaces th
 - Pre-cleanup free disk: 11 GiB. Application Support data retained for developer testing: 352 KiB across seven files.
 - Cleanup removes only `.artifacts/derived-data` and `dist`; the single DMG and checksum remain. No simulator state exists, and no project process is retained.
 
-The stage remains stopped at developer testing. Approval, merge, release, and Stage 03 work require the exact commands in `CODEX_MASTER_PROMPT.md`.
+## Developer approval
+
+The developer approved this release candidate with the exact command `APPROVED: STAGE-02 0.2.0-rc.1` on 2026-08-13. The stage is approved but remains unmerged and unreleased. Merging still requires the separate exact `MERGE` command, and Stage 03 must not begin without a subsequent exact `PROCEED` command.
