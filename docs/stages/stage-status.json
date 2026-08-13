@@ -1,0 +1,14 @@
+{
+  "$schema": "./stage-status.schema.json",
+  "activeStage": "STAGE-00",
+  "stages": [
+    {
+      "id": "STAGE-00",
+      "name": "Repository foundation and resource-safe architecture",
+      "version": "0.0.1-rc.1",
+      "status": "READY_FOR_DEVELOPER_TEST",
+      "branch": "stage/00-repository-foundation",
+      "document": "stage-00.md"
+    }
+  ]
+}

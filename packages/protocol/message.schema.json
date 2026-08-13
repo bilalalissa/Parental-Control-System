@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bilalalissa/Parental-Control-System/packages/protocol/message.schema.json",
+  "title": "Parental Control Protocol Message",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "protocolVersion",
+    "deviceId",
+    "sentAt",
+    "sequence",
+    "type",
+    "payload",
+    "auth"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "protocolVersion": {
+      "const": "1.0"
+    },
+    "deviceId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$"
+    },
+    "sentAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "type": {
+      "enum": [
+        "capability.announce",
+        "snapshot.request",
+        "snapshot.response",
+        "policy.apply",
+        "policy.query",
+        "chat.message",
+        "action.lock",
+        "action.unlock-temporary",
+        "action.logoff",
+        "action.restart",
+        "action.shutdown",
+        "bonus.grant",
+        "bonus.revoke",
+        "adult-verifier.rotate",
+        "diagnostics.request",
+        "receipt"
+      ]
+    },
+    "payload": {
+      "type": "object",
+      "maxProperties": 64
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "keyId", "signature"],
+      "properties": {
+        "algorithm": {
+          "const": "Ed25519"
+        },
+        "keyId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$"
+        },
+        "signature": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "minLength": 16,
+          "maxLength": 256
+        }
+      }
+    }
+  }
+}

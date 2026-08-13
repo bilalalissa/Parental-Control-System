@@ -1,0 +1,55 @@
+[
+  {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "protocolVersion": "1.0",
+    "deviceId": "synthetic-macos-01",
+    "sentAt": "2026-01-12T15:00:00Z",
+    "expiresAt": "2026-01-12T15:05:00Z",
+    "sequence": 1,
+    "type": "capability.announce",
+    "payload": {
+      "platform": "macOS",
+      "capabilities": ["presence", "sessionState", "lock"]
+    },
+    "auth": {
+      "algorithm": "Ed25519",
+      "keyId": "synthetic-device-key-01",
+      "signature": "c3ludGhldGljLXNpZ25hdHVyZS0wMQ=="
+    }
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000002",
+    "protocolVersion": "1.0",
+    "deviceId": "synthetic-controller-01",
+    "sentAt": "2026-01-12T15:01:00Z",
+    "expiresAt": "2026-01-12T15:02:00Z",
+    "sequence": 42,
+    "type": "action.lock",
+    "payload": {
+      "reason": "Family schedule ended",
+      "warningSeconds": 300
+    },
+    "auth": {
+      "algorithm": "Ed25519",
+      "keyId": "synthetic-controller-key-01",
+      "signature": "c3ludGhldGljLXNpZ25hdHVyZS0wMg=="
+    }
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000003",
+    "protocolVersion": "1.0",
+    "deviceId": "synthetic-macos-01",
+    "sentAt": "2026-01-12T15:01:01Z",
+    "sequence": 2,
+    "type": "receipt",
+    "payload": {
+      "messageId": "00000000-0000-4000-8000-000000000002",
+      "status": "accepted"
+    },
+    "auth": {
+      "algorithm": "Ed25519",
+      "keyId": "synthetic-device-key-01",
+      "signature": "c3ludGhldGljLXNpZ25hdHVyZS0wMw=="
+    }
+  }
+]

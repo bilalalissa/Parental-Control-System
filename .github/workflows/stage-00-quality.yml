@@ -1,0 +1,76 @@
+name: Stage 00 quality
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/stage-00-quality.yml"
+      - "docs/**"
+      - "packages/**"
+      - "test/**"
+      - "tools/**"
+      - "*.md"
+      - "package.json"
+  push:
+    branches:
+      - main
+      - "stage/00-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage-00-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Contracts and POSIX cleanup safety
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Prepare bounded test evidence path
+        run: mkdir -p .artifacts/test-results
+      - name: Run dependency-free checks with two workers
+        run: node --test --test-concurrency=2 --test-reporter=tap > .artifacts/test-results/stage-00.tap
+      - name: Upload failure evidence only
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stage-00-contract-failure
+          path: .artifacts/test-results/stage-00.tap
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove project-owned CI output
+        if: always()
+        run: bash tools/cleanup.sh --apply
+
+  windows-cleanup:
+    name: Windows cleanup safety
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Exercise Windows cleanup contract
+        run: node --test --test-concurrency=1 --test-name-pattern="Windows cleanup|cleanup scripts encode" test/cleanup.test.mjs
+      - name: Confirm repository has no generated output
+        if: always()
+        shell: powershell
+        run: .\tools\cleanup.ps1
