@@ -34,8 +34,8 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   const active = tracker.stages.filter((stage) => stage.id === tracker.activeStage);
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
-  assert.equal(active[0].branch, "stage/00-repository-foundation");
-  assert.equal(active[0].version, "0.0.1-rc.1");
+  assert.equal(active[0].branch, "stage/01-controller-shell");
+  assert.equal(active[0].version, "0.1.0-rc.1");
 });
 
 test("local Markdown links resolve inside the repository", async () => {
@@ -81,7 +81,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stage 00 \(architecture and contracts\)/);
+  assert.match(readme, /Stage 00 is merged and Stage 01 is in progress/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });

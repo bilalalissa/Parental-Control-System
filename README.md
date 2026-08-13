@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stage 00 (architecture and contracts) is approved.** Stage 01 has not begun. This repository does not yet contain installable parental-control software or enforce device policy. See [Stage status](docs/stages/stage-status.json).
+> **Stage 00 is merged and Stage 01 is in progress.** The current work is a local, mock-data macOS controller shell; it does not yet pair with devices or enforce policy. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
@@ -25,7 +25,19 @@ The project is intentionally visible and bounded. It will not implement hidden i
 
 The full capability contract is in [the capability matrix](docs/architecture/capability-matrix.md).
 
-## Stage 00 contents
+## Current Stage 01 shell
+
+The native Apple-silicon controller preview in [`apps/controller-macos`](apps/controller-macos/) includes:
+
+- Dashboard, device detail, schedule editor, chat, audit, storage, and settings shells built with SwiftUI
+- Local SQLite migrations and bounded synthetic macOS, Windows, and standard-iPad fixtures
+- Truthful per-platform capability and limitation displays; `Offline` is never presented as proof of power-off
+- Deterministic schedule validation with lock as the default restriction
+- A visible Service Management start-at-login option and an original generated app icon
+
+Pairing, real endpoint traffic, monitoring, policy enforcement, and remote actions are intentionally unavailable at this stage.
+
+## Stage 00 foundation
 
 - Canonical JSON Schemas for the [wire protocol](packages/protocol/) and [policy model](packages/policy-engine-spec/)
 - Synthetic protocol fixtures and policy golden vectors in [packages/test-fixtures](packages/test-fixtures/)
@@ -34,16 +46,26 @@ The full capability contract is in [the capability matrix](docs/architecture/cap
 - Resource-aware CI and dry-run-first cleanup tools for macOS/Linux and Windows
 - GitHub issue and pull-request templates, contribution guidance, and stage tracking
 
-No application directory is created until its implementation stage begins.
-
 ## Quick start
 
-Prerequisite: Node.js 22 or newer. Stage 00 has no third-party runtime or development dependencies.
+Repository checks require Node.js 22 or newer and have no third-party package dependencies:
 
 ```sh
 npm test
 npm run cleanup:list
 ```
+
+Building the Stage 01 controller requires Apple-silicon macOS 14 or newer with Xcode and Swift installed. Build work is constrained to two workers and one project-owned output tree:
+
+```sh
+swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests
+swift test --package-path apps/controller-macos --jobs 2
+./script/build_app.sh Release
+./script/build_and_run.sh
+./script/package_release.sh
+```
+
+The formatter checks style without changing files. `swift test` runs the controller unit tests. `build_app.sh` produces a local ad-hoc-signed app, `build_and_run.sh` rebuilds and launches it, and `package_release.sh` replaces the single retained Stage 01 DMG and SHA-256 checksum. For normal development, run the formatter and tests, then use `build_and_run.sh`; use `package_release.sh` only when preparing a release candidate. `build_app.sh` is a lower-level command and is not additionally required because both higher-level scripts call it. Ad-hoc signing is for developer testing only; the app is not Developer ID signed or notarized.
 
 The cleanup command only lists repository-owned generated paths. Deletion requires an explicit command:
 

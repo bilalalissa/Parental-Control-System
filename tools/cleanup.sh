@@ -51,6 +51,7 @@ direct_targets=(
   ".artifacts/tmp"
   ".artifacts/package-staging"
   ".artifacts/diagnostics"
+  "apps/controller-macos/.artifacts"
 )
 
 for relative_path in "${direct_targets[@]}"; do

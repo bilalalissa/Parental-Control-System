@@ -2,6 +2,8 @@
 
 Stage 00 defines direction only; it does not generate platform icon catalogs.
 
+The canonical Parent Controller vector source now lives at [`controller-icon.svg`](controller-icon.svg). Platform-ready raster/icon output is generated from that one file in project-owned temporary build output.
+
 ## Shared concept
 
 Use an original, simple **open shelter** shape surrounding a small four-point compass/star. The open side communicates visibility rather than confinement; the compass communicates guidance rather than surveillance. Use geometry that remains recognizable at 16 px, with no text, eyes, cameras, locks copied from another product, platform logos, or trademarked artwork.
