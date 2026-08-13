@@ -13,21 +13,6 @@ on:
       - "script/**"
       - "test/**"
       - "tools/**"
-  push:
-    branches:
-      - "stage/01-controller-shell"
-    paths:
-      - ".github/workflows/stage-01-macos.yml"
-      - ".gitignore"
-      - ".codex/environments/environment.toml"
-      - "README.md"
-      - "apps/controller-macos/**"
-      - "docs/stages/**"
-      - "packages/design-assets/**"
-      - "script/**"
-      - "test/**"
-      - "tools/**"
-
 permissions:
   contents: read
 
