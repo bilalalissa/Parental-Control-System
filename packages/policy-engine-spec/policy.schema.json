@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bilalalissa/Parental-Control-System/packages/policy-engine-spec/policy.schema.json",
+  "title": "Parental Control Signed Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "policyId",
+    "version",
+    "deviceId",
+    "timezone",
+    "effectiveAt",
+    "defaultAction",
+    "warningOffsetsMinutes",
+    "gracePeriodSeconds",
+    "weeklyAllowed",
+    "blockedIntervals",
+    "exceptions",
+    "dailyQuotaMinutes",
+    "bonusMinutes",
+    "childExplanation",
+    "signature"
+  ],
+  "properties": {
+    "policyId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "deviceId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$"
+    },
+    "timezone": {
+      "type": "string",
+      "pattern": "^(UTC|[A-Za-z_+-]+/[A-Za-z0-9_+./-]+)$"
+    },
+    "effectiveAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "defaultAction": {
+      "$ref": "#/$defs/restrictiveAction"
+    },
+    "warningOffsetsMinutes": {
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1440
+      }
+    },
+    "gracePeriodSeconds": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 900
+    },
+    "weeklyAllowed": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/weeklyWindow"
+      }
+    },
+    "blockedIntervals": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/absoluteRule"
+      }
+    },
+    "exceptions": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/exception"
+      }
+    },
+    "dailyQuotaMinutes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1440
+    },
+    "bonusMinutes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1440
+    },
+    "childExplanation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "signature": {
+      "$ref": "#/$defs/signature"
+    }
+  },
+  "$defs": {
+    "restrictiveAction": {
+      "enum": ["warningOnly", "lock", "logoff", "restart", "shutdown"]
+    },
+    "day": {
+      "enum": [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday"
+      ]
+    },
+    "localTime": {
+      "type": "string",
+      "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    "weeklyWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["day", "start", "end"],
+      "properties": {
+        "day": {
+          "$ref": "#/$defs/day"
+        },
+        "start": {
+          "$ref": "#/$defs/localTime"
+        },
+        "end": {
+          "$ref": "#/$defs/localTime"
+        }
+      }
+    },
+    "absoluteRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "start", "end", "action", "reason"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "action": {
+          "$ref": "#/$defs/restrictiveAction"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    },
+    "exception": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "start", "end", "decision", "reason"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decision": {
+          "enum": ["allow", "block"]
+        },
+        "action": {
+          "$ref": "#/$defs/restrictiveAction"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "keyId", "value"],
+      "properties": {
+        "algorithm": {
+          "const": "Ed25519"
+        },
+        "keyId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$"
+        },
+        "value": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "minLength": 16,
+          "maxLength": 256
+        }
+      }
+    }
+  }
+}

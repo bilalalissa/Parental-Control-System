@@ -1,0 +1,68 @@
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.p12
+*.pfx
+*.cer
+*.mobileprovision
+*.provisionprofile
+*.key
+*.pem
+secrets/
+
+# Swift, Xcode, and Apple platform output
+.build/
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+DerivedData/
+*.xcarchive/
+*.xcresult/
+*.ipa
+*.dSYM/
+*.dSYM.zip
+
+# .NET and Windows output
+**/bin/
+**/obj/
+**/publish/
+*.msi
+*.msix
+*.appx
+*.nupkg
+.nuget/packages/
+
+# JavaScript and browser extension output
+node_modules/
+.npm/
+coverage/
+dist/
+
+# Project-owned build, package, and diagnostic output
+build/
+.artifacts/derived-data/
+.artifacts/test-results/
+.artifacts/tmp/
+.artifacts/package-staging/
+.artifacts/diagnostics/
+.artifacts/release-candidate/
+TestResults/
+logs/
+diagnostics/
+*.log
+
+# Temporary files and installers
+tmp/
+temp/
+*.tmp
+*.bak
+*.dmg
+*.pkg
+*.zip

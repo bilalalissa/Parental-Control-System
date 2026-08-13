@@ -1,0 +1,131 @@
+{
+  "policy": {
+    "policyId": "10000000-0000-4000-8000-000000000001",
+    "version": 1,
+    "deviceId": "synthetic-child-01",
+    "timezone": "America/Regina",
+    "effectiveAt": "2026-01-01T00:00:00Z",
+    "expiresAt": "2026-12-31T23:59:59Z",
+    "defaultAction": "lock",
+    "warningOffsetsMinutes": [15, 5, 1],
+    "gracePeriodSeconds": 60,
+    "weeklyAllowed": [
+      {"day": "Monday", "start": "08:00", "end": "20:00"},
+      {"day": "Tuesday", "start": "08:00", "end": "20:00"},
+      {"day": "Friday", "start": "20:00", "end": "01:00"},
+      {"day": "Sunday", "start": "01:00", "end": "04:00"}
+    ],
+    "blockedIntervals": [
+      {
+        "id": "20000000-0000-4000-8000-000000000001",
+        "start": "2026-01-13T00:00:00Z",
+        "end": "2026-01-13T01:00:00Z",
+        "action": "lock",
+        "reason": "Family dinner"
+      }
+    ],
+    "exceptions": [
+      {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "start": "2026-01-14T03:00:00Z",
+        "end": "2026-01-14T04:00:00Z",
+        "decision": "allow",
+        "reason": "Approved school project"
+      }
+    ],
+    "dailyQuotaMinutes": 120,
+    "bonusMinutes": 15,
+    "childExplanation": "Available during family-approved hours; ask a parent for more time.",
+    "signature": {
+      "algorithm": "Ed25519",
+      "keyId": "synthetic-controller-key-01",
+      "value": "c3ludGhldGljLXBvbGljeS1zaWduYXR1cmU="
+    }
+  },
+  "vectors": [
+    {
+      "name": "adult override has highest precedence",
+      "input": {
+        "at": "2026-01-13T00:30:00Z",
+        "activeUseMinutes": 200,
+        "adultOverrideActive": true,
+        "immediateAction": "shutdown"
+      },
+      "expected": {"decision": "allow", "source": "adultOverride"}
+    },
+    {
+      "name": "immediate authenticated command precedes schedule",
+      "input": {
+        "at": "2026-01-12T16:00:00Z",
+        "activeUseMinutes": 5,
+        "adultOverrideActive": false,
+        "immediateAction": "lock"
+      },
+      "expected": {"decision": "block", "action": "lock", "source": "immediateCommand"}
+    },
+    {
+      "name": "signed exception precedes the default schedule",
+      "input": {
+        "at": "2026-01-14T03:30:00Z",
+        "activeUseMinutes": 20,
+        "adultOverrideActive": false
+      },
+      "expected": {"decision": "allow", "source": "exception"}
+    },
+    {
+      "name": "blocked interval precedes recurring allowed window",
+      "input": {
+        "at": "2026-01-13T00:30:00Z",
+        "activeUseMinutes": 20,
+        "adultOverrideActive": false
+      },
+      "expected": {"decision": "block", "action": "lock", "source": "blockedInterval"}
+    },
+    {
+      "name": "bonus minutes extend daily quota",
+      "input": {
+        "at": "2026-01-12T16:00:00Z",
+        "activeUseMinutes": 125,
+        "adultOverrideActive": false
+      },
+      "expected": {"decision": "allow", "source": "weeklyWindow"}
+    },
+    {
+      "name": "quota blocks after base and bonus are exhausted",
+      "input": {
+        "at": "2026-01-12T16:00:00Z",
+        "activeUseMinutes": 135,
+        "adultOverrideActive": false
+      },
+      "expected": {"decision": "block", "action": "lock", "source": "dailyQuota"}
+    },
+    {
+      "name": "cross-midnight window permits next-day time",
+      "input": {
+        "at": "2026-01-17T06:30:00Z",
+        "activeUseMinutes": 30,
+        "adultOverrideActive": false
+      },
+      "expected": {"decision": "allow", "source": "weeklyWindow"}
+    },
+    {
+      "name": "daylight-saving gap uses IANA time-zone rules",
+      "policyPatch": {"timezone": "America/New_York"},
+      "input": {
+        "at": "2026-03-08T07:30:00Z",
+        "activeUseMinutes": 30,
+        "adultOverrideActive": false
+      },
+      "expected": {"decision": "allow", "source": "weeklyWindow"}
+    },
+    {
+      "name": "outside a window defaults to lock",
+      "input": {
+        "at": "2026-01-15T16:00:00Z",
+        "activeUseMinutes": 0,
+        "adultOverrideActive": false
+      },
+      "expected": {"decision": "block", "action": "lock", "source": "default"}
+    }
+  ]
+}

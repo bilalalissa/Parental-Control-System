@@ -1,0 +1,42 @@
+name: Feature request
+description: Propose work for an approved project stage.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: input
+    id: stage
+    attributes:
+      label: Proposed stage
+      description: Features cannot bypass the current stage gate.
+      placeholder: STAGE-NN
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Family problem to solve
+      description: Describe the need without including personal family/device data.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Minimal transparent solution
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Platform, privacy, and resource boundaries
+      description: Explain supported APIs, visibility, data minimization, and disk/RAM impact.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety checks
+      options:
+        - label: The request does not require hidden behavior, surveillance, security bypasses, or arbitrary command execution.
+          required: true
+        - label: I understand unsupported platform capabilities will not be simulated or overstated.
+          required: true

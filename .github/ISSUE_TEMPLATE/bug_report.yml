@@ -1,0 +1,60 @@
+name: Bug report
+description: Report reproducible behavior using synthetic or redacted data.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, pairing/adult codes, family data, device identifiers, network addresses, chat content, or private screenshots. Report security issues privately as described in SECURITY.md.
+  - type: input
+    id: stage
+    attributes:
+      label: Stage and version
+      placeholder: STAGE-00 / 0.0.1-rc.1
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Repository/contracts
+        - macOS Parent Controller
+        - macOS child endpoint
+        - Windows child endpoint
+        - iPadOS child app
+        - Browser extension
+        - CI
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction
+      description: Provide minimal steps and synthetic inputs.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Include exact commands and redacted logs only.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed secrets, real identifiers, family data, private screenshots, and message content.
+          required: true

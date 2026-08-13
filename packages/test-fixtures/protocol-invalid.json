@@ -1,0 +1,67 @@
+[
+  {
+    "reason": "missing authentication metadata",
+    "message": {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "protocolVersion": "1.0",
+      "deviceId": "synthetic-device-01",
+      "sentAt": "2026-01-12T15:00:00Z",
+      "sequence": 1,
+      "type": "snapshot.request",
+      "payload": {}
+    }
+  },
+  {
+    "reason": "arbitrary execution is not allowlisted",
+    "message": {
+      "id": "00000000-0000-4000-8000-000000000011",
+      "protocolVersion": "1.0",
+      "deviceId": "synthetic-device-01",
+      "sentAt": "2026-01-12T15:00:00Z",
+      "sequence": 2,
+      "type": "arbitrary_shell",
+      "payload": {"command": "whoami"},
+      "auth": {
+        "algorithm": "Ed25519",
+        "keyId": "synthetic-key-01",
+        "signature": "c3ludGhldGljLXNpZ25hdHVyZS0xMQ=="
+      }
+    }
+  },
+  {
+    "reason": "expiry precedes sent time",
+    "message": {
+      "id": "00000000-0000-4000-8000-000000000012",
+      "protocolVersion": "1.0",
+      "deviceId": "synthetic-device-01",
+      "sentAt": "2026-01-12T15:00:00Z",
+      "expiresAt": "2026-01-12T14:59:59Z",
+      "sequence": 3,
+      "type": "snapshot.request",
+      "payload": {},
+      "auth": {
+        "algorithm": "Ed25519",
+        "keyId": "synthetic-key-01",
+        "signature": "c3ludGhldGljLXNpZ25hdHVyZS0xMg=="
+      }
+    }
+  },
+  {
+    "reason": "unknown envelope fields fail closed",
+    "message": {
+      "id": "00000000-0000-4000-8000-000000000013",
+      "protocolVersion": "1.0",
+      "deviceId": "synthetic-device-01",
+      "sentAt": "2026-01-12T15:00:00Z",
+      "sequence": 4,
+      "type": "snapshot.request",
+      "payload": {},
+      "debugBypass": true,
+      "auth": {
+        "algorithm": "Ed25519",
+        "keyId": "synthetic-key-01",
+        "signature": "c3ludGhldGljLXNpZ25hdHVyZS0xMw=="
+      }
+    }
+  }
+]
