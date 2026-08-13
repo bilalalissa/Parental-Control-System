@@ -34,8 +34,8 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   const active = tracker.stages.filter((stage) => stage.id === tracker.activeStage);
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
-  assert.equal(active[0].branch, "stage/01-controller-shell");
-  assert.equal(active[0].version, "0.1.0-rc.2");
+  assert.equal(active[0].branch, "stage/02-local-hub-pairing");
+  assert.equal(active[0].version, "0.2.0-rc.1");
 });
 
 test("local Markdown links resolve inside the repository", async () => {
@@ -73,6 +73,15 @@ test("CI is least-privilege, cancellable, pinned, and short-retention", async ()
   assert.doesNotMatch(workflow, /pull_request_target/);
 });
 
+test("macOS packaging retries transient disk-image failures without skipping verification", async () => {
+  const packaging = await read("script/package_release.sh");
+  assert.match(packaging, /HDIUTIL_ATTEMPTS=3/);
+  assert.match(packaging, /HDIUTIL_RETRY_DELAY_SECONDS=2/);
+  assert.match(packaging, /retry_hdiutil create create_dmg/);
+  assert.match(packaging, /retry_hdiutil verify verify_dmg/);
+  assert.match(packaging, /hdiutil verify/);
+});
+
 test("ignore rules cover generated output without hiding canonical packages", async () => {
   const ignore = await read(".gitignore");
   for (const pattern of ["DerivedData/", "*.xcarchive/", "**/bin/", "**/obj/", "node_modules/", ".artifacts/test-results/", "*.msi", "*.pkg"]) assert.ok(ignore.includes(pattern), pattern);
@@ -81,7 +90,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00 and 01 are merged\. Stage 02 has not begun/);
+  assert.match(readme, /Stages 00–02 are merged\. Stage 03 has not begun/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });

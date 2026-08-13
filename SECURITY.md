@@ -23,3 +23,5 @@ Maintainers should acknowledge a report within seven days, keep the reporter inf
 - Standard iPadOS limitations are security boundaries, not obstacles to bypass.
 
 See the [threat model](docs/architecture/threat-model.md) and [privacy policy](PRIVACY.md) for the complete Stage 00 posture.
+
+In Stage 02, initial pairing combines a pinned TLS 1.3 server identity with a rate-limited one-use code and a self-signed Ed25519 device announcement. Subsequent messages require the stored per-device public key, monotonic sequence, unique message ID, bounded timestamp/expiry, and allowlisted message type. GUI-to-hub IPC is loopback-only and HMAC-authenticated with an ephemeral session key delivered through a private child-process pipe.

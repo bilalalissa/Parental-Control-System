@@ -24,6 +24,31 @@ struct DevicesView: View {
       }
       .frame(minWidth: 560, maxWidth: .infinity, maxHeight: .infinity)
     }
+    .safeAreaInset(edge: .bottom) {
+      if let paired = store.hubStatus?.devices, !paired.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Stage 02 paired devices").font(.headline)
+          ForEach(paired) { device in
+            HStack {
+              Circle()
+                .fill(device.state() == .online ? .green : .gray)
+                .frame(width: 8, height: 8)
+              Text(device.name)
+              Text(device.state() == .online ? "Online" : "Offline")
+                .foregroundStyle(.secondary)
+              Text("Last seen \(device.lastSeen.formatted(date: .omitted, time: .standard))")
+                .font(.caption).foregroundStyle(.secondary)
+              Spacer()
+              Button("Revoke") { store.revokePairedDevice(device.id) }
+                .disabled(device.isRevoked)
+              Button("Unpair") { store.unpairDevice(device.id) }
+            }
+          }
+        }
+        .padding(12)
+        .background(.bar)
+      }
+    }
     .navigationTitle("Devices")
     .accessibilityIdentifier(AccessibilityID.devices.rawValue)
   }

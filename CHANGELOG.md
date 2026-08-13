@@ -2,6 +2,16 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.2.0-rc.1 — 2026-08-13
+
+Status: **STAGE-02 merged**
+
+- Added the local controller hub, one-time pairing, authenticated IPC, pinned TLS WebSocket transport, signed/replay-protected protocol envelopes, persistent bounded device state, receipts, and lightweight concurrent mock-agent coverage.
+- Added Bonjour LAN discovery, adaptive heartbeats, delta snapshots, honest offline/last-seen behavior, revoke/unpair, and parent-process lifecycle management.
+- Replaced the persistent GUI-to-hub IPC credential with a per-launch in-memory key transferred through a private pipe, preventing routine Keychain password prompts while retaining long-lived private identities in Keychain.
+- Added an arm64, ad-hoc-signed developer-test DMG and protocol, persistence, IPC, transport, concurrency, resource, packaging, and lifecycle evidence.
+- No privileged endpoint behavior, real monitoring, enforcement, public relay, container, or virtual machine is included.
+
 ## 0.1.0-rc.2 — 2026-08-13
 
 Status: **STAGE-01 merged**

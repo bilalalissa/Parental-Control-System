@@ -1,4 +1,5 @@
 import Foundation
+import HubCore
 import Observation
 
 @MainActor
@@ -13,8 +14,13 @@ final class ControllerStore {
   var scheduleStatusMessage = "This is a local preview. No endpoint policy is sent in Stage 01."
   var databaseStatusMessage: String?
   var storageSnapshot: StorageSnapshot
+  var hubStatus: LocalHubStatus?
+  var hubStatusMessage = "Starting the authenticated local hub…"
+  var pairingStatusMessage: String?
 
   private let database: ControllerDatabase
+  private let hubClient = HubClient()
+  private var hubRefreshTask: Task<Void, Never>?
 
   init(database: ControllerDatabase) throws {
     self.database = database
@@ -52,6 +58,78 @@ final class ControllerStore {
   var onlineDeviceCount: Int { devices.filter(\.isOnline).count }
   var offlineDeviceCount: Int { devices.filter { $0.connectionState == .offline }.count }
   var approximateDeviceCount: Int { devices.filter { $0.connectionState == .approximate }.count }
+
+  var pairedDevices: [HubDeviceRecord] {
+    hubStatus?.devices.filter { !$0.isRevoked } ?? []
+  }
+
+  var pairingInvitationToken: String? {
+    guard
+      let invitation = hubStatus?.invitation,
+      let data = try? IPCCodec.encoder().encode(invitation)
+    else { return nil }
+    return data.base64EncodedString()
+  }
+
+  func startHub() {
+    guard hubRefreshTask == nil else { return }
+    hubRefreshTask = Task { [weak self] in
+      guard let self else { return }
+      do {
+        hubStatus = try await hubClient.status()
+        hubStatusMessage = "Local hub ready · TLS 1.3 · Authenticated IPC"
+      } catch {
+        hubStatusMessage = "Local hub unavailable: \(error)"
+      }
+      while !Task.isCancelled {
+        try? await Task.sleep(for: .seconds(15))
+        guard !Task.isCancelled else { break }
+        if let status = try? await hubClient.status() {
+          if status != hubStatus { hubStatus = status }
+          hubStatusMessage = "Local hub ready · TLS 1.3 · Authenticated IPC"
+        }
+      }
+    }
+  }
+
+  func createPairingInvitation() {
+    Task {
+      do {
+        hubStatus = try await hubClient.createPairing()
+        pairingStatusMessage = "One-time code created. It expires in five minutes."
+      } catch {
+        pairingStatusMessage = "Could not create pairing code: \(error)"
+      }
+    }
+  }
+
+  func revokePairedDevice(_ id: String) {
+    Task {
+      do {
+        hubStatus = try await hubClient.revoke(deviceID: id)
+        pairingStatusMessage = "Device revoked. Its active connection was closed."
+      } catch {
+        pairingStatusMessage = "Could not revoke device: \(error)"
+      }
+    }
+  }
+
+  func unpairDevice(_ id: String) {
+    Task {
+      do {
+        hubStatus = try await hubClient.unpair(deviceID: id)
+        pairingStatusMessage = "Device pairing record removed."
+      } catch {
+        pairingStatusMessage = "Could not unpair device: \(error)"
+      }
+    }
+  }
+
+  func stopHub() {
+    hubRefreshTask?.cancel()
+    hubRefreshTask = nil
+    hubClient.stop()
+  }
 
   func validateAndSaveSchedule() {
     scheduleIssues = ScheduleValidator.validate(schedule)
