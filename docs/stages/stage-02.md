@@ -42,8 +42,8 @@ The local integration used loopback and disabled Bonjour only for deterministic 
 ## Release candidate
 
 - Artifact: `.artifacts/release-candidate/ParentalControlController-0.2.0-rc.1-arm64.dmg`
-- SHA-256: `1829c2afc30fef4f4441d73eb3f487f647e5b0d61af42302b55649bbbb3e36bd`
-- Embedded commit: `aeeb41c5148c`
+- SHA-256: `b720329e89aeba7935f4c8fdfd6bf1a6576ee94f3c932f33feffeed3c3f51e06`
+- Embedded commit: `6214b06c2360`
 - Signing: local ad-hoc signature only; no Developer ID Team ID, notarization, or restricted entitlements
 
 The DMG contains `Parental Control.app` and an Applications link. It replaces the prior local RC; no duplicate installer is retained.
