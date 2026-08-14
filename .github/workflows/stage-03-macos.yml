@@ -68,15 +68,27 @@ jobs:
             fi
             if [[ "$attempt" != 3 ]]; then sleep 2; fi
           done
-          [[ "$status_ok" == true ]]
-          /usr/bin/plutil -lint .artifacts/endpoint-status.json
-          /bin/launchctl print system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null
+          status_exit=0
+          if [[ "$status_ok" == true ]]; then
+            /usr/bin/plutil -lint .artifacts/endpoint-status.json
+            /bin/launchctl print system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null
+          else
+            status_exit=1
+            sudo /bin/launchctl print system/com.bilalalissa.ParentalControlAgent.daemon || true
+            sudo /bin/cat /var/log/com.bilalalissa.ParentalControlAgent.daemon.log || true
+            sudo /bin/ls -la "/Library/Application Support/ParentalControlAgent" || true
+            /usr/bin/codesign --verify --verbose=4 /usr/local/bin/parental-control-agentctl || true
+            /usr/bin/codesign -dvvv /usr/local/bin/parental-control-agentctl || true
+            sudo /usr/bin/log show --style compact --last 10m \
+              --predicate 'process == "ParentalControlAgentDaemon"' || true
+          fi
           sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh"
           test ! -e "/Applications/Parental Control Child.app"
           test ! -e /Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist
           test ! -e /Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist
           test ! -e /Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon
           test ! -e /usr/local/bin/parental-control-agentctl
+          exit "$status_exit"
       - name: Install default parent choice
         run: |
           sudo /usr/sbin/installer \
