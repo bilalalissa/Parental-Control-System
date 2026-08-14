@@ -41,7 +41,8 @@ The integration tests required permitted Keychain access because they create and
 ## Release candidate
 
 - Artifact: `.artifacts/release-candidate/ParentalControlChild-0.3.0-rc.1-universal.pkg`
-- SHA-256: populated after the source commit and final verified rebuild
+- SHA-256: `a2d1789d8b4e68bb6a382987fbe96e3fc2fd851d3e756182d120eab0b2863f6e`
+- Embedded source commit: `58856efe5424`
 - App and executable signing: local ad-hoc signatures, no Team ID or restricted entitlements
 - Installer signing/notarization: unsigned and not notarized because no Developer ID Installer identity is available
 
@@ -85,6 +86,15 @@ The script stops the exact project launchd/process labels and removes the app, l
 - Session transitions use supported `NSWorkspace` notifications and require the login helper; pre-login and exact lock state remain `unknown`/active rather than being inferred from undocumented signals.
 - The controller does not yet render every new snapshot field in its UI; the signed deltas are persisted by the Stage 02 hub. Controller endpoint-detail expansion belongs to the stage that consumes those fields.
 - Actual administrator install/upgrade/uninstall, boot/login behavior, and Intel execution require developer or CI testing.
+
+## Resource and cleanup evidence
+
+- Free disk before implementation: 9.7 GiB; the 5 GiB safety floor was maintained. Lowest observed after the universal build was 8.9 GiB.
+- Repository before implementation: about 5.0 MiB; retained Stage 02 RC: 2.9 MiB; existing controller Application Support data: about 352 KiB.
+- Peak repository/build footprint: about 360 MiB total, including 347 MiB under `.artifacts` and 342 MiB in project-owned derived output.
+- Sequential builds used two workers, one checkout, no worktree, no simulator, no VM, and no container. Per-architecture Release trees were empty immediately after `lipo` and removed.
+- After cleanup: 9.7 GiB free; repository 7.7 MiB; `.artifacts` 5.2 MiB containing only the current `.pkg` and checksum.
+- `cleanup:list` reports no generated output. No controller, hub, mock, child app, daemon, or login-helper process remains. No simulator/emulator was used.
 
 ## Failure evidence to collect
 
