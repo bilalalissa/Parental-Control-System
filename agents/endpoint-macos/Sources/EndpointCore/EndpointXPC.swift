@@ -28,11 +28,7 @@ public enum XPCAuthorization {
   }
 
   public static func signingIdentifier(pid: pid_t) -> String? {
-    guard let executablePath = executablePath(pid: pid) else { return nil }
-    let path = URL(fileURLWithPath: executablePath) as CFURL
-    var staticCode: SecStaticCode?
-    guard SecStaticCodeCreateWithPath(path, [], &staticCode) == errSecSuccess, let staticCode
-    else { return nil }
+    guard let (staticCode, executablePath) = staticCode(pid: pid) else { return nil }
     guard
       SecStaticCodeCheckValidity(
         staticCode, SecCSFlags(rawValue: kSecCSCheckAllArchitectures), nil) == errSecSuccess
@@ -51,12 +47,23 @@ public enum XPCAuthorization {
   }
 
   public static func diagnostic(pid: pid_t) -> String {
-    guard let executablePath = executablePath(pid: pid) else { return "path=unavailable" }
-    let path = URL(fileURLWithPath: executablePath) as CFURL
+    var dynamicCode: SecCode?
+    let guestStatus = SecCodeCopyGuestWithAttributes(
+      nil, [kSecGuestAttributePid as String: NSNumber(value: pid)] as CFDictionary, [],
+      &dynamicCode)
+    guard guestStatus == errSecSuccess, let dynamicCode else {
+      return "guest-code=\(guestStatus)"
+    }
     var staticCode: SecStaticCode?
-    let createStatus = SecStaticCodeCreateWithPath(path, [], &staticCode)
-    guard createStatus == errSecSuccess, let staticCode else {
-      return "path=\(executablePath) code-create=\(createStatus)"
+    let staticStatus = SecCodeCopyStaticCode(dynamicCode, [], &staticCode)
+    guard staticStatus == errSecSuccess, let staticCode else {
+      return "guest-code=\(guestStatus) static-code=\(staticStatus)"
+    }
+    var path: CFURL?
+    let pathStatus = SecCodeCopyPath(staticCode, [], &path)
+    guard pathStatus == errSecSuccess, let executablePath = (path as URL?)?.path else {
+      return
+        "guest-code=\(guestStatus) static-code=\(staticStatus) code-path=\(pathStatus)"
     }
     let validityStatus = SecStaticCodeCheckValidity(
       staticCode, SecCSFlags(rawValue: kSecCSCheckAllArchitectures), nil)
@@ -67,14 +74,27 @@ public enum XPCAuthorization {
     let expected =
       identifier.map { isExpectedInstalledPath(executablePath, identifier: $0) } ?? false
     return
-      "path=\(executablePath) code-valid=\(validityStatus) signing-info=\(informationStatus) identifier=\(identifier ?? "none") expected-path=\(expected) root-protected=\(isRootProtected(executablePath))"
+      "guest-code=\(guestStatus) static-code=\(staticStatus) code-path=\(pathStatus) path=\(executablePath) code-valid=\(validityStatus) signing-info=\(informationStatus) identifier=\(identifier ?? "none") expected-path=\(expected) root-protected=\(isRootProtected(executablePath))"
   }
 
-  private static func executablePath(pid: pid_t) -> String? {
-    var buffer = [CChar](repeating: 0, count: 16_384)
-    guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
-    return String(
-      decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+  private static func staticCode(pid: pid_t) -> (SecStaticCode, String)? {
+    var dynamicCode: SecCode?
+    guard
+      SecCodeCopyGuestWithAttributes(
+        nil, [kSecGuestAttributePid as String: NSNumber(value: pid)] as CFDictionary, [],
+        &dynamicCode) == errSecSuccess,
+      let dynamicCode
+    else { return nil }
+    var staticCode: SecStaticCode?
+    guard SecCodeCopyStaticCode(dynamicCode, [], &staticCode) == errSecSuccess, let staticCode
+    else {
+      return nil
+    }
+    var path: CFURL?
+    guard SecCodeCopyPath(staticCode, [], &path) == errSecSuccess,
+      let executablePath = (path as URL?)?.path
+    else { return nil }
+    return (staticCode, executablePath)
   }
 
   public static func isExpectedInstalledPath(_ path: String, identifier: String) -> Bool {
