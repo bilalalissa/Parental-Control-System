@@ -37,6 +37,7 @@ SWIFT_ARGS=(
   --config-path "$CONFIG_DIR"
   --security-path "$SECURITY_DIR"
   --scratch-path "$SWIFTPM_DIR"
+  --triple arm64-apple-macosx14.0
   --jobs 2
 )
 

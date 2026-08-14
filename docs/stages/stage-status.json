@@ -29,8 +29,8 @@
     {
       "id": "STAGE-03",
       "name": "Universal macOS Child Agent foundation",
-      "version": "0.3.0-rc.1",
-      "status": "READY_FOR_DEVELOPER_TEST",
+      "version": "0.3.0-rc.2",
+      "status": "CHANGES_REQUESTED",
       "branch": "stage/03-macos-child-agent",
       "document": "stage-03.md"
     }

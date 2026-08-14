@@ -1,4 +1,4 @@
-name: Stage 03 universal macOS endpoint
+name: Stage 03 selectable macOS system installer
 
 on:
   pull_request:
@@ -42,7 +42,7 @@ jobs:
         run: swift format lint --recursive agents/endpoint-macos/Sources agents/endpoint-macos/Tests
       - name: Test endpoint core
         run: swift test --disable-sandbox --package-path agents/endpoint-macos --scratch-path "$PWD/.artifacts/derived-data/stage-03/tests" --jobs "$SWIFT_WORKERS"
-      - name: Build and package universal endpoint
+      - name: Build selectable system installer
         run: ./script/package_endpoint_release.sh
       - name: Verify universal slices
         run: |
@@ -50,15 +50,56 @@ jobs:
             /usr/bin/lipo -archs "$binary" | grep -q arm64
             /usr/bin/lipo -archs "$binary" | grep -q x86_64
           done
+      - name: Verify selectable package choices
+        run: |
+          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.3.0-rc.2.pkg" -target / | /usr/bin/plutil -lint -
+          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.3.0-rc.2.pkg" || true
+      - name: Install, diagnose, and uninstall child choice
+        run: |
+          sudo /usr/sbin/installer \
+            -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.3.0-rc.2.pkg" \
+            -target /
+          status_ok=false
+          for attempt in 1 2 3; do
+            if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status.json; then
+              status_ok=true
+              break
+            fi
+            if [[ "$attempt" != 3 ]]; then sleep 2; fi
+          done
+          [[ "$status_ok" == true ]]
+          /usr/bin/plutil -lint .artifacts/endpoint-status.json
+          /bin/launchctl print system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null
+          sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh"
+          test ! -e "/Applications/Parental Control Child.app"
+          test ! -e /Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist
+          test ! -e /Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist
+          test ! -e /Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon
+          test ! -e /usr/local/bin/parental-control-agentctl
+      - name: Install default parent choice
+        run: |
+          sudo /usr/sbin/installer \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.3.0-rc.2.pkg" \
+            -target /
+          test -x "/Applications/Parental Control.app/Contents/MacOS/ParentalControlController"
+          test ! -e "/Applications/Parental Control Child.app"
+          /usr/bin/codesign --verify --deep --strict "/Applications/Parental Control.app"
       - name: Upload release candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ParentalControlChild-0.3.0-rc.1-universal
+          name: ParentalControlSystem-0.3.0-rc.2
           path: |
-            .artifacts/release-candidate/ParentalControlChild-0.3.0-rc.1-universal.pkg
-            .artifacts/release-candidate/ParentalControlChild-0.3.0-rc.1-universal.pkg.sha256
+            .artifacts/release-candidate/ParentalControlSystem-0.3.0-rc.2.pkg
+            .artifacts/release-candidate/ParentalControlSystem-0.3.0-rc.2.pkg.sha256
           if-no-files-found: error
           retention-days: 7
       - name: Clean project-owned generated output
         if: always()
-        run: ./tools/cleanup.sh --apply
+        run: |
+          if [[ -x "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh" ]]; then
+            sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh"
+          fi
+          sudo /bin/rm -rf -- "/Applications/Parental Control.app"
+          sudo /usr/sbin/pkgutil --forget com.bilalalissa.ParentalControlController.component >/dev/null 2>&1 || true
+          ./tools/cleanup.sh --apply

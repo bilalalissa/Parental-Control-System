@@ -31,7 +31,9 @@ final class ChildDashboardModel: ObservableObject {
         case .success(let value):
           self?.status = value
           self?.error = ""
-        case .failure: self?.error = "Endpoint service unavailable"
+        case .failure:
+          self?.error =
+            "Endpoint service unavailable. Ask an administrator to run parental-control-agentctl status."
         }
       }
     }

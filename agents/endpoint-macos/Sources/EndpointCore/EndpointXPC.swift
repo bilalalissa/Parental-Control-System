@@ -6,6 +6,7 @@ public enum EndpointMachService {
   public static let name = "com.bilalalissa.ParentalControlAgent.xpc"
   public static let childIdentifier = "com.bilalalissa.ParentalControlChild"
   public static let helperIdentifier = "com.bilalalissa.ParentalControlAgent.user"
+  public static let controlIdentifier = "com.bilalalissa.ParentalControlAgent.ctl"
 }
 
 @objc public protocol EndpointXPCProtocol {
@@ -20,6 +21,7 @@ public enum XPCAuthorization {
     if operation == "status" {
       return signingIdentifier == EndpointMachService.childIdentifier
         || signingIdentifier == EndpointMachService.helperIdentifier
+        || signingIdentifier == EndpointMachService.controlIdentifier
     }
     return signingIdentifier == EndpointMachService.helperIdentifier
   }
@@ -58,6 +60,8 @@ public enum XPCAuthorization {
     case EndpointMachService.helperIdentifier:
       expected =
         "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlAgentUser"
+    case EndpointMachService.controlIdentifier:
+      expected = "/usr/local/bin/parental-control-agentctl"
     default: expected = nil
     }
     guard let expected else { return false }

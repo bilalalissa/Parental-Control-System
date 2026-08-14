@@ -16,4 +16,5 @@ fi
 /bin/rm -f -- /usr/local/bin/parental-control-agentctl
 /bin/rm -rf -- "/Applications/Parental Control Child.app"
 /bin/rm -rf -- "/Library/Application Support/ParentalControlAgent"
+/usr/sbin/pkgutil --forget com.bilalalissa.ParentalControlChild.component >/dev/null 2>&1 || true
 echo "Parental Control Child and its project-owned local data were removed. Restart login sessions to refresh all launchd state."

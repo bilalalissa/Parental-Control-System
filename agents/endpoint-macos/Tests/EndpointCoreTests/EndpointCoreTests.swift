@@ -133,6 +133,17 @@ struct EndpointCoreTests {
     #expect(
       !XPCAuthorization.isExpectedInstalledPath(
         "/tmp/ParentalControlChild", identifier: EndpointMachService.childIdentifier))
+    #expect(
+      XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.controlIdentifier, operation: "status"))
+    #expect(
+      !XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.controlIdentifier,
+        operation: "session-update"))
+    #expect(
+      XPCAuthorization.isExpectedInstalledPath(
+        "/usr/local/bin/parental-control-agentctl",
+        identifier: EndpointMachService.controlIdentifier))
   }
 
   @Test("bounded log rotates and redacts pairing-like secrets")

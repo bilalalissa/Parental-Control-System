@@ -12,12 +12,17 @@ chmod 755 "$TARGET_VOLUME/Library/PrivilegedHelperTools/com.bilalalissa.Parental
 
 if [[ "$TARGET_VOLUME" == "/" ]]; then
   /bin/launchctl bootout system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null 2>&1 || true
+  started=false
   for attempt in 1 2 3; do
     if /bin/launchctl bootstrap system /Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist; then
-      exit 0
+      started=true
+      break
     fi
     if [[ "$attempt" != 3 ]]; then /bin/sleep 2; fi
   done
-  echo "Unable to start the endpoint daemon after three attempts." >&2
-  exit 1
+  if [[ "$started" != true ]]; then
+    echo "Unable to start the endpoint daemon after three attempts." >&2
+    exit 1
+  fi
+  /bin/launchctl kickstart -k system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null 2>&1 || true
 fi

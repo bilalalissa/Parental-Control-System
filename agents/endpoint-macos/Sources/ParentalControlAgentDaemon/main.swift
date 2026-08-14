@@ -13,16 +13,25 @@ enum DaemonMain {
     let log = BoundedLog(directory: root.appendingPathComponent("Logs", isDirectory: true))
     let service = arguments.noXPC ? nil : EndpointXPCService(repository: repository)
     service?.resume()
-    let agent = try EndpointAgent(
-      store: store, repository: repository, log: log,
-      keychain: KeychainStore(service: arguments.keychainService))
     log.write(event: "daemon.started", detail: "Visible parental control endpoint started")
 
     var attempts = 0
+    var agent: EndpointAgent?
     func connect() {
       guard repository.status().connectionState != .online else { return }
-      agent.stop()
-      do { try agent.start() } catch {
+      agent?.stop()
+      do {
+        if agent == nil {
+          agent = try EndpointAgent(
+            store: store, repository: repository, log: log,
+            keychain: KeychainStore(service: arguments.keychainService))
+        }
+        try agent?.start()
+      } catch {
+        agent = nil
+        repository.update {
+          $0.connectionState = configuration.invitation == nil ? .unpaired : .offline
+        }
         log.write(event: "connection.retry", detail: String(describing: error))
       }
       attempts += 1
@@ -59,7 +68,7 @@ enum DaemonMain {
     semaphore.wait()
     _ = signals
     retry.cancel()
-    agent.stop()
+    agent?.stop()
     service?.invalidate()
     log.write(event: "daemon.stopped", detail: "Normal shutdown")
   }
