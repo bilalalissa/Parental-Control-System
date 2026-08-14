@@ -1,4 +1,6 @@
 version = 1
 
-[run]
+[[actions]]
+name = "Run Stage 03 child dashboard"
+icon = "run"
 command = "./script/build_and_run.sh"

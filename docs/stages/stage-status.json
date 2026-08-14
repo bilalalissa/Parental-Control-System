@@ -1,6 +1,6 @@
 {
   "$schema": "./stage-status.schema.json",
-  "activeStage": "STAGE-02",
+  "activeStage": "STAGE-03",
   "stages": [
     {
       "id": "STAGE-00",
@@ -25,6 +25,14 @@
       "status": "MERGED",
       "branch": "stage/02-local-hub-pairing",
       "document": "stage-02.md"
+    },
+    {
+      "id": "STAGE-03",
+      "name": "Universal macOS Child Agent foundation",
+      "version": "0.3.0-rc.1",
+      "status": "READY_FOR_DEVELOPER_TEST",
+      "branch": "stage/03-macos-child-agent",
+      "document": "stage-03.md"
     }
   ]
 }
