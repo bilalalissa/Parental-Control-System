@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–02 are merged. Stage 03 is ready for developer testing.** The universal macOS child endpoint is visible, local-first, and does not yet monitor apps, chat, or enforce policy. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–02 are merged. Stage 03 rc.2 is ready for developer retesting.** One selectable macOS installer provides the Parent Controller by default and the visible universal Child Endpoint through Customize. The endpoint does not yet monitor apps, chat, or enforce policy. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
@@ -41,7 +41,7 @@ The native Apple-silicon controller preview in [`apps/controller-macos`](apps/co
 
 Stage 02 adds local pairing and authenticated traffic through visible mock-agent processes. Real endpoint monitoring, policy enforcement, privileged services, and remote device actions remain intentionally unavailable.
 
-The Stage 03 package adds a universal `arm64`/`x86_64` macOS endpoint with a visible dashboard, a boot LaunchDaemon, a login LaunchAgent helper, launchd Mach-service XPC authenticated with OS peer identity and signing identifiers, protected mode-0700/0600 configuration, a Keychain-backed Ed25519 device identity, adaptive delta heartbeats, bounded/redacted logs, and an administrator uninstaller. It reports only device/OS information, uptime, session state, network IP/MAC metadata, and component health. MAC addresses are display metadata and are never device identity.
+The Stage 03 rc.2 package is one selectable installer. It installs the Apple-silicon Parent Controller by default; on a child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. The universal `arm64`/`x86_64` endpoint has a visible dashboard, a boot LaunchDaemon, a login LaunchAgent helper, launchd Mach-service XPC authenticated with kernel peer identity and signing identifiers, protected mode-0700/0600 configuration, a Keychain-backed Ed25519 device identity, adaptive delta heartbeats, bounded/redacted logs, a read-only status command, and an administrator uninstaller. It reports only device/OS information, uptime, session state, network IP/MAC metadata, and component health. MAC addresses are display metadata and are never device identity.
 
 To test one mock after installing the developer candidate:
 
@@ -85,9 +85,15 @@ swift test --package-path agents/endpoint-macos --jobs 2
 ./script/package_endpoint_release.sh
 ```
 
-The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; its protected XPC status requires the installed daemon. `package_endpoint_release.sh` creates the one retained Stage 03 `.pkg` and checksum. The candidate is ad-hoc app-signed, installer-unsigned, and not notarized.
+The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; its protected XPC status requires the installed daemon. `package_endpoint_release.sh` creates the one retained selectable Stage 03 `.pkg` and checksum. The candidate is ad-hoc app-signed, installer-unsigned, and not notarized.
 
-After installing, create a one-time pairing invitation in the Parent Controller, then run the typed administrator command below. Restarting the daemon reads the protected invitation; the pairing code is removed after the controller accepts it.
+Install the same package on the parent Mac with its default **Parent Controller** choice. On the child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. Confirm the endpoint service before pairing:
+
+```sh
+parental-control-agentctl status
+```
+
+Then create a one-time pairing invitation in the Parent Controller and run the typed administrator command below on the child. Restarting the daemon reads the protected invitation; the pairing code is removed after the controller accepts it.
 
 ```sh
 sudo parental-control-agentctl pair --invitation "$TOKEN"
