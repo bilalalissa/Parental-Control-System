@@ -11,7 +11,12 @@ enum DaemonMain {
     let repository = EndpointStatusRepository(
       initial: DeviceSnapshotCollector.collect(deviceID: configuration.deviceID))
     let log = BoundedLog(directory: root.appendingPathComponent("Logs", isDirectory: true))
-    let service = arguments.noXPC ? nil : EndpointXPCService(repository: repository)
+    let service =
+      arguments.noXPC
+      ? nil
+      : EndpointXPCService(repository: repository) { detail in
+        log.write(event: "xpc.rejected", detail: detail)
+      }
     service?.resume()
     log.write(event: "daemon.started", detail: "Visible parental control endpoint started")
 

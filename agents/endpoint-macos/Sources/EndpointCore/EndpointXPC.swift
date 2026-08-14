@@ -28,10 +28,7 @@ public enum XPCAuthorization {
   }
 
   public static func signingIdentifier(pid: pid_t) -> String? {
-    var buffer = [CChar](repeating: 0, count: 16_384)
-    guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
-    let executablePath = String(
-      decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+    guard let executablePath = executablePath(pid: pid) else { return nil }
     let path = URL(fileURLWithPath: executablePath) as CFURL
     var staticCode: SecStaticCode?
     guard SecStaticCodeCreateWithPath(path, [], &staticCode) == errSecSuccess, let staticCode
@@ -51,6 +48,33 @@ public enum XPCAuthorization {
       isRootProtected(executablePath)
     else { return nil }
     return identifier
+  }
+
+  public static func diagnostic(pid: pid_t) -> String {
+    guard let executablePath = executablePath(pid: pid) else { return "path=unavailable" }
+    let path = URL(fileURLWithPath: executablePath) as CFURL
+    var staticCode: SecStaticCode?
+    let createStatus = SecStaticCodeCreateWithPath(path, [], &staticCode)
+    guard createStatus == errSecSuccess, let staticCode else {
+      return "path=\(executablePath) code-create=\(createStatus)"
+    }
+    let validityStatus = SecStaticCodeCheckValidity(
+      staticCode, SecCSFlags(rawValue: kSecCSCheckAllArchitectures), nil)
+    var information: CFDictionary?
+    let informationStatus = SecCodeCopySigningInformation(
+      staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information)
+    let identifier = (information as? [CFString: Any])?[kSecCodeInfoIdentifier] as? String
+    let expected =
+      identifier.map { isExpectedInstalledPath(executablePath, identifier: $0) } ?? false
+    return
+      "path=\(executablePath) code-valid=\(validityStatus) signing-info=\(informationStatus) identifier=\(identifier ?? "none") expected-path=\(expected) root-protected=\(isRootProtected(executablePath))"
+  }
+
+  private static func executablePath(pid: pid_t) -> String? {
+    var buffer = [CChar](repeating: 0, count: 16_384)
+    guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
+    return String(
+      decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
   }
 
   public static func isExpectedInstalledPath(_ path: String, identifier: String) -> Bool {
@@ -153,8 +177,13 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
 public final class EndpointXPCService: NSObject, NSXPCListenerDelegate, @unchecked Sendable {
   private let listener: NSXPCListener
   private let repository: EndpointStatusRepository
-  public init(repository: EndpointStatusRepository) {
+  private let rejectionHandler: @Sendable (String) -> Void
+  public init(
+    repository: EndpointStatusRepository,
+    rejectionHandler: @escaping @Sendable (String) -> Void = { _ in }
+  ) {
     self.repository = repository
+    self.rejectionHandler = rejectionHandler
     listener = NSXPCListener(machServiceName: EndpointMachService.name)
     super.init()
     listener.delegate = self
@@ -168,7 +197,12 @@ public final class EndpointXPCService: NSObject, NSXPCListenerDelegate, @uncheck
     let identifier = XPCAuthorization.signingIdentifier(pid: connection.processIdentifier)
     guard let identifier,
       XPCAuthorization.allows(uid: uid, signingIdentifier: identifier, operation: "status")
-    else { return false }
+    else {
+      rejectionHandler(
+        "uid=\(uid) pid=\(connection.processIdentifier) \(XPCAuthorization.diagnostic(pid: connection.processIdentifier))"
+      )
+      return false
+    }
     connection.exportedInterface = NSXPCInterface(with: EndpointXPCProtocol.self)
     connection.exportedObject = EndpointXPCObject(
       repository: repository, uid: uid, identifier: identifier)

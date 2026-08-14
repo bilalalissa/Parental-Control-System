@@ -76,6 +76,7 @@ jobs:
             status_exit=1
             sudo /bin/launchctl print system/com.bilalalissa.ParentalControlAgent.daemon || true
             sudo /bin/cat /var/log/com.bilalalissa.ParentalControlAgent.daemon.log || true
+            sudo /bin/cat "/Library/Application Support/ParentalControlAgent/Logs/agent.log" || true
             sudo /bin/ls -la "/Library/Application Support/ParentalControlAgent" || true
             /usr/bin/codesign --verify --verbose=4 /usr/local/bin/parental-control-agentctl || true
             /usr/bin/codesign -dvvv /usr/local/bin/parental-control-agentctl || true
