@@ -112,6 +112,9 @@ struct EndpointCoreTests {
   @Test("XPC operations enforce helper and visible-app identities")
   func xpcAuthorization() {
     #expect(
+      EndpointMachService.clientOptions.rawValue
+        == NSXPCConnection.Options.privileged.rawValue)
+    #expect(
       XPCAuthorization.allows(
         uid: 501, signingIdentifier: EndpointMachService.childIdentifier, operation: "status"))
     #expect(

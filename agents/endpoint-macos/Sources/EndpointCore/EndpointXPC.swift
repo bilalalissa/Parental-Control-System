@@ -4,6 +4,7 @@ import Security
 
 public enum EndpointMachService {
   public static let name = "com.bilalalissa.ParentalControlAgent.xpc"
+  public static let clientOptions: NSXPCConnection.Options = .privileged
   public static let childIdentifier = "com.bilalalissa.ParentalControlChild"
   public static let helperIdentifier = "com.bilalalissa.ParentalControlAgent.user"
   public static let controlIdentifier = "com.bilalalissa.ParentalControlAgent.ctl"
@@ -179,7 +180,8 @@ public final class EndpointXPCService: NSObject, NSXPCListenerDelegate, @uncheck
 public final class EndpointXPCClient: @unchecked Sendable {
   private let connection: NSXPCConnection
   public init() {
-    connection = NSXPCConnection(machServiceName: EndpointMachService.name, options: [])
+    connection = NSXPCConnection(
+      machServiceName: EndpointMachService.name, options: EndpointMachService.clientOptions)
     connection.remoteObjectInterface = NSXPCInterface(with: EndpointXPCProtocol.self)
     connection.resume()
   }
