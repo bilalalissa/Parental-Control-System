@@ -70,7 +70,7 @@ jobs:
           done
           status_exit=0
           if [[ "$status_ok" == true ]]; then
-            /usr/bin/plutil -lint .artifacts/endpoint-status.json
+            node -e 'const fs = require("node:fs"); const status = JSON.parse(fs.readFileSync(".artifacts/endpoint-status.json", "utf8")); if (status.daemonHealthy !== true || status.connectionState !== "unpaired" || !status.deviceID) process.exit(1)'
             /bin/launchctl print system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null
           else
             status_exit=1
