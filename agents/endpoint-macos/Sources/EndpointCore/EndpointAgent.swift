@@ -234,6 +234,7 @@ public final class EndpointAgent: @unchecked Sendable {
       Notification.Name("com.bilalalissa.ParentalControlAgent.chat-received"), object: nil,
       userInfo: nil, deliverImmediately: true)
     try sendReceipt(for: envelope.id, state: .delivered)
+    try flushOutbound()
     log.write(event: "chat.received", detail: "Message metadata received; content omitted")
   }
 

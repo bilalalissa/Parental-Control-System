@@ -62,6 +62,30 @@ struct EndpointCoreTests {
       Thread.sleep(forTimeInterval: 0.02)
     }
     #expect(try store.load().invitation == nil)
+    let familyThread = UUID()
+    repository.queueChat(text: "Child reply", audience: .familyGroup, threadID: familyThread)
+    repository.queueMoreTime(minutes: 20, note: "Finish homework")
+    try hub.sendChat(
+      deviceID: configuration.deviceID, text: "Family announcement", audience: .familyGroup,
+      threadID: familyThread)
+    let chatDeadline = Date().addingTimeInterval(5)
+    while Date() < chatDeadline {
+      let childReceived = repository.dashboard(markRead: false).messages.contains {
+        $0.isFromParent && $0.text == "Family announcement"
+      }
+      let parentReceived = try database.chatMessages().contains {
+        !$0.isFromParent && $0.text == "Child reply"
+      }
+      let requestReceived = try !database.moreTimeRequests().isEmpty
+      if childReceived && parentReceived && requestReceived { break }
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(
+      repository.dashboard(markRead: false).messages.contains {
+        $0.isFromParent && $0.text == "Family announcement"
+      })
+    #expect(try database.chatMessages().contains { !$0.isFromParent && $0.text == "Child reply" })
+    #expect(try database.moreTimeRequests().first?.requestedMinutes == 20)
     try hub.revoke(deviceID: configuration.deviceID)
     #expect(try database.device(id: configuration.deviceID)?.isRevoked == true)
   }
