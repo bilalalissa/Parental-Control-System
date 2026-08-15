@@ -90,6 +90,8 @@ test -d "$EXPANDED/ParentalControlChild.pkg/Payload/Applications/Parental Contro
 rm -rf -- "$EXPANDED"
 /usr/bin/shasum -a 256 "$PKG" > "$CHECKSUM"
 rm -f -- \
+  "$RC_DIR/ParentalControlSystem-0.4.0-rc.1.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.4.0-rc.1.pkg.sha256" \
   "$RC_DIR/ParentalControlSystem-0.3.0-rc.2.pkg" \
   "$RC_DIR/ParentalControlSystem-0.3.0-rc.2.pkg.sha256" \
   "$RC_DIR/ParentalControlChild-0.3.0-rc.1-universal.pkg" \
