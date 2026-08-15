@@ -1,8 +1,8 @@
 {
   "name": "parental-control-system",
-  "version": "0.2.0-rc.1",
+  "version": "0.3.0-rc.2",
   "private": true,
-  "description": "Local-first parental-control controller, hub, architecture, and contracts",
+  "description": "Local-first parental-control controller, hub, and visible macOS child endpoint",
   "license": "MIT",
   "engines": {
     "node": ">=22"

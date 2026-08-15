@@ -64,14 +64,19 @@ public final class LocalHub: @unchecked Sendable {
     database: HubDatabase,
     keychain: KeychainStore = KeychainStore(),
     tlsIdentity: TLSCertificateIdentity? = nil,
+    controllerIdentity suppliedControllerIdentity: Ed25519Identity? = nil,
     heartbeat: AdaptiveHeartbeat = AdaptiveHeartbeat()
   ) throws {
     self.database = database
     self.tlsIdentity = try tlsIdentity ?? TLSCertificateIdentity.loadOrCreate()
     self.heartbeat = heartbeat
-    let signingKey = try keychain.loadOrCreateRandom(account: "controller-ed25519", byteCount: 32)
-    controllerIdentity = try Ed25519Identity(
-      keyID: "controller-local-authority", rawPrivateKey: signingKey)
+    if let suppliedControllerIdentity {
+      controllerIdentity = suppliedControllerIdentity
+    } else {
+      let signingKey = try keychain.loadOrCreateRandom(account: "controller-ed25519", byteCount: 32)
+      controllerIdentity = try Ed25519Identity(
+        keyID: "controller-local-authority", rawPrivateKey: signingKey)
+    }
     for device in try database.devices(includeRevoked: true) {
       replay.seed(deviceID: device.id, sequence: device.lastSequence)
     }

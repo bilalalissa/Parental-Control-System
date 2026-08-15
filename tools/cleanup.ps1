@@ -52,7 +52,7 @@ foreach ($RelativePath in $DirectTargets) {
     }
 }
 
-$NestedNames = @("node_modules", "bin", "obj", "publish")
+$NestedNames = @(".build", "node_modules", "bin", "obj", "publish")
 $Pending = [System.Collections.Generic.Queue[string]]::new()
 $Pending.Enqueue($RepositoryRoot)
 $GitPath = [System.IO.Path]::GetFullPath((Join-Path $RepositoryRoot ".git"))

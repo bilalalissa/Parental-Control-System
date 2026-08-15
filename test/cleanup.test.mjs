@@ -33,6 +33,8 @@ async function createTestTree() {
   await writeFile(join(root, "build", "generated.txt"), "generated\n");
   await mkdir(join(root, "component", "obj"), { recursive: true });
   await writeFile(join(root, "component", "obj", "generated.txt"), "generated\n");
+  await mkdir(join(root, "swift-component", ".build", "debug"), { recursive: true });
+  await writeFile(join(root, "swift-component", ".build", "debug", "generated"), "generated\n");
   await mkdir(join(root, ".artifacts", "release-candidate"), { recursive: true });
   await writeFile(join(root, ".artifacts", "release-candidate", "keep.txt"), "keep\n");
   await writeFile(join(root, "source.txt"), "keep\n");
@@ -68,6 +70,7 @@ test("POSIX cleanup applies only to allowlisted generated paths", async () => {
   assert.equal(result.status, 0, result.stderr);
   assert.equal(await exists(join(root, "build")), false);
   assert.equal(await exists(join(root, "component", "obj")), false);
+  assert.equal(await exists(join(root, "swift-component", ".build")), false);
   assert.equal(await exists(join(root, "dist")), false);
   assert.equal(await exists(join(root, "source.txt")), true);
   assert.equal(await exists(join(root, ".artifacts", "release-candidate", "keep.txt")), true);

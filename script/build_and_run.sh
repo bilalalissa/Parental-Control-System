@@ -3,13 +3,13 @@ set -euo pipefail
 
 MODE="${1:-run}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-APP_NAME="ParentalControlController"
-BUNDLE_ID="com.bilalalissa.ParentalControlController"
-APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
+APP_NAME="ParentalControlChild"
+BUNDLE_ID="com.bilalalissa.ParentalControlChild"
+APP_BUNDLE="$ROOT_DIR/dist/Parental Control Child.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
-"$ROOT_DIR/script/build_app.sh" Release >/dev/null
+"$ROOT_DIR/script/build_endpoint_app.sh" Release >/dev/null
 
 open_app() {
   /usr/bin/open -n "$APP_BUNDLE"

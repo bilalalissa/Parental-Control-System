@@ -1,0 +1,118 @@
+name: Stage 03 selectable macOS system installer
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/stage-03-macos.yml"
+      - ".gitignore"
+      - ".codex/environments/environment.toml"
+      - "README.md"
+      - "agents/endpoint-macos/**"
+      - "apps/controller-macos/**"
+      - "docs/stages/**"
+      - "packages/design-assets/**"
+      - "script/**"
+      - "test/**"
+      - "tools/**"
+permissions:
+  contents: read
+
+concurrency:
+  group: stage-03-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      SWIFT_WORKERS: "2"
+      CLANG_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-03/module-cache
+      SWIFT_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-03/module-cache
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+      - name: Run repository checks
+        run: npm test
+      - name: Lint endpoint sources
+        run: swift format lint --recursive agents/endpoint-macos/Sources agents/endpoint-macos/Tests
+      - name: Test endpoint core
+        run: swift test --disable-sandbox --package-path agents/endpoint-macos --scratch-path "$PWD/.artifacts/derived-data/stage-03/tests" --jobs "$SWIFT_WORKERS"
+      - name: Build selectable system installer
+        run: ./script/package_endpoint_release.sh
+      - name: Verify universal slices
+        run: |
+          for binary in "dist/Parental Control Child.app/Contents/MacOS/ParentalControlChild" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlAgentDaemon" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlAgentUser"; do
+            /usr/bin/lipo -archs "$binary" | grep -q arm64
+            /usr/bin/lipo -archs "$binary" | grep -q x86_64
+          done
+      - name: Verify selectable package choices
+        run: |
+          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.3.0-rc.2.pkg" -target / | /usr/bin/plutil -lint -
+          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.3.0-rc.2.pkg" || true
+      - name: Install, diagnose, and uninstall child choice
+        run: |
+          sudo /usr/sbin/installer \
+            -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.3.0-rc.2.pkg" \
+            -target /
+          status_ok=false
+          for attempt in 1 2 3; do
+            if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status.json; then
+              status_ok=true
+              break
+            fi
+            if [[ "$attempt" != 3 ]]; then sleep 2; fi
+          done
+          status_exit=0
+          if [[ "$status_ok" == true ]]; then
+            node -e 'const fs = require("node:fs"); const status = JSON.parse(fs.readFileSync(".artifacts/endpoint-status.json", "utf8")); if (status.daemonHealthy !== true || status.connectionState !== "unpaired" || !status.deviceID) process.exit(1)'
+            /bin/launchctl print system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null
+          else
+            status_exit=1
+            sudo /bin/launchctl print system/com.bilalalissa.ParentalControlAgent.daemon || true
+            sudo /bin/cat /var/log/com.bilalalissa.ParentalControlAgent.daemon.log || true
+            sudo /bin/cat "/Library/Application Support/ParentalControlAgent/Logs/agent.log" || true
+            sudo /bin/ls -la "/Library/Application Support/ParentalControlAgent" || true
+            /usr/bin/codesign --verify --verbose=4 /usr/local/bin/parental-control-agentctl || true
+            /usr/bin/codesign -dvvv /usr/local/bin/parental-control-agentctl || true
+            sudo /usr/bin/log show --style compact --last 10m \
+              --predicate 'process == "ParentalControlAgentDaemon"' || true
+          fi
+          sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh"
+          test ! -e "/Applications/Parental Control Child.app"
+          test ! -e /Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist
+          test ! -e /Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist
+          test ! -e /Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon
+          test ! -e /usr/local/bin/parental-control-agentctl
+          exit "$status_exit"
+      - name: Install default parent choice
+        run: |
+          sudo /usr/sbin/installer \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.3.0-rc.2.pkg" \
+            -target /
+          test -x "/Applications/Parental Control.app/Contents/MacOS/ParentalControlController"
+          test ! -e "/Applications/Parental Control Child.app"
+          /usr/bin/codesign --verify --deep --strict "/Applications/Parental Control.app"
+      - name: Upload release candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ParentalControlSystem-0.3.0-rc.2
+          path: |
+            .artifacts/release-candidate/ParentalControlSystem-0.3.0-rc.2.pkg
+            .artifacts/release-candidate/ParentalControlSystem-0.3.0-rc.2.pkg.sha256
+          if-no-files-found: error
+          retention-days: 7
+      - name: Clean project-owned generated output
+        if: always()
+        run: |
+          if [[ -x "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh" ]]; then
+            sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh"
+          fi
+          sudo /bin/rm -rf -- "/Applications/Parental Control.app"
+          sudo /usr/sbin/pkgutil --forget com.bilalalissa.ParentalControlController.component >/dev/null 2>&1 || true
+          ./tools/cleanup.sh --apply

@@ -67,7 +67,7 @@ done < <(
   find "$repository_root" \
     -path "$repository_root/.git" -prune -o \
     -path "$repository_root/.artifacts/release-candidate" -prune -o \
-    -type d \( -name node_modules -o -name bin -o -name obj -o -name publish \) \
+    -type d \( -name .build -o -name node_modules -o -name bin -o -name obj -o -name publish \) \
     -print0
 )
 

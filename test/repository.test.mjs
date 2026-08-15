@@ -34,8 +34,21 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   const active = tracker.stages.filter((stage) => stage.id === tracker.activeStage);
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
-  assert.equal(active[0].branch, "stage/02-local-hub-pairing");
-  assert.equal(active[0].version, "0.2.0-rc.1");
+  assert.equal(active[0].branch, "stage/03-macos-child-agent");
+  assert.equal(active[0].version, "0.3.0-rc.2");
+});
+
+test("Stage 03 installer defaults to the parent and offers an explicit child choice", async () => {
+  const [distribution, choices] = await Promise.all([
+    read("agents/endpoint-macos/Installer/Distribution.xml"),
+    read("agents/endpoint-macos/Installer/ci-child-choices.xml"),
+  ]);
+  assert.match(distribution, /choice id="parent-controller"[\s\S]*start_selected="true"/);
+  assert.match(distribution, /choice id="child-endpoint"[\s\S]*start_selected="false"/);
+  assert.match(distribution, /ParentalControlController\.pkg/);
+  assert.match(distribution, /ParentalControlChild\.pkg/);
+  assert.match(choices, /<string>parent-controller<\/string>[\s\S]*<integer>0<\/integer>/);
+  assert.match(choices, /<string>child-endpoint<\/string>[\s\S]*<integer>1<\/integer>/);
 });
 
 test("local Markdown links resolve inside the repository", async () => {
@@ -90,7 +103,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–02 are merged\. Stage 03 has not begun/);
+  assert.match(readme, /Stages 00–03 are merged\. Stage 04 has not started/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });
