@@ -2,7 +2,7 @@
 
 - Version: `0.3.0-rc.2`
 - Branch: `stage/03-macos-child-agent`
-- Status: `READY_FOR_RETEST`
+- Status: `APPROVED`
 - Platform: Apple-silicon and Intel macOS 14 or newer
 
 ## Objective and scope
@@ -38,7 +38,14 @@ App monitoring, browser tabs, chat, schedules, enforcement, screenshots, keystro
 | Visible UI smoke | Final dashboard launched and remained running without an installed service; it truthfully displayed service unavailability. |
 | Uninstalled resource sample | Idle daemon 13,872 KiB RSS / 0.0% CPU; login helper 32,704 KiB / 0.0%; combined about 45.5 MiB. Visible dashboard 90,752 KiB / 0.0%. |
 
-The integration tests required permitted Keychain access because they create and remove an isolated TLS test identity. No Keychain password was entered. CI performed a real administrator install/status/uninstall/default-parent-install sequence on an ephemeral Apple-silicon macOS runner. Pre-login boot start, Aqua login start, real session transition, Intel hardware execution, upgrade from rc.1, and pairing between the developer’s two physical Macs remain developer checks.
+The integration tests required permitted Keychain access because they create and remove an isolated TLS test identity. No Keychain password was entered. CI performed a real administrator install/status/uninstall/default-parent-install sequence on an ephemeral Apple-silicon macOS runner. The developer subsequently approved the physical parent/child result; Intel hardware execution and in-place upgrade from rc.1 were not separately reported.
+
+## Developer test result
+
+- Approved on 2026-08-15 with `APPROVED: STAGE-03 0.3.0-rc.2`.
+- The developer confirmed the selectable parent and child installation paths, endpoint service status, token creation, physical-device pairing, bounded password-prompt behavior, revocation, unpairing, and successful fresh re-pairing.
+- Closing **Parental Control Child.app** correctly leaves the child online because the visible dashboard and persistent LaunchDaemon have separate lifecycles. Offline means the authenticated daemon heartbeat has stopped, not that the dashboard window is closed.
+- No additional code or artifact was required after physical testing; the approved package and checksum remain unchanged.
 
 ## Release candidate
 
@@ -93,8 +100,8 @@ To roll back the parent preview, quit it and remove only `/Applications/Parental
 - No schedule or contact record is available yet, so the dashboard says so instead of presenting invented state.
 - Session transitions use supported `NSWorkspace` notifications and require the login helper; pre-login and exact lock state remain `unknown`/active rather than being inferred from undocumented signals.
 - The controller does not yet render every new snapshot field in its UI; the signed deltas are persisted by the Stage 02 hub. Controller endpoint-detail expansion belongs to the stage that consumes those fields.
-- The rc.1 physical-child failure was reproduced in CI: PID-to-path inspection returned no path for the live XPC peer. rc.2 resolves the live peer through the Security framework; CI confirms installed status now succeeds. The developer’s two-device retest is still required.
-- Actual boot/login behavior, upgrade from rc.1, physical two-device pairing, and Intel execution require developer testing.
+- The rc.1 physical-child failure was reproduced in CI: PID-to-path inspection returned no path for the live XPC peer. rc.2 resolves the live peer through the Security framework; CI and the developer’s two-device retest confirm installed status succeeds.
+- In-place upgrade from rc.1 and Intel hardware execution were not separately reported; rc.1 was removed before installing rc.2 on the tested child.
 
 ## Resource and cleanup evidence
 
