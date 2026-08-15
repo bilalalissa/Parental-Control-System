@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.4.0-rc.2 — 2026-08-15
 
-Status: **STAGE-04 changes requested; replacement candidate in verification**
+Status: **STAGE-04 ready for developer retest**
 
 - Restored automatic TLS-pinned endpoint reconnection after the parent controller restarts by migrating paired devices to a stable LAN service port.
 - Reloaded and restarted the logged-in activity helper during upgrades, added bounded three-attempt startup, and configured launchd to recover it after abnormal termination.

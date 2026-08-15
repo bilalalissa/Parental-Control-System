@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stage 04 is ready for developer testing; Stages 00–03 are merged.** The `0.4.0-rc.1` selectable macOS package adds app-name-only activity reporting, direct/family/announcement chat, notifications, and request-more-time. Browser tabs and policy enforcement are not included. See [Stage status](docs/stages/stage-status.json).
+> **Stage 04 is ready for developer retest; Stages 00–03 are merged.** The replacement `0.4.0-rc.2` selectable macOS package fixes parent-restart reconnection, helper recovery after upgrade, and the paired-device activity controls while retaining app-name-only activity, direct/family/announcement chat, notifications, and request-more-time. Browser tabs and policy enforcement are not included. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 

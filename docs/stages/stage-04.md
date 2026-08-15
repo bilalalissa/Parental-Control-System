@@ -1,8 +1,8 @@
 # STAGE-04 — macOS app activity and chat
 
-- Version: `0.4.0-rc.1`
+- Version: `0.4.0-rc.2`
 - Branch: `stage/04-macos-activity-chat`
-- Status: `READY_FOR_DEVELOPER_TEST`
+- Status: `READY_FOR_RETEST`
 - Platform: Parent Controller on Apple silicon; Child Endpoint universal `arm64`/`x86_64`; macOS 14 or newer
 
 ## Objective and scope
@@ -25,13 +25,20 @@ Excluded: command lines, executable paths, window/document titles or contents, b
 - Offline signed envelopes remain replay-protected and fail after their explicit expiry; future timestamps and duplicate IDs/sequences still fail closed.
 - Unpaired daemon startup no longer initializes the endpoint Keychain identity, avoiding an unnecessary secure-storage access before pairing.
 
+## rc.2 feedback corrections
+
+- The controller hub now listens on stable LAN port `49171`. Already-paired rc.1 endpoints transparently migrate from their stored ephemeral port after upgrading, while the TLS certificate fingerprint and signed device/controller identities remain pinned. The endpoint integration test stops and recreates the hub, then proves the same pairing reconnects without a new token.
+- The child postinstall refreshes the current GUI launch-agent registration and starts it with the same bounded three-attempt/two-second-delay policy as the daemon. The launch agent also restarts after abnormal termination, resolving the observed `helperHealthy:false` state after upgrade.
+- The paired-device row now uses a dedicated labeled expansion button, separate Revoke/Unpair actions, and a labeled activity toggle. This removes the nested interactive `DisclosureGroup` label that remained collapsed under both pointer and accessibility activation.
+- No activity fields were broadened. The child status and parent database continue to accept only application name, bundle identifier, foreground state, and observation timestamp.
+
 ## Verification evidence
 
 | Check | Result |
 | --- | --- |
-| Repository tests | 26 passed; one Windows-only cleanup test skipped on macOS (27 total). |
+| Repository tests | 28 passed; one Windows-only cleanup test skipped on macOS (29 total). |
 | Controller/hub suite | 26 tests in 9 suites passed. |
-| Endpoint suite | 7 tests passed, including live pinned-TLS pairing, parent→child group message, child→parent reply, request-time delivery, queue persistence, bounds, disable, and pruning. |
+| Endpoint suite | 8 tests passed, including live pinned-TLS pairing, full hub stop/restart reconnection without a new token, parent→child group message, child→parent reply, request-time delivery, queue persistence, bounds, disable, and pruning. |
 | Formatting/static checks | `swift format lint` and `git diff --check` passed. |
 | Protocol contract | Canonical schema accepts the new allowlisted activity/configuration/chat/time-request types; invalid fixtures continue to fail closed. |
 | Universal verification | Child app, daemon, login helper, and typed control tool each report `x86_64 arm64`. |
@@ -42,14 +49,14 @@ The resource run is a short local idle spot sample, not the five-minute producti
 
 ## Release candidate
 
-- Artifact: `.artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.1.pkg`
+- Artifact: `.artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.2.pkg`
 - Purpose: selectable Parent Controller or universal visible macOS Child Endpoint
-- SHA-256: `923bfa5a5071f44b4d5c8d026451302e26b5d714993ceaeb0d8f080c3aaef104`
-- Embedded source commit: `b05435532fcc`
+- SHA-256: `2f16833d59ad7d8fc1f065e524ed468311494dc39cee75fac2b0ebdbaf6ee92c`
+- Embedded source commit: `44f2e991ae39`
 - App/executable signing: local ad-hoc signatures; no Team ID or restricted entitlements
 - Installer signing/notarization: unsigned and not notarized because no Developer ID Installer identity is available
 
-This single package replaces the Stage 03 local candidate. No duplicate `.app`, `.pkg`, `.dmg`, archive, or extracted package is retained after cleanup.
+This single package replaces the rejected Stage 04 rc.1 candidate. No duplicate `.app`, `.pkg`, `.dmg`, archive, or extracted package is retained after cleanup.
 
 ## Installation
 
@@ -71,7 +78,7 @@ This intentionally removes the child app, launchd jobs, helper/tool, protected e
 
 ## Manual developer checklist
 
-1. Install the default parent role and customized child role; confirm both visible apps report `0.4.0-rc.1`.
+1. Install the default parent role and customized child role; confirm both visible apps report `0.4.0-rc.2`.
 2. Confirm existing Stage 03 pairing survives an in-place upgrade, or pair with a fresh one-time token.
 3. Open several normal applications on the child. In Parent Controller → Devices, expand the child and confirm only names, bundle IDs, foreground state, and timestamps appear—never command lines, paths, window titles, or contents.
 4. Disable **Share application names**. Confirm the child Privacy tab says sharing is disabled and retained activity disappears from the parent. Re-enable and test retention values from one to thirty days.
@@ -103,6 +110,8 @@ This intentionally removes the child app, launchd jobs, helper/tool, protected e
 - Builds used two workers, one checkout, one macOS build tree, sequential endpoint architectures, no simulator, no VM, no container, and no worktree.
 - Final cleanup retains only the 9.3 MiB package and checksum. No simulator/emulator was used.
 - The resource daemon and helper processes were stopped. The pre-existing installed Parent Controller/Hub processes were not started by Stage 04 and were deliberately preserved.
+- The rc.2 feedback run began with 8.7 GiB free and 9.3 MiB of retained project output. Generated output peaked near 506 MiB (450 MiB derived data, 20 MiB `dist`, 27 MiB expanded inspection, and the 9.3 MiB RC); the lowest observed free space was 7.8 GiB.
+- Final rc.2 cleanup restored 8.3 GiB free and retains only the 9.3 MiB package plus checksum. One explicit administrator ownership repair was required for stale repository-owned `dist/ParentalControlController.app` output from the earlier package run; the generated tree was then rebuilt and removed normally.
 
 ## Failure evidence to collect
 
