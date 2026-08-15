@@ -1,5 +1,6 @@
 import EndpointCore
 import SwiftUI
+import UserNotifications
 
 @main
 struct ParentalControlChildApp: App {
@@ -22,6 +23,7 @@ final class ChildDashboardModel: ObservableObject {
   private var timer: Timer?
 
   init() {
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     refresh()
     timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
       Task { @MainActor in self?.refresh() }

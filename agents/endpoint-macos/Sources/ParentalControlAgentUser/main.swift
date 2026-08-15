@@ -27,7 +27,6 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     DistributedNotificationCenter.default().addObserver(
       self, selector: #selector(chatReceived),
       name: Notification.Name("com.bilalalissa.ParentalControlAgent.chat-received"), object: nil)
-    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     report(.active)
     reportApplications()
     timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in

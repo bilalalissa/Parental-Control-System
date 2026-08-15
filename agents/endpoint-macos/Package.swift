@@ -25,11 +25,15 @@ let package = Package(
         .linkedFramework("SystemConfiguration"),
         .linkedFramework("UserNotifications"),
       ]),
-    .executableTarget(name: "ParentalControlChild", dependencies: ["EndpointCore"]),
+    .executableTarget(
+      name: "ParentalControlChild", dependencies: ["EndpointCore"],
+      linkerSettings: [.linkedFramework("UserNotifications")]),
     .executableTarget(name: "ParentalControlAgentDaemon", dependencies: ["EndpointCore"]),
     .executableTarget(
       name: "ParentalControlAgentUser", dependencies: ["EndpointCore"],
       linkerSettings: [.linkedFramework("UserNotifications")]),
     .executableTarget(name: "ParentalControlAgentCtl", dependencies: ["EndpointCore"]),
-    .testTarget(name: "EndpointCoreTests", dependencies: ["EndpointCore", .product(name: "HubCore", package: "controller-macos")]),
+    .testTarget(
+      name: "EndpointCoreTests",
+      dependencies: ["EndpointCore", .product(name: "HubCore", package: "controller-macos")]),
   ])
