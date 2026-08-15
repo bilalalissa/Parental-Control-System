@@ -306,6 +306,9 @@ public final class SecureWebSocketPeer: @unchecked Sendable {
 
 public final class SecureWebSocketServer: @unchecked Sendable {
   public static let serviceType = "_parental-control._tcp"
+  // Pairing persists this LAN port. Keeping it stable lets already-paired endpoints reconnect
+  // after the parent controller or hub restarts without weakening certificate pinning.
+  public static let parentControlPort: UInt16 = 49_171
 
   private let listener: NWListener
   private let queue = DispatchQueue(label: "parental-control.hub.websocket")

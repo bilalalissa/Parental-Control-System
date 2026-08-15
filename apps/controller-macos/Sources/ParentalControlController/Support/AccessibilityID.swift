@@ -7,6 +7,8 @@ enum AccessibilityID: String, CaseIterable {
   case devices = "devices.screen"
   case deviceList = "devices.list"
   case deviceDetail = "devices.detail"
+  case pairedDeviceDisclosure = "devices.paired-disclosure"
+  case activitySharingToggle = "devices.activity-sharing"
   case schedule = "schedule.screen"
   case scheduleQuota = "schedule.daily-quota"
   case scheduleSave = "schedule.save"

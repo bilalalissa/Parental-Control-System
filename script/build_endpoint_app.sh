@@ -14,7 +14,7 @@ MACOS="$CONTENTS/MacOS"
 HELPERS="$CONTENTS/Helpers"
 RESOURCES="$CONTENTS/Resources"
 MODE="$(printf '%s' "$CONFIGURATION" | tr '[:upper:]' '[:lower:]')"
-VERSION="0.4.0-rc.1"
+VERSION="0.4.0-rc.2"
 COMMIT="$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD)"
 PRODUCTS=(ParentalControlChild ParentalControlAgentDaemon ParentalControlAgentUser ParentalControlAgentCtl)
 

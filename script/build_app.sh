@@ -25,7 +25,7 @@ APP_BINARY="$APP_MACOS/$APP_NAME"
 APP_HELPERS="$APP_CONTENTS/Helpers"
 HUB_BINARY="$APP_HELPERS/ParentalControlHub"
 MOCK_BINARY="$APP_HELPERS/ParentalControlMockAgent"
-VERSION="0.4.0-rc.1"
+VERSION="0.4.0-rc.2"
 COMMIT="$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD)"
 
 mkdir -p "$MODULE_CACHE" "$CACHE_DIR" "$CONFIG_DIR" "$SECURITY_DIR"

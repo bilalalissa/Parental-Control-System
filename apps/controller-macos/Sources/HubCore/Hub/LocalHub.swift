@@ -63,6 +63,7 @@ public final class LocalHub: @unchecked Sendable {
   private let pairing = PairingCoordinator()
   private let replay = ReplayProtector()
   private let heartbeat: AdaptiveHeartbeat
+  private let listeningPort: UInt16
   private let lock = NSLock()
   private let timerQueue = DispatchQueue(label: "parental-control.hub.heartbeat")
   private var server: SecureWebSocketServer?
@@ -81,11 +82,13 @@ public final class LocalHub: @unchecked Sendable {
     keychain: KeychainStore = KeychainStore(),
     tlsIdentity: TLSCertificateIdentity? = nil,
     controllerIdentity suppliedControllerIdentity: Ed25519Identity? = nil,
-    heartbeat: AdaptiveHeartbeat = AdaptiveHeartbeat()
+    heartbeat: AdaptiveHeartbeat = AdaptiveHeartbeat(),
+    listeningPort: UInt16 = SecureWebSocketServer.parentControlPort
   ) throws {
     self.database = database
     self.tlsIdentity = try tlsIdentity ?? TLSCertificateIdentity.loadOrCreate()
     self.heartbeat = heartbeat
+    self.listeningPort = listeningPort
     if let suppliedControllerIdentity {
       controllerIdentity = suppliedControllerIdentity
     } else {
@@ -100,7 +103,7 @@ public final class LocalHub: @unchecked Sendable {
 
   public func start(advertiseBonjour: Bool = true) throws {
     let server = try SecureWebSocketServer(
-      identity: tlsIdentity, advertiseBonjour: advertiseBonjour)
+      identity: tlsIdentity, port: listeningPort, advertiseBonjour: advertiseBonjour)
     self.server = server
     server.onReady = { [weak self] port in
       guard let self else { return }

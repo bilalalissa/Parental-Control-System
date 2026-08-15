@@ -59,6 +59,7 @@ private struct PairedDeviceControlRow: View {
   let requests: [MoreTimeRequestRecord]
   let store: ControllerStore
   @State private var retentionDays: Int
+  @State private var isExpanded = false
 
   init(
     device: HubDeviceRecord, configuration: ActivityConfiguration,
@@ -73,65 +74,86 @@ private struct PairedDeviceControlRow: View {
   }
 
   var body: some View {
-    DisclosureGroup {
-      VStack(alignment: .leading, spacing: 8) {
-        HStack {
-          Toggle(
-            "Share application names",
-            isOn: Binding(
-              get: { configuration.enabled },
-              set: {
-                store.configureActivity(
-                  deviceID: device.id, enabled: $0, retentionDays: retentionDays)
-              }))
-          Spacer()
-          Stepper("Retain \(retentionDays) days", value: $retentionDays, in: 1...30)
-            .onChange(of: retentionDays) { _, days in
-              store.configureActivity(
-                deviceID: device.id, enabled: configuration.enabled, retentionDays: days)
-            }
-        }
-        Text(
-          "Application names and bundle identifiers only—never command lines or window contents."
-        )
-        .font(.caption).foregroundStyle(.secondary)
-        ForEach(activity.prefix(8)) { application in
-          HStack {
-            Image(systemName: application.isForeground ? "app.badge.checkmark" : "app")
-            Text(application.applicationName)
-            Text(application.bundleIdentifier).font(.caption).foregroundStyle(.secondary)
-            Spacer()
-            if application.isForeground {
-              Text("Foreground").font(.caption).foregroundStyle(.green)
-            }
-          }
-        }
-        if activity.isEmpty {
-          Text(
-            configuration.enabled ? "No application activity received yet." : "Collection disabled."
-          )
-          .font(.caption).foregroundStyle(.secondary)
-        }
-        ForEach(requests.prefix(3)) { request in
-          Label(
-            "Requested \(request.requestedMinutes) minutes · \(request.createdAt.formatted(date: .omitted, time: .shortened))",
-            systemImage: "hourglass.badge.plus"
-          )
-          .font(.caption)
-        }
-      }.padding(.top, 8)
-    } label: {
+    VStack(alignment: .leading, spacing: 8) {
       HStack {
-        Circle().fill(device.state() == .online ? .green : .gray).frame(width: 8, height: 8)
-        Text(device.name)
-        Text(device.state() == .online ? "Online" : "Offline").foregroundStyle(.secondary)
-        Text("Last seen \(device.lastSeen.formatted(date: .omitted, time: .standard))")
-          .font(.caption).foregroundStyle(.secondary)
+        Button {
+          withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
+        } label: {
+          HStack(spacing: 8) {
+            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+              .frame(width: 12)
+            Circle().fill(device.state() == .online ? .green : .gray).frame(width: 8, height: 8)
+            Text(device.name)
+            Text(device.state() == .online ? "Online" : "Offline").foregroundStyle(.secondary)
+            Text("Last seen \(device.lastSeen.formatted(date: .omitted, time: .standard))")
+              .font(.caption).foregroundStyle(.secondary)
+          }
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(AccessibilityID.pairedDeviceDisclosure.rawValue)
+        .accessibilityLabel("Activity controls for \(device.name)")
+        .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
         Spacer()
         Button("Revoke") { store.revokePairedDevice(device.id) }.disabled(device.isRevoked)
         Button("Unpair") { store.unpairDevice(device.id) }
       }
+
+      if isExpanded {
+        VStack(alignment: .leading, spacing: 8) {
+          HStack {
+            Toggle(
+              "Share application names",
+              isOn: Binding(
+                get: { configuration.enabled },
+                set: {
+                  store.configureActivity(
+                    deviceID: device.id, enabled: $0, retentionDays: retentionDays)
+                })
+            )
+            .accessibilityIdentifier(AccessibilityID.activitySharingToggle.rawValue)
+            Spacer()
+            Stepper("Retain \(retentionDays) days", value: $retentionDays, in: 1...30)
+              .onChange(of: retentionDays) { _, days in
+                store.configureActivity(
+                  deviceID: device.id, enabled: configuration.enabled, retentionDays: days)
+              }
+          }
+          Text(
+            "Application names and bundle identifiers only—never command lines or window contents."
+          )
+          .font(.caption).foregroundStyle(.secondary)
+          ForEach(activity.prefix(8)) { application in
+            HStack {
+              Image(systemName: application.isForeground ? "app.badge.checkmark" : "app")
+              Text(application.applicationName)
+              Text(application.bundleIdentifier).font(.caption).foregroundStyle(.secondary)
+              Spacer()
+              if application.isForeground {
+                Text("Foreground").font(.caption).foregroundStyle(.green)
+              }
+            }
+          }
+          if activity.isEmpty {
+            Text(
+              configuration.enabled
+                ? "No application activity received yet." : "Collection disabled."
+            )
+            .font(.caption).foregroundStyle(.secondary)
+          }
+          ForEach(requests.prefix(3)) { request in
+            Label(
+              "Requested \(request.requestedMinutes) minutes · \(request.createdAt.formatted(date: .omitted, time: .shortened))",
+              systemImage: "hourglass.badge.plus"
+            )
+            .font(.caption)
+          }
+        }
+        .padding(.leading, 20)
+        .transition(.opacity.combined(with: .move(edge: .top)))
+      }
     }
+    .onChange(of: configuration.retentionDays) { _, days in retentionDays = days }
   }
 }
 

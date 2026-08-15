@@ -31,6 +31,7 @@ struct EndpointCoreTests {
     try hub.start(advertiseBonjour: false)
     #expect(ready.wait(timeout: .now() + 5) == .success)
     let issued = try hub.createPairingInvitation(code: "314159")
+    #expect(issued.port == SecureWebSocketServer.parentControlPort)
     let invitation = PairingInvitation(
       code: issued.code, expiresAt: issued.expiresAt, host: "127.0.0.1", port: issued.port,
       certificateFingerprint: issued.certificateFingerprint,
@@ -42,10 +43,11 @@ struct EndpointCoreTests {
     let repository = EndpointStatusRepository(
       initial: DeviceSnapshotCollector.collect(deviceID: configuration.deviceID))
     let logDirectory = root.appendingPathComponent("logs")
+    let deviceIdentity = try Ed25519Identity(keyID: "device-\(configuration.deviceID)")
     let agent = try EndpointAgent(
       store: store, repository: repository,
       log: BoundedLog(directory: logDirectory),
-      suppliedIdentity: Ed25519Identity(keyID: "device-\(configuration.deviceID)"))
+      suppliedIdentity: deviceIdentity)
     defer { agent.stop() }
     try agent.start()
     let pairingResult = paired.wait(timeout: .now() + 8)
@@ -86,8 +88,53 @@ struct EndpointCoreTests {
       })
     #expect(try database.chatMessages().contains { !$0.isFromParent && $0.text == "Child reply" })
     #expect(try database.moreTimeRequests().first?.requestedMinutes == 20)
-    try hub.revoke(deviceID: configuration.deviceID)
+    let deviceBeforeRestart = try database.device(id: configuration.deviceID)
+    let sequenceBeforeRestart = try #require(deviceBeforeRestart).lastSequence
+    agent.stop()
+    hub.stop()
+    Thread.sleep(forTimeInterval: 0.2)
+
+    let restartedHub = try LocalHub(
+      database: database, tlsIdentity: tls, controllerIdentity: controllerIdentity,
+      heartbeat: AdaptiveHeartbeat(activeInterval: 1, idleInterval: 2, offlineAfter: 4))
+    defer { restartedHub.stop() }
+    let restartedReady = DispatchSemaphore(value: 0)
+    restartedHub.onStatusChange = { status in
+      if status.port == SecureWebSocketServer.parentControlPort { restartedReady.signal() }
+    }
+    try restartedHub.start(advertiseBonjour: false)
+    #expect(restartedReady.wait(timeout: .now() + 5) == .success)
+
+    let restartedAgent = try EndpointAgent(
+      store: store, repository: repository,
+      log: BoundedLog(directory: logDirectory), suppliedIdentity: deviceIdentity)
+    defer { restartedAgent.stop() }
+    try restartedAgent.start()
+    let reconnectDeadline = Date().addingTimeInterval(5)
+    while repository.status().connectionState != .online, Date() < reconnectDeadline {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(repository.status().connectionState == .online)
+    let deviceAfterRestart = try database.device(id: configuration.deviceID)
+    #expect(try #require(deviceAfterRestart).lastSequence > sequenceBeforeRestart)
+
+    try restartedHub.revoke(deviceID: configuration.deviceID)
     #expect(try database.device(id: configuration.deviceID)?.isRevoked == true)
+  }
+
+  @Test("legacy paired endpoints migrate to the stable controller port")
+  func stableReconnectPort() {
+    let legacy = PairingInvitation(
+      code: "", expiresAt: .distantFuture, host: "parent.local", port: 61_234,
+      certificateFingerprint: String(repeating: "A", count: 64),
+      controllerPublicKey: Data(repeating: 7, count: 32))
+    let paired = EndpointConfiguration(pairedController: legacy)
+    #expect(
+      EndpointAgent.connectionPort(for: paired) == SecureWebSocketServer.parentControlPort)
+
+    let active = EndpointConfiguration(invitation: legacy)
+    #expect(EndpointAgent.connectionPort(for: active) == 61_234)
+    #expect(EndpointAgent.connectionPort(for: EndpointConfiguration()) == nil)
   }
 
   @Test("device snapshots are bounded and contain truthful platform data")

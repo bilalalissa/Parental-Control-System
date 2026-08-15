@@ -51,8 +51,12 @@ public final class EndpointAgent: @unchecked Sendable {
     lock.lock()
     replay = ReplayProtector()
     lock.unlock()
+    // Stage 03/04-rc.1 invitations stored an ephemeral hub port. Once paired, migrate
+    // transparently to the controller's stable authenticated port so a parent restart does not
+    // require unpairing. Active one-time invitations still use the exact advertised port.
+    let port = Self.connectionPort(for: configuration) ?? target.port
     let connection = try SecureWebSocketClient.connect(
-      host: target.host, port: target.port, certificateFingerprint: target.certificateFingerprint)
+      host: target.host, port: port, certificateFingerprint: target.certificateFingerprint)
     peer = connection
     connection.onState = { [weak self] state in self?.connectionChanged(state) }
     connection.onMessage = { [weak self] data in
@@ -60,6 +64,12 @@ public final class EndpointAgent: @unchecked Sendable {
     }
     connection.onDisconnect = { [weak self] in self?.disconnected() }
     connection.start()
+  }
+
+  static func connectionPort(for configuration: EndpointConfiguration) -> UInt16? {
+    if let invitation = configuration.invitation { return invitation.port }
+    if configuration.pairedController != nil { return SecureWebSocketServer.parentControlPort }
+    return nil
   }
 
   public func stop() {

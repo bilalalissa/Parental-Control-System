@@ -2,6 +2,14 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.4.0-rc.2 — 2026-08-15
+
+Status: **STAGE-04 changes requested; replacement candidate in verification**
+
+- Restored automatic TLS-pinned endpoint reconnection after the parent controller restarts by migrating paired devices to a stable LAN service port.
+- Reloaded and restarted the logged-in activity helper during upgrades, added bounded three-attempt startup, and configured launchd to recover it after abnormal termination.
+- Replaced the inaccessible paired-device disclosure row with a dedicated accessible expansion button and activity-sharing control.
+
 ## 0.4.0-rc.1 — 2026-08-15
 
 Status: **STAGE-04 ready for developer test**

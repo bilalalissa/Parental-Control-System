@@ -13,5 +13,7 @@ struct AccessibilityTests {
     #expect(values.contains("settings.start-at-login"))
     #expect(values.contains("chat.audience"))
     #expect(values.contains("chat.add-local-preview"))
+    #expect(values.contains("devices.paired-disclosure"))
+    #expect(values.contains("devices.activity-sharing"))
   }
 }
