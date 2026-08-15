@@ -2,7 +2,7 @@
 
 - Version: `0.3.0-rc.2`
 - Branch: `stage/03-macos-child-agent`
-- Status: `APPROVED`
+- Status: `MERGED`
 - Platform: Apple-silicon and Intel macOS 14 or newer
 
 ## Objective and scope
@@ -43,6 +43,7 @@ The integration tests required permitted Keychain access because they create and
 ## Developer test result
 
 - Approved on 2026-08-15 with `APPROVED: STAGE-03 0.3.0-rc.2`.
+- Merged on 2026-08-15 after the separate `MERGE` command.
 - The developer confirmed the selectable parent and child installation paths, endpoint service status, token creation, physical-device pairing, bounded password-prompt behavior, revocation, unpairing, and successful fresh re-pairing.
 - Closing **Parental Control Child.app** correctly leaves the child online because the visible dashboard and persistent LaunchDaemon have separate lifecycles. Offline means the authenticated daemon heartbeat has stopped, not that the dashboard window is closed.
 - No additional code or artifact was required after physical testing; the approved package and checksum remain unchanged.

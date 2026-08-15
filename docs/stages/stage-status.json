@@ -30,7 +30,7 @@
       "id": "STAGE-03",
       "name": "Universal macOS Child Agent foundation",
       "version": "0.3.0-rc.2",
-      "status": "APPROVED",
+      "status": "MERGED",
       "branch": "stage/03-macos-child-agent",
       "document": "stage-03.md"
     }

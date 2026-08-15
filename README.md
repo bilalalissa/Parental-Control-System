@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–02 are merged. Stage 03 rc.2 is developer-approved and awaiting merge.** One selectable macOS installer provides the Parent Controller by default and the visible universal Child Endpoint through Customize. The endpoint does not yet monitor apps, chat, or enforce policy. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–03 are merged. Stage 04 has not started.** The merged macOS package provides the Parent Controller by default and the visible universal Child Endpoint through Customize. The endpoint does not yet monitor apps, deliver chat, or enforce policy. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
