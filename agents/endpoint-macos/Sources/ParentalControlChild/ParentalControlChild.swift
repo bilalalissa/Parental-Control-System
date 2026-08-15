@@ -47,7 +47,15 @@ final class ChildDashboardModel: ObservableObject {
   }
 
   func send(_ text: String) {
-    client.sendChat(EndpointChatRequest(text: text)) { [weak self] result in
+    let latestParentMessage = messages.last { $0.isFromParent }
+    let request: EndpointChatRequest
+    if let latestParentMessage, latestParentMessage.audience == .familyGroup {
+      request = EndpointChatRequest(
+        text: text, audience: .familyGroup, threadID: latestParentMessage.threadID)
+    } else {
+      request = EndpointChatRequest(text: text)
+    }
+    client.sendChat(request) { [weak self] result in
       Task { @MainActor in
         self?.actionMessage =
           result.isSuccess ? "Message queued securely." : "Message could not be queued."
