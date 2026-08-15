@@ -31,6 +31,7 @@ $DirectTargets = @(
     "dist",
     "coverage",
     "TestResults",
+    ".artifacts/build",
     ".artifacts/derived-data",
     ".artifacts/test-results",
     ".artifacts/tmp",

@@ -23,6 +23,9 @@ public final class HubDatabase: @unchecked Sendable {
   public static let maximumAuditRecords = 200
   public static let maximumQueuedEnvelopesPerDevice = 100
   public static let maximumReceipts = 500
+  public static let maximumChatMessagesPerDevice = 500
+  public static let maximumActivityRecordsPerDevice = 1_000
+  public static let maximumTimeRequests = 100
 
   private let handle: OpaquePointer
   private let lock = NSRecursiveLock()
@@ -37,6 +40,9 @@ public final class HubDatabase: @unchecked Sendable {
       throw HubDatabaseError.sqlite("could not open \(path)")
     }
     handle = database
+    if path != ":memory:" {
+      try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
+    }
     sqlite3_busy_timeout(handle, 2_000)
     try execute("PRAGMA foreign_keys = ON;")
     try execute("PRAGMA journal_mode = WAL;")
@@ -54,6 +60,7 @@ public final class HubDatabase: @unchecked Sendable {
     )
     let directory = baseURL.appendingPathComponent("ParentalControlController", isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
     return try HubDatabase(path: directory.appendingPathComponent("hub.sqlite3").path)
   }
 
@@ -104,6 +111,45 @@ public final class HubDatabase: @unchecked Sendable {
       CREATE INDEX IF NOT EXISTS receipts_time_idx ON receipts(timestamp DESC);
       INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at)
           VALUES(1, strftime('%s','now'));
+      CREATE TABLE IF NOT EXISTS hub_chat_messages(
+          id TEXT PRIMARY KEY,
+          device_id TEXT NOT NULL,
+          thread_id TEXT NOT NULL,
+          sent_at REAL NOT NULL,
+          sender TEXT NOT NULL,
+          body TEXT NOT NULL,
+          delivery_state TEXT NOT NULL,
+          audience TEXT NOT NULL,
+          is_from_parent INTEGER NOT NULL CHECK(is_from_parent IN (0, 1))
+      );
+      CREATE INDEX IF NOT EXISTS hub_chat_device_time_idx
+          ON hub_chat_messages(device_id, sent_at ASC);
+      CREATE TABLE IF NOT EXISTS app_activity(
+          device_id TEXT NOT NULL,
+          bundle_id TEXT NOT NULL,
+          application_name TEXT NOT NULL,
+          is_foreground INTEGER NOT NULL CHECK(is_foreground IN (0, 1)),
+          observed_at REAL NOT NULL,
+          PRIMARY KEY(device_id, bundle_id)
+      );
+      CREATE INDEX IF NOT EXISTS app_activity_time_idx ON app_activity(observed_at DESC);
+      CREATE TABLE IF NOT EXISTS activity_configuration(
+          device_id TEXT PRIMARY KEY,
+          enabled INTEGER NOT NULL CHECK(enabled IN (0, 1)),
+          retention_days INTEGER NOT NULL CHECK(retention_days BETWEEN 1 AND 30)
+      );
+      CREATE TABLE IF NOT EXISTS more_time_requests(
+          id TEXT PRIMARY KEY,
+          device_id TEXT NOT NULL,
+          requested_minutes INTEGER NOT NULL,
+          note TEXT NOT NULL,
+          created_at REAL NOT NULL,
+          state TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS more_time_request_time_idx
+          ON more_time_requests(created_at DESC);
+      INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at)
+          VALUES(2, strftime('%s','now'));
       """)
   }
 
@@ -324,6 +370,218 @@ public final class HubDatabase: @unchecked Sendable {
           LIMIT \(Self.maximumReceipts)
       );
       """)
+  }
+
+  public func saveChatMessage(_ message: HubChatMessage) throws {
+    try run(
+      """
+      INSERT INTO hub_chat_messages(
+          id, device_id, thread_id, sent_at, sender, body,
+          delivery_state, audience, is_from_parent
+      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET delivery_state=excluded.delivery_state;
+      """,
+      [
+        .text(message.id.uuidString), .text(message.deviceID), .text(message.threadID.uuidString),
+        .integer(Int64(message.sentAt.timeIntervalSince1970)), .text(message.sender),
+        .text(message.text), .text(message.state.rawValue), .text(message.audience.rawValue),
+        .integer(message.isFromParent ? 1 : 0),
+      ])
+    try run(
+      """
+      DELETE FROM hub_chat_messages WHERE device_id = ? AND id NOT IN(
+          SELECT id FROM hub_chat_messages WHERE device_id = ?
+          ORDER BY sent_at DESC, rowid DESC LIMIT \(Self.maximumChatMessagesPerDevice)
+      );
+      """, [.text(message.deviceID), .text(message.deviceID)])
+  }
+
+  public func updateChatState(id: UUID, state: ChatDeliveryState) throws {
+    try run(
+      "UPDATE hub_chat_messages SET delivery_state = ? WHERE id = ?;",
+      [.text(state.rawValue), .text(id.uuidString)])
+  }
+
+  public func chatMessages(limit: Int = 500) throws -> [HubChatMessage] {
+    lock.lock()
+    defer { lock.unlock() }
+    var statement: OpaquePointer?
+    try prepare(
+      """
+      SELECT id, device_id, thread_id, sent_at, sender, body,
+             delivery_state, audience, is_from_parent
+      FROM hub_chat_messages ORDER BY sent_at ASC, rowid ASC LIMIT ?;
+      """, &statement)
+    defer { sqlite3_finalize(statement) }
+    try bind(.integer(Int64(max(1, min(limit, 2_000)))), statement, 1)
+    var result: [HubChatMessage] = []
+    while sqlite3_step(statement) == SQLITE_ROW {
+      guard let id = UUID(uuidString: text(statement, 0)),
+        let threadID = UUID(uuidString: text(statement, 2)),
+        let state = ChatDeliveryState(rawValue: text(statement, 6)),
+        let audience = ChatAudience(rawValue: text(statement, 7))
+      else { throw HubDatabaseError.decode("chat message") }
+      result.append(
+        HubChatMessage(
+          id: id, deviceID: text(statement, 1), threadID: threadID,
+          sentAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 3)),
+          sender: text(statement, 4), text: text(statement, 5), state: state,
+          audience: audience, isFromParent: sqlite3_column_int(statement, 8) == 1))
+    }
+    return result
+  }
+
+  public func saveActivity(_ records: [HubAppActivity], for deviceID: String) throws {
+    for record in records.prefix(64) {
+      try run(
+        """
+        INSERT INTO app_activity(
+            device_id, bundle_id, application_name, is_foreground, observed_at
+        ) VALUES(?, ?, ?, ?, ?)
+        ON CONFLICT(device_id, bundle_id) DO UPDATE SET
+            application_name=excluded.application_name,
+            is_foreground=excluded.is_foreground,
+            observed_at=excluded.observed_at;
+        """,
+        [
+          .text(deviceID), .text(record.bundleIdentifier), .text(record.applicationName),
+          .integer(record.isForeground ? 1 : 0),
+          .integer(Int64(record.observedAt.timeIntervalSince1970)),
+        ])
+    }
+    try run(
+      """
+      DELETE FROM app_activity WHERE device_id = ? AND rowid NOT IN(
+          SELECT rowid FROM app_activity WHERE device_id = ?
+          ORDER BY observed_at DESC LIMIT \(Self.maximumActivityRecordsPerDevice)
+      );
+      """, [.text(deviceID), .text(deviceID)])
+  }
+
+  public func activity(limit: Int = 256) throws -> [HubAppActivity] {
+    lock.lock()
+    defer { lock.unlock() }
+    var statement: OpaquePointer?
+    try prepare(
+      """
+      SELECT device_id, bundle_id, application_name, is_foreground, observed_at
+      FROM app_activity ORDER BY is_foreground DESC, observed_at DESC LIMIT ?;
+      """, &statement)
+    defer { sqlite3_finalize(statement) }
+    try bind(.integer(Int64(max(1, min(limit, 1_000)))), statement, 1)
+    var result: [HubAppActivity] = []
+    while sqlite3_step(statement) == SQLITE_ROW {
+      result.append(
+        HubAppActivity(
+          deviceID: text(statement, 0), bundleIdentifier: text(statement, 1),
+          applicationName: text(statement, 2),
+          isForeground: sqlite3_column_int(statement, 3) == 1,
+          observedAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 4))))
+    }
+    return result
+  }
+
+  public func saveActivityConfiguration(_ configuration: ActivityConfiguration) throws {
+    try run(
+      """
+      INSERT INTO activity_configuration(device_id, enabled, retention_days) VALUES(?, ?, ?)
+      ON CONFLICT(device_id) DO UPDATE SET
+          enabled=excluded.enabled, retention_days=excluded.retention_days;
+      """,
+      [
+        .text(configuration.deviceID), .integer(configuration.enabled ? 1 : 0),
+        .integer(Int64(configuration.retentionDays)),
+      ])
+    try pruneActivity(now: Date())
+  }
+
+  public func activityConfigurations() throws -> [ActivityConfiguration] {
+    lock.lock()
+    defer { lock.unlock() }
+    var statement: OpaquePointer?
+    try prepare(
+      "SELECT device_id, enabled, retention_days FROM activity_configuration ORDER BY device_id;",
+      &statement)
+    defer { sqlite3_finalize(statement) }
+    var result: [ActivityConfiguration] = []
+    while sqlite3_step(statement) == SQLITE_ROW {
+      result.append(
+        ActivityConfiguration(
+          deviceID: text(statement, 0), enabled: sqlite3_column_int(statement, 1) == 1,
+          retentionDays: Int(sqlite3_column_int(statement, 2))))
+    }
+    return result
+  }
+
+  public func appendMoreTimeRequest(_ request: MoreTimeRequestRecord) throws {
+    try run(
+      """
+      INSERT OR REPLACE INTO more_time_requests(
+          id, device_id, requested_minutes, note, created_at, state
+      ) VALUES(?, ?, ?, ?, ?, ?);
+      """,
+      [
+        .text(request.id.uuidString), .text(request.deviceID),
+        .integer(Int64(request.requestedMinutes)), .text(request.note),
+        .integer(Int64(request.createdAt.timeIntervalSince1970)), .text(request.state.rawValue),
+      ])
+    try execute(
+      """
+      DELETE FROM more_time_requests WHERE id NOT IN(
+          SELECT id FROM more_time_requests ORDER BY created_at DESC
+          LIMIT \(Self.maximumTimeRequests)
+      );
+      """)
+  }
+
+  public func moreTimeRequests() throws -> [MoreTimeRequestRecord] {
+    lock.lock()
+    defer { lock.unlock() }
+    var statement: OpaquePointer?
+    try prepare(
+      """
+      SELECT id, device_id, requested_minutes, note, created_at, state
+      FROM more_time_requests ORDER BY created_at DESC LIMIT \(Self.maximumTimeRequests);
+      """, &statement)
+    defer { sqlite3_finalize(statement) }
+    var result: [MoreTimeRequestRecord] = []
+    while sqlite3_step(statement) == SQLITE_ROW {
+      guard let id = UUID(uuidString: text(statement, 0)),
+        let state = MoreTimeRequestState(rawValue: text(statement, 5))
+      else { throw HubDatabaseError.decode("more-time request") }
+      result.append(
+        MoreTimeRequestRecord(
+          id: id, deviceID: text(statement, 1),
+          requestedMinutes: Int(sqlite3_column_int(statement, 2)), note: text(statement, 3),
+          createdAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 4)),
+          state: state))
+    }
+    return result
+  }
+
+  public func pruneActivity(now: Date) throws {
+    let configurations = try activityConfigurations()
+    for configuration in configurations {
+      if configuration.enabled {
+        let cutoff = now.addingTimeInterval(-TimeInterval(configuration.retentionDays * 86_400))
+        try run(
+          "DELETE FROM app_activity WHERE device_id = ? AND observed_at < ?;",
+          [.text(configuration.deviceID), .integer(Int64(cutoff.timeIntervalSince1970))])
+      } else {
+        try run("DELETE FROM app_activity WHERE device_id = ?;", [.text(configuration.deviceID)])
+      }
+    }
+    let chatCutoff = now.addingTimeInterval(-30 * 86_400)
+    try run(
+      "DELETE FROM hub_chat_messages WHERE sent_at < ?;",
+      [.integer(Int64(chatCutoff.timeIntervalSince1970))])
+  }
+
+  public func storageSummary() throws -> HubStorageSummary {
+    HubStorageSummary(
+      activityRecords: try scalar("SELECT COUNT(*) FROM app_activity;"),
+      chatMessages: try scalar("SELECT COUNT(*) FROM hub_chat_messages;"),
+      queuedEnvelopes: try scalar("SELECT COUNT(*) FROM outbound_queue;"))
   }
 
   public func counts() throws -> (devices: Int, audit: Int, queued: Int, receipts: Int) {

@@ -34,11 +34,11 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   const active = tracker.stages.filter((stage) => stage.id === tracker.activeStage);
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
-  assert.equal(active[0].branch, "stage/03-macos-child-agent");
-  assert.equal(active[0].version, "0.3.0-rc.2");
+  assert.equal(active[0].branch, "stage/04-macos-activity-chat");
+  assert.equal(active[0].version, "0.4.0-rc.1");
 });
 
-test("Stage 03 installer defaults to the parent and offers an explicit child choice", async () => {
+test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
   const [distribution, choices] = await Promise.all([
     read("agents/endpoint-macos/Installer/Distribution.xml"),
     read("agents/endpoint-macos/Installer/ci-child-choices.xml"),
@@ -103,7 +103,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–03 are merged\. Stage 04 has not started/);
+  assert.match(readme, /Stage 04 is ready for developer testing; Stages 00–03 are merged/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });

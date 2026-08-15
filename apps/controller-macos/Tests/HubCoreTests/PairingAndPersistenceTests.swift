@@ -113,6 +113,54 @@ struct PairingAndPersistenceTests {
     try database.unpair(deviceID: "mock-revoke")
     #expect(try database.device(id: "mock-revoke") == nil)
   }
+
+  @Test("chat, activity, retention, and broadcast queues stay bounded")
+  func stage04Persistence() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let database = try HubDatabase(path: fixture.path)
+    let identity = try Ed25519Identity(keyID: "device-stage04")
+    for id in ["child-one", "child-two"] {
+      try database.upsertDevice(
+        HubDeviceRecord(
+          id: id, name: id, platform: "macOS", keyID: "\(identity.keyID)-\(id)",
+          publicKey: identity.publicKeyData, capabilities: ["chat", "app-activity"],
+          pairedAt: .distantPast, lastSeen: .distantPast))
+    }
+    let thread = UUID()
+    for id in ["child-one", "child-two"] {
+      let message = HubChatMessage(
+        deviceID: id, threadID: thread, sender: "Parent", text: "Family check-in",
+        state: .queued, audience: .familyGroup, isFromParent: true)
+      try database.saveChatMessage(message)
+      try database.enqueue(
+        QueuedEnvelope(
+          deviceID: id, expiresAt: Date().addingTimeInterval(30 * 86_400),
+          envelope: Data(message.id.uuidString.utf8)))
+    }
+    #expect(try database.chatMessages().count == 2)
+    #expect(try database.chatMessages().allSatisfy { $0.state == .queued })
+    #expect(try database.chatMessages().allSatisfy { $0.threadID == thread })
+
+    try database.saveActivityConfiguration(
+      ActivityConfiguration(deviceID: "child-one", enabled: true, retentionDays: 1))
+    try database.saveActivity(
+      [
+        HubAppActivity(
+          deviceID: "child-one", bundleIdentifier: "com.example.Editor",
+          applicationName: "Editor", isForeground: true,
+          observedAt: Date().addingTimeInterval(-2 * 86_400)),
+        HubAppActivity(
+          deviceID: "child-one", bundleIdentifier: "com.example.Browser",
+          applicationName: "Browser", isForeground: false),
+      ], for: "child-one")
+    try database.pruneActivity(now: Date())
+    #expect(try database.activity().map(\.applicationName) == ["Browser"])
+    try database.saveActivityConfiguration(
+      ActivityConfiguration(deviceID: "child-one", enabled: false, retentionDays: 1))
+    #expect(try database.activity().isEmpty)
+    #expect(try database.storageSummary().queuedEnvelopes == 2)
+  }
 }
 
 private struct TemporaryHubDatabase {

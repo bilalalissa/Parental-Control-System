@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document records the target architecture and the Stage 02 local-hub implementation boundary. Delivery remains gated by [`stage-status.json`](../stages/stage-status.json).
+This document records the target architecture and the Stage 04 macOS activity/chat implementation boundary. Delivery remains gated by [`stage-status.json`](../stages/stage-status.json).
 
 ## Local-first topology
 
@@ -10,7 +10,7 @@ The Apple-silicon macOS Parent Controller is the local policy authority and user
 
 The controller never treats an absent heartbeat as proof of shutdown. It displays `Offline` and the last-seen time; `Shutdown confirmed` requires an endpoint event or command receipt.
 
-Stage 02 implements this topology with a bundled ordinary-user hub helper, Bonjour `_parental-control._tcp` advertisement and browsing support, a certificate-pinned TLS 1.3 WebSocket, Ed25519-signed protocol envelopes, and short-lived one-time pairing codes. The GUI authenticates its loopback IPC with an ephemeral HMAC key transferred once through a private child-process pipe. The session key is never written to disk or passed on the command line. Persistent controller signing and TLS private keys remain in Keychain; the self-signed public certificate is retained as a mode-0600 application-support file so routine operation does not imitate a password secret or require password entry.
+The local hub uses Bonjour `_parental-control._tcp`, a certificate-pinned TLS 1.3 WebSocket, Ed25519-signed protocol envelopes, and short-lived one-time pairing codes. The GUI authenticates loopback IPC with an ephemeral HMAC key transferred through a private child-process pipe. Stage 04 extends the same channel with bounded activity deltas, direct/group/announcement chat, delivery receipts, activity configuration, and more-time requests. No second service or cloud data path is introduced.
 
 A standard iPadOS app uses FamilyControls, DeviceActivity, ManagedSettings, and ManagedSettingsUI. It is not a persistent desktop agent. APNs may support honest best-effort notifications, but scheduling and shielding do not depend on a custom cloud database.
 
@@ -33,9 +33,9 @@ Platform code may generate types from these definitions, but copied schemas are 
 
 ## Data flow and retention
 
-Endpoints send capability-negotiated snapshots and bounded deltas. Stage 02 uses a 15-second active heartbeat and backs off to 60 seconds while idle; a device becomes `Offline` after 75 seconds without a valid signed message. Unchanged full snapshots are not sent every heartbeat. Queues, receipts, replay caches, and audit records have tested hard bounds. Later application, tab, and chat records remain stage-gated.
+Endpoints send capability-negotiated snapshots and bounded deltas. The active heartbeat is 15 seconds and backs off to 60 seconds while idle; a device becomes `Offline` after 75 seconds without a valid signed message. The login helper uses `NSWorkspace` launch, termination, and activation notifications rather than continuous process polling. At most 64 regular application names and bundle IDs are retained in an endpoint snapshot, and unchanged activity is not resent. Browser tabs remain stage-gated.
 
-Default design targets are seven days for detailed app/tab metadata, thirty days for chat and connection/audit records, no more than 25 MiB of logs per endpoint, and no more than 50 MiB of controller logs. These are targets until measured in implementation stages.
+Stage 04 implements configurable one-to-thirty-day app-activity retention (seven days by default), thirty-day chat retention, a 100-envelope offline queue per device, a 200-message endpoint view, and bounded requests, receipts, replay caches, and audit records. Endpoint logs remain capped below 25 MiB by their existing rotation policy.
 
 ## Failure posture
 

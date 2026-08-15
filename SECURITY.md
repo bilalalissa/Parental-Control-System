@@ -25,3 +25,5 @@ Maintainers should acknowledge a report within seven days, keep the reporter inf
 See the [threat model](docs/architecture/threat-model.md) and [privacy policy](PRIVACY.md) for the complete Stage 00 posture.
 
 In Stage 02, initial pairing combines a pinned TLS 1.3 server identity with a rate-limited one-use code and a self-signed Ed25519 device announcement. Subsequent messages require the stored per-device public key, monotonic sequence, unique message ID, bounded timestamp/expiry, and allowlisted message type. GUI-to-hub IPC is loopback-only and HMAC-authenticated with an ephemeral session key delivered through a private child-process pipe.
+
+Stage 04 app-activity, chat, receipt, activity-configuration, and more-time request messages remain typed and allowlisted. Offline envelopes have signed expiries and replay protection; controller and endpoint queues are bounded. Protected endpoint XPC authorizes activity updates only from the signed login helper and chat/time requests only from the signed visible child app. Logs and audit records omit chat text.

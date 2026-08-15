@@ -9,7 +9,7 @@ fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 PACKAGE_DIR="$ROOT_DIR/apps/controller-macos"
-DERIVED_DIR="$ROOT_DIR/.artifacts/derived-data/stage-02"
+DERIVED_DIR="$ROOT_DIR/.artifacts/derived-data/stage-04"
 SWIFTPM_DIR="$DERIVED_DIR/swiftpm"
 MODULE_CACHE="$DERIVED_DIR/module-cache"
 CACHE_DIR="$DERIVED_DIR/swiftpm-cache"
@@ -25,7 +25,7 @@ APP_BINARY="$APP_MACOS/$APP_NAME"
 APP_HELPERS="$APP_CONTENTS/Helpers"
 HUB_BINARY="$APP_HELPERS/ParentalControlHub"
 MOCK_BINARY="$APP_HELPERS/ParentalControlMockAgent"
-VERSION="0.2.0-rc.1"
+VERSION="0.4.0-rc.1"
 COMMIT="$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD)"
 
 mkdir -p "$MODULE_CACHE" "$CACHE_DIR" "$CONFIG_DIR" "$SECURITY_DIR"
@@ -69,7 +69,11 @@ cp "$BUILD_BINARY" "$APP_BINARY"
 cp "$BIN_DIR/ParentalControlHub" "$HUB_BINARY"
 cp "$BIN_DIR/ParentalControlMockAgent" "$MOCK_BINARY"
 chmod +x "$APP_BINARY" "$HUB_BINARY" "$MOCK_BINARY"
-"$ROOT_DIR/script/generate_controller_icon.sh" "$APP_RESOURCES/ControllerIcon.icns" >/dev/null
+CONTROLLER_ICON="$DERIVED_DIR/ControllerIcon.icns"
+if [[ ! -f "$CONTROLLER_ICON" ]]; then
+  "$ROOT_DIR/script/generate_controller_icon.sh" "$CONTROLLER_ICON" >/dev/null
+fi
+cp "$CONTROLLER_ICON" "$APP_RESOURCES/ControllerIcon.icns"
 
 /usr/bin/plutil -create xml1 "$APP_CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string $APP_NAME" "$APP_CONTENTS/Info.plist"
@@ -78,7 +82,7 @@ chmod +x "$APP_BINARY" "$HUB_BINARY" "$MOCK_BINARY"
 /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'Parental Control'" "$APP_CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" "$APP_CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "$APP_CONTENTS/Info.plist"
-/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 2001" "$APP_CONTENTS/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 4001" "$APP_CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :BuildCommit string $COMMIT" "$APP_CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :ProtocolVersion string 1.0" "$APP_CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string ControllerIcon" "$APP_CONTENTS/Info.plist"

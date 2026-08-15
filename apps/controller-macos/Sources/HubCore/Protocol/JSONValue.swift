@@ -52,4 +52,9 @@ public enum JSONValue: Codable, Equatable, Sendable {
     guard case .integer(let value) = self else { return nil }
     return value
   }
+
+  public var boolValue: Bool? {
+    guard case .bool(let value) = self else { return nil }
+    return value
+  }
 }

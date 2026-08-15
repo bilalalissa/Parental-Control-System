@@ -2,6 +2,25 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.4.0-rc.1 — 2026-08-15
+
+Status: **STAGE-04 ready for developer test**
+
+- Added event-driven macOS foreground/running application metadata limited to names, bundle identifiers, state, and time; collection can be disabled and retention is configurable from one to thirty days.
+- Added authenticated two-way direct chat, family group chat, parent announcements to all paired child devices, generic child notifications, and request-more-time.
+- Added bounded persistent controller/endpoint offline queues, queued/sent/delivered/read/failed states, thirty-day chat pruning, audit metadata without message contents, and protected local storage permissions.
+- Updated both visible SwiftUI apps and replaced the prior selectable package with one universal `0.4.0-rc.1` candidate.
+- Browser tabs, schedule enforcement, remote actions, public relay, and cloud storage remain excluded.
+
+## 0.3.0-rc.2 — 2026-08-15
+
+Status: **STAGE-03 merged**
+
+- Added the visible universal macOS Child Endpoint, boot daemon, login helper, authenticated protected XPC, explicit pairing, status/uptime/session/network/health reporting, bounded logs, installer, and uninstaller.
+- Added the selectable combined package with the Parent Controller as the default role and the Child Endpoint available through Customize.
+- Added bounded three-attempt startup and packaging retries with short delays and confirmed physical-device pairing, revocation, unpairing, re-pairing, and reduced routine Keychain prompts.
+- App activity, browser tabs, chat, and enforcement remained excluded from Stage 03.
+
 ## 0.2.0-rc.1 — 2026-08-13
 
 Status: **STAGE-02 merged**

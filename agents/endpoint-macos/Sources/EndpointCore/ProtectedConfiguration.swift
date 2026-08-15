@@ -7,15 +7,37 @@ public struct EndpointConfiguration: Codable, Equatable, Sendable {
   public var invitation: PairingInvitation?
   public var pairedController: PairingInvitation?
   public var sequence: UInt64
+  public var activityCollectionEnabled: Bool
+  public var activityRetentionDays: Int
 
   public init(
     deviceID: String = UUID().uuidString.lowercased(), invitation: PairingInvitation? = nil,
-    pairedController: PairingInvitation? = nil, sequence: UInt64 = 0
+    pairedController: PairingInvitation? = nil, sequence: UInt64 = 0,
+    activityCollectionEnabled: Bool = true, activityRetentionDays: Int = 7
   ) {
     self.deviceID = deviceID
     self.invitation = invitation
     self.pairedController = pairedController
     self.sequence = sequence
+    self.activityCollectionEnabled = activityCollectionEnabled
+    self.activityRetentionDays = max(1, min(activityRetentionDays, 30))
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case deviceID, invitation, pairedController, sequence
+    case activityCollectionEnabled, activityRetentionDays
+  }
+
+  public init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    deviceID = try values.decode(String.self, forKey: .deviceID)
+    invitation = try values.decodeIfPresent(PairingInvitation.self, forKey: .invitation)
+    pairedController = try values.decodeIfPresent(PairingInvitation.self, forKey: .pairedController)
+    sequence = try values.decodeIfPresent(UInt64.self, forKey: .sequence) ?? 0
+    activityCollectionEnabled =
+      try values.decodeIfPresent(Bool.self, forKey: .activityCollectionEnabled) ?? true
+    activityRetentionDays = max(
+      1, min(try values.decodeIfPresent(Int.self, forKey: .activityRetentionDays) ?? 7, 30))
   }
 }
 
@@ -87,6 +109,13 @@ public final class ProtectedConfigurationStore: @unchecked Sendable {
         controllerPublicKey: invitation.controllerPublicKey)
     }
     value.invitation = nil
+    try save(value)
+  }
+
+  public func setActivityCollection(enabled: Bool, retentionDays: Int) throws {
+    var value = try load()
+    value.activityCollectionEnabled = enabled
+    value.activityRetentionDays = max(1, min(retentionDays, 30))
     try save(value)
   }
 

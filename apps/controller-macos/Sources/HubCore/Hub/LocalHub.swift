@@ -26,17 +26,33 @@ public struct LocalHubStatus: Codable, Equatable, Sendable {
   public let certificateFingerprint: String
   public let devices: [HubDeviceRecord]
   public let invitation: PairingInvitation?
+  public let chatMessages: [HubChatMessage]
+  public let activity: [HubAppActivity]
+  public let activityConfigurations: [ActivityConfiguration]
+  public let moreTimeRequests: [MoreTimeRequestRecord]
+  public let storage: HubStorageSummary
 
   public init(
     port: UInt16,
     certificateFingerprint: String,
     devices: [HubDeviceRecord],
-    invitation: PairingInvitation?
+    invitation: PairingInvitation?,
+    chatMessages: [HubChatMessage] = [],
+    activity: [HubAppActivity] = [],
+    activityConfigurations: [ActivityConfiguration] = [],
+    moreTimeRequests: [MoreTimeRequestRecord] = [],
+    storage: HubStorageSummary = HubStorageSummary(
+      activityRecords: 0, chatMessages: 0, queuedEnvelopes: 0)
   ) {
     self.port = port
     self.certificateFingerprint = certificateFingerprint
     self.devices = devices
     self.invitation = invitation
+    self.chatMessages = chatMessages
+    self.activity = activity
+    self.activityConfigurations = activityConfigurations
+    self.moreTimeRequests = moreTimeRequests
+    self.storage = storage
   }
 }
 
@@ -162,7 +178,89 @@ public final class LocalHub: @unchecked Sendable {
       port: currentPort,
       certificateFingerprint: tlsIdentity.fingerprint,
       devices: try database.devices(includeRevoked: true),
-      invitation: currentInvitation)
+      invitation: currentInvitation,
+      chatMessages: try database.chatMessages(),
+      activity: try database.activity(),
+      activityConfigurations: try database.activityConfigurations(),
+      moreTimeRequests: try database.moreTimeRequests(),
+      storage: try database.storageSummary())
+  }
+
+  @discardableResult
+  public func sendChat(
+    deviceID: String, text: String, audience: ChatAudience = .direct,
+    threadID: UUID = UUID(), now: Date = Date()
+  ) throws -> UUID {
+    guard let device = try database.device(id: deviceID), !device.isRevoked else {
+      throw LocalHubError.unknownDevice
+    }
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { throw LocalHubError.unexpectedMessage }
+    let messageID = UUID()
+    let envelope = try controllerIdentity.sign(
+      deviceID: "controller", sequence: nextControllerSequence(), type: .chatMessage,
+      payload: [
+        "targetDeviceId": .string(deviceID), "text": .string(String(trimmed.prefix(2_000))),
+        "sender": .string("Parent"), "audience": .string(audience.rawValue),
+        "threadId": .string(threadID.uuidString),
+      ], now: now, lifetime: 30 * 86_400, id: messageID)
+    let data = try ProtocolCodec.encode(envelope)
+    lock.lock()
+    let peer = devicePeers[deviceID]
+    lock.unlock()
+    let initialState: ChatDeliveryState = peer == nil ? .queued : .sent
+    try database.saveChatMessage(
+      HubChatMessage(
+        id: messageID, deviceID: deviceID, threadID: threadID, sentAt: now,
+        sender: "Parent", text: trimmed, state: initialState, audience: audience,
+        isFromParent: true))
+    if let peer {
+      peer.send(data) { [weak self] error in
+        guard let self else { return }
+        if error != nil {
+          try? database.updateChatState(id: messageID, state: .failed)
+          try? database.enqueue(
+            QueuedEnvelope(
+              deviceID: deviceID, expiresAt: now.addingTimeInterval(30 * 86_400),
+              envelope: data))
+        }
+        publishStatus()
+      }
+    } else {
+      try database.enqueue(
+        QueuedEnvelope(
+          deviceID: deviceID, expiresAt: now.addingTimeInterval(30 * 86_400), envelope: data))
+    }
+    try database.appendAudit(
+      HubAuditRecord(
+        event: "chat.outbound", deviceID: deviceID,
+        detail: "Queued message metadata for \(audience.rawValue); content omitted"))
+    publishStatus()
+    return messageID
+  }
+
+  public func configureActivity(_ configuration: ActivityConfiguration) throws {
+    guard let device = try database.device(id: configuration.deviceID), !device.isRevoked else {
+      throw LocalHubError.unknownDevice
+    }
+    try database.saveActivityConfiguration(configuration)
+    let envelope = try controllerIdentity.sign(
+      deviceID: "controller", sequence: nextControllerSequence(),
+      type: .activityConfiguration,
+      payload: [
+        "targetDeviceId": .string(configuration.deviceID),
+        "enabled": .bool(configuration.enabled),
+        "retentionDays": .integer(Int64(configuration.retentionDays)),
+      ], lifetime: 7 * 86_400)
+    try sendOrQueue(
+      envelope, deviceID: configuration.deviceID, lifetime: 7 * 86_400)
+    try database.appendAudit(
+      HubAuditRecord(
+        event: "activity.configuration", deviceID: configuration.deviceID,
+        detail: configuration.enabled
+          ? "App activity enabled; \(configuration.retentionDays)-day retention"
+          : "App activity disabled and retained records removed"))
+    publishStatus()
   }
 
   public func revoke(deviceID: String) throws {
@@ -261,6 +359,66 @@ public final class LocalHub: @unchecked Sendable {
         HubAuditRecord(
           event: "snapshot.delta", deviceID: device.id,
           detail: "Accepted snapshot version \(version)"))
+    case .activityUpdate:
+      let enabled =
+        try database.activityConfigurations().first { $0.deviceID == device.id }?
+        .enabled ?? true
+      if enabled, case .array(let values) = envelope.payload["applications"] {
+        let records = values.prefix(64).compactMap { value -> HubAppActivity? in
+          guard case .object(let item) = value,
+            let bundleID = item["bundleIdentifier"]?.stringValue,
+            let name = item["applicationName"]?.stringValue,
+            let foreground = item["isForeground"]?.boolValue,
+            let observedText = item["observedAt"]?.stringValue,
+            let observed = ISO8601DateFormatter().date(from: observedText)
+          else { return nil }
+          return HubAppActivity(
+            deviceID: device.id, bundleIdentifier: bundleID, applicationName: name,
+            isForeground: foreground, observedAt: observed)
+        }
+        try database.saveActivity(records, for: device.id)
+      }
+      try database.updateSeen(
+        deviceID: device.id, sequence: envelope.sequence,
+        snapshotVersion: device.snapshotVersion)
+      try database.appendAudit(
+        HubAuditRecord(
+          event: "activity.delta", deviceID: device.id,
+          detail: "Accepted bounded app activity metadata; no command lines or content"))
+    case .chatMessage:
+      guard let text = envelope.payload["text"]?.stringValue,
+        let audienceText = envelope.payload["audience"]?.stringValue,
+        let audience = ChatAudience(rawValue: audienceText)
+      else { throw LocalHubError.unexpectedMessage }
+      let threadID =
+        envelope.payload["threadId"]?.stringValue.flatMap(UUID.init(uuidString:))
+        ?? UUID()
+      try database.saveChatMessage(
+        HubChatMessage(
+          id: envelope.id, deviceID: device.id, threadID: threadID,
+          sentAt: envelope.sentAt, sender: String(device.name.prefix(80)), text: text,
+          state: .delivered, audience: audience, isFromParent: false))
+      try database.appendAudit(
+        HubAuditRecord(
+          event: "chat.inbound", deviceID: device.id,
+          detail: "Received message metadata; content omitted"))
+      try database.updateSeen(
+        deviceID: device.id, sequence: envelope.sequence,
+        snapshotVersion: device.snapshotVersion)
+    case .requestMoreTime:
+      let minutes = Int(envelope.payload["minutes"]?.integerValue ?? 15)
+      let note = envelope.payload["note"]?.stringValue ?? ""
+      try database.appendMoreTimeRequest(
+        MoreTimeRequestRecord(
+          id: envelope.id, deviceID: device.id, requestedMinutes: minutes, note: note,
+          createdAt: envelope.sentAt))
+      try database.appendAudit(
+        HubAuditRecord(
+          event: "time.requested", deviceID: device.id,
+          detail: "Requested \(max(5, min(minutes, 240))) minutes; note content omitted"))
+      try database.updateSeen(
+        deviceID: device.id, sequence: envelope.sequence,
+        snapshotVersion: device.snapshotVersion)
     case .receipt:
       guard
         let originalText = envelope.payload["originalMessageId"]?.stringValue,
@@ -269,10 +427,15 @@ public final class LocalHub: @unchecked Sendable {
       else { throw LocalHubError.unexpectedMessage }
       try database.appendReceipt(
         ReceiptRecord(deviceID: device.id, originalMessageID: original, state: state))
+      if let deliveryState = ChatDeliveryState(rawValue: state) {
+        try database.updateChatState(id: original, state: deliveryState)
+      } else if state == "accepted" {
+        try database.updateChatState(id: original, state: .delivered)
+      }
       try database.updateSeen(
         deviceID: device.id, sequence: envelope.sequence,
         snapshotVersion: device.snapshotVersion)
-    case .chatMessage, .snapshotRequest:
+    case .activityConfiguration, .snapshotRequest:
       throw LocalHubError.unexpectedMessage
     }
     try sendReceipt(for: envelope, state: "accepted", to: peer, deviceID: device.id)
@@ -320,6 +483,27 @@ public final class LocalHub: @unchecked Sendable {
           try? self?.database.removeQueued(id: item.id)
         }
       }
+    }
+  }
+
+  private func sendOrQueue(
+    _ envelope: ProtocolEnvelope, deviceID: String, lifetime: TimeInterval
+  ) throws {
+    let data = try ProtocolCodec.encode(envelope)
+    lock.lock()
+    let peer = devicePeers[deviceID]
+    lock.unlock()
+    if let peer {
+      peer.send(data) { [weak self] error in
+        guard let self, error != nil else { return }
+        try? database.enqueue(
+          QueuedEnvelope(
+            deviceID: deviceID, expiresAt: Date().addingTimeInterval(lifetime), envelope: data))
+      }
+    } else {
+      try database.enqueue(
+        QueuedEnvelope(
+          deviceID: deviceID, expiresAt: Date().addingTimeInterval(lifetime), envelope: data))
     }
   }
 

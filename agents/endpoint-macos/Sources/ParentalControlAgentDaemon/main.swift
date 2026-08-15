@@ -9,7 +9,8 @@ enum DaemonMain {
     let store = ProtectedConfigurationStore(root: root)
     let configuration = try store.load()
     let repository = EndpointStatusRepository(
-      initial: DeviceSnapshotCollector.collect(deviceID: configuration.deviceID))
+      initial: DeviceSnapshotCollector.collect(deviceID: configuration.deviceID),
+      persistenceURL: root.appendingPathComponent("runtime-queue.json"))
     let log = BoundedLog(directory: root.appendingPathComponent("Logs", isDirectory: true))
     let service =
       arguments.noXPC
@@ -25,6 +26,12 @@ enum DaemonMain {
     func connect() {
       guard repository.status().connectionState != .online else { return }
       agent?.stop()
+      guard let current = try? store.load(),
+        current.invitation != nil || current.pairedController != nil
+      else {
+        repository.update { $0.connectionState = .unpaired }
+        return
+      }
       do {
         if agent == nil {
           agent = try EndpointAgent(
@@ -35,7 +42,9 @@ enum DaemonMain {
       } catch {
         agent = nil
         repository.update {
-          $0.connectionState = configuration.invitation == nil ? .unpaired : .offline
+          $0.connectionState =
+            current.invitation == nil && current.pairedController == nil
+            ? .unpaired : .offline
         }
         log.write(event: "connection.retry", detail: String(describing: error))
       }

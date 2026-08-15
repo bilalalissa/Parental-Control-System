@@ -1,3 +1,4 @@
+import HubCore
 import SwiftUI
 
 struct DevicesView: View {
@@ -27,22 +28,19 @@ struct DevicesView: View {
     .safeAreaInset(edge: .bottom) {
       if let paired = store.hubStatus?.devices, !paired.isEmpty {
         VStack(alignment: .leading, spacing: 8) {
-          Text("Stage 02 paired devices").font(.headline)
+          Text("Paired macOS devices").font(.headline)
           ForEach(paired) { device in
-            HStack {
-              Circle()
-                .fill(device.state() == .online ? .green : .gray)
-                .frame(width: 8, height: 8)
-              Text(device.name)
-              Text(device.state() == .online ? "Online" : "Offline")
-                .foregroundStyle(.secondary)
-              Text("Last seen \(device.lastSeen.formatted(date: .omitted, time: .standard))")
-                .font(.caption).foregroundStyle(.secondary)
-              Spacer()
-              Button("Revoke") { store.revokePairedDevice(device.id) }
-                .disabled(device.isRevoked)
-              Button("Unpair") { store.unpairDevice(device.id) }
-            }
+            PairedDeviceControlRow(
+              device: device,
+              configuration: store.hubStatus?.activityConfigurations.first {
+                $0.deviceID == device.id
+              } ?? ActivityConfiguration(deviceID: device.id),
+              activity: store.hubStatus?.activity.filter { $0.deviceID == device.id } ?? [],
+              requests: store.hubStatus?.moreTimeRequests.filter { $0.deviceID == device.id } ?? [],
+              store: store)
+          }
+          if let status = store.activityStatusMessage {
+            Text(status).font(.caption).foregroundStyle(.secondary)
           }
         }
         .padding(12)
@@ -51,6 +49,89 @@ struct DevicesView: View {
     }
     .navigationTitle("Devices")
     .accessibilityIdentifier(AccessibilityID.devices.rawValue)
+  }
+}
+
+private struct PairedDeviceControlRow: View {
+  let device: HubDeviceRecord
+  let configuration: ActivityConfiguration
+  let activity: [HubAppActivity]
+  let requests: [MoreTimeRequestRecord]
+  let store: ControllerStore
+  @State private var retentionDays: Int
+
+  init(
+    device: HubDeviceRecord, configuration: ActivityConfiguration,
+    activity: [HubAppActivity], requests: [MoreTimeRequestRecord], store: ControllerStore
+  ) {
+    self.device = device
+    self.configuration = configuration
+    self.activity = activity
+    self.requests = requests
+    self.store = store
+    _retentionDays = State(initialValue: configuration.retentionDays)
+  }
+
+  var body: some View {
+    DisclosureGroup {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack {
+          Toggle(
+            "Share application names",
+            isOn: Binding(
+              get: { configuration.enabled },
+              set: {
+                store.configureActivity(
+                  deviceID: device.id, enabled: $0, retentionDays: retentionDays)
+              }))
+          Spacer()
+          Stepper("Retain \(retentionDays) days", value: $retentionDays, in: 1...30)
+            .onChange(of: retentionDays) { _, days in
+              store.configureActivity(
+                deviceID: device.id, enabled: configuration.enabled, retentionDays: days)
+            }
+        }
+        Text(
+          "Application names and bundle identifiers only—never command lines or window contents."
+        )
+        .font(.caption).foregroundStyle(.secondary)
+        ForEach(activity.prefix(8)) { application in
+          HStack {
+            Image(systemName: application.isForeground ? "app.badge.checkmark" : "app")
+            Text(application.applicationName)
+            Text(application.bundleIdentifier).font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            if application.isForeground {
+              Text("Foreground").font(.caption).foregroundStyle(.green)
+            }
+          }
+        }
+        if activity.isEmpty {
+          Text(
+            configuration.enabled ? "No application activity received yet." : "Collection disabled."
+          )
+          .font(.caption).foregroundStyle(.secondary)
+        }
+        ForEach(requests.prefix(3)) { request in
+          Label(
+            "Requested \(request.requestedMinutes) minutes · \(request.createdAt.formatted(date: .omitted, time: .shortened))",
+            systemImage: "hourglass.badge.plus"
+          )
+          .font(.caption)
+        }
+      }.padding(.top, 8)
+    } label: {
+      HStack {
+        Circle().fill(device.state() == .online ? .green : .gray).frame(width: 8, height: 8)
+        Text(device.name)
+        Text(device.state() == .online ? "Online" : "Offline").foregroundStyle(.secondary)
+        Text("Last seen \(device.lastSeen.formatted(date: .omitted, time: .standard))")
+          .font(.caption).foregroundStyle(.secondary)
+        Spacer()
+        Button("Revoke") { store.revokePairedDevice(device.id) }.disabled(device.isRevoked)
+        Button("Unpair") { store.unpairDevice(device.id) }
+      }
+    }
   }
 }
 

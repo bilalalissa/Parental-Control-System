@@ -7,6 +7,8 @@ public enum IPCCommand: String, Codable, Sendable {
   case createPairing
   case revoke
   case unpair
+  case sendChat
+  case configureActivity
   case shutdown
 }
 
@@ -16,14 +18,14 @@ public struct IPCRequest: Codable, Equatable, Sendable {
   public let nonce: String
   public let command: IPCCommand
   public let deviceID: String?
+  public let payload: [String: JSONValue]
   public let authentication: String
 
   public init(
     id: UUID = UUID(),
     sentAt: Date = Date(),
     nonce: String = UUID().uuidString,
-    command: IPCCommand,
-    deviceID: String? = nil,
+    command: IPCCommand, deviceID: String? = nil, payload: [String: JSONValue] = [:],
     authentication: String
   ) {
     self.id = id
@@ -31,6 +33,7 @@ public struct IPCRequest: Codable, Equatable, Sendable {
     self.nonce = nonce
     self.command = command
     self.deviceID = deviceID
+    self.payload = payload
     self.authentication = authentication
   }
 }
@@ -91,17 +94,21 @@ public final class IPCAuthenticator: @unchecked Sendable {
     self.key = SymmetricKey(data: key)
   }
 
-  public func request(command: IPCCommand, deviceID: String? = nil, now: Date = Date()) throws
+  public func request(
+    command: IPCCommand, deviceID: String? = nil, payload: [String: JSONValue] = [:],
+    now: Date = Date()
+  ) throws
     -> IPCRequest
   {
     let request = IPCRequest(
-      sentAt: now, command: command, deviceID: deviceID, authentication: "")
+      sentAt: now, command: command, deviceID: deviceID, payload: payload, authentication: "")
     return IPCRequest(
       id: request.id,
       sentAt: request.sentAt,
       nonce: request.nonce,
       command: request.command,
       deviceID: request.deviceID,
+      payload: request.payload,
       authentication: authenticate(requestSigningData(request)))
   }
 
@@ -156,8 +163,10 @@ public final class IPCAuthenticator: @unchecked Sendable {
 
   private func requestSigningData(_ request: IPCRequest) -> Data {
     let device = request.deviceID ?? ""
+    let payloadData = (try? ProtocolCodec.encoder().encode(request.payload)) ?? Data()
+    let payloadDigest = SHA256.hash(data: payloadData).map { String(format: "%02x", $0) }.joined()
     return Data(
-      "request|\(request.id.uuidString)|\(milliseconds(request.sentAt))|\(request.nonce)|\(request.command.rawValue)|\(device)"
+      "request|\(request.id.uuidString)|\(milliseconds(request.sentAt))|\(request.nonce)|\(request.command.rawValue)|\(device)|\(payloadDigest)"
         .utf8)
   }
 
@@ -299,12 +308,13 @@ public enum AuthenticatedIPCClient {
   public static func send(
     command: IPCCommand,
     deviceID: String? = nil,
+    payload: [String: JSONValue] = [:],
     port: UInt16,
     key: Data,
     timeout: TimeInterval = 3
   ) throws -> LocalHubStatus? {
     let authenticator = IPCAuthenticator(key: key)
-    let request = try authenticator.request(command: command, deviceID: deviceID)
+    let request = try authenticator.request(command: command, deviceID: deviceID, payload: payload)
     var encodedRequest = try IPCCodec.encoder().encode(request)
     encodedRequest.append(0x0A)
     let payload = encodedRequest

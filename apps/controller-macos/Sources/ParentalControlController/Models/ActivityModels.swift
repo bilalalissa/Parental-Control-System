@@ -1,4 +1,5 @@
 import Foundation
+import HubCore
 
 enum AuditSeverity: String, Codable, Sendable {
   case information
@@ -16,8 +17,10 @@ struct AuditEvent: Identifiable, Codable, Equatable, Sendable {
 
 enum MessageDeliveryState: String, Codable, Sendable {
   case queued
+  case sent
   case delivered
   case read
+  case failed
 }
 
 struct ChatMessage: Identifiable, Codable, Equatable, Sendable {
@@ -69,6 +72,14 @@ enum ChatAudienceMode: String, CaseIterable, Identifiable, Sendable {
       return devices.filter { $0.id == selectedDeviceID }
     case .familyGroup, .announcement:
       return devices
+    }
+  }
+
+  var hubAudience: ChatAudience {
+    switch self {
+    case .direct: .direct
+    case .familyGroup: .familyGroup
+    case .announcement: .announcement
     }
   }
 }

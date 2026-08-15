@@ -74,6 +74,27 @@ final class HubClient {
     try await request(.unpair, deviceID: deviceID)
   }
 
+  func sendChat(
+    deviceID: String, text: String, audience: ChatAudience, threadID: UUID
+  ) async throws -> LocalHubStatus? {
+    try await request(
+      .sendChat, deviceID: deviceID,
+      payload: [
+        "text": .string(text), "audience": .string(audience.rawValue),
+        "threadId": .string(threadID.uuidString),
+      ])
+  }
+
+  func configureActivity(
+    deviceID: String, enabled: Bool, retentionDays: Int
+  ) async throws -> LocalHubStatus? {
+    try await request(
+      .configureActivity, deviceID: deviceID,
+      payload: [
+        "enabled": .bool(enabled), "retentionDays": .integer(Int64(retentionDays)),
+      ])
+  }
+
   func stop() {
     guard let runtime = try? HubRuntime.read(), let key = ipcKey else { return }
     _ = try? AuthenticatedIPCClient.send(
@@ -82,7 +103,10 @@ final class HubClient {
     ipcKey = nil
   }
 
-  private func request(_ command: IPCCommand, deviceID: String? = nil) async throws
+  private func request(
+    _ command: IPCCommand, deviceID: String? = nil,
+    payload: [String: JSONValue] = [:]
+  ) async throws
     -> LocalHubStatus?
   {
     try await ensureRunning()
@@ -90,7 +114,8 @@ final class HubClient {
     guard let key = ipcKey else { throw HubClientError.keyUnavailable }
     return try await Task.detached {
       try AuthenticatedIPCClient.send(
-        command: command, deviceID: deviceID, port: runtime.ipcPort, key: key)
+        command: command, deviceID: deviceID, payload: payload,
+        port: runtime.ipcPort, key: key)
     }.value
   }
 }

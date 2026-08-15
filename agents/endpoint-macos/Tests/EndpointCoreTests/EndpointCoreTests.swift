@@ -166,4 +166,48 @@ struct EndpointCoreTests {
       #expect(!text.contains("secret-"))
     }
   }
+
+  @Test("activity disclosure and child queues are bounded and disable immediately")
+  func stage04RuntimeBounds() {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let queueURL = directory.appendingPathComponent("runtime-queue.json")
+    let repository = EndpointStatusRepository(
+      initial: DeviceSnapshotCollector.collect(deviceID: "synthetic-stage04"),
+      persistenceURL: queueURL)
+    let applications = (0..<90).map { index in
+      EndpointApplicationActivity(
+        bundleIdentifier: "com.example.app\(index)", applicationName: "App \(index)",
+        isForeground: index == 0)
+    }
+    repository.applyActivity(EndpointActivityUpdate(applications: applications))
+    #expect(repository.status().applications.count == 64)
+    repository.configureActivity(enabled: false, retentionDays: 3)
+    #expect(repository.status().applications.isEmpty)
+    #expect(repository.status().activityCollectionEnabled == false)
+    repository.applyActivity(EndpointActivityUpdate(applications: applications))
+    #expect(repository.status().applications.isEmpty)
+
+    for index in 0..<130 {
+      repository.queueChat(
+        text: "Synthetic message \(index)", audience: .direct, threadID: UUID())
+    }
+    let outbound = repository.drainOutbound()
+    #expect(outbound.count == 100)
+    #expect(repository.dashboard(markRead: false).messages.count <= 200)
+    repository.queueChat(text: "Survives restart", audience: .direct, threadID: UUID())
+    let restored = EndpointStatusRepository(
+      initial: DeviceSnapshotCollector.collect(deviceID: "synthetic-stage04"),
+      persistenceURL: queueURL)
+    #expect(restored.dashboard(markRead: false).messages.last?.text == "Survives restart")
+    let queueMode =
+      ((try? FileManager.default.attributesOfItem(atPath: queueURL.path)[.posixPermissions])
+      as? NSNumber)?.intValue ?? 0
+    #expect(queueMode & 0o777 == 0o600)
+    repository.queueMoreTime(minutes: 9_999, note: String(repeating: "n", count: 900))
+    let request = repository.drainOutbound().last
+    #expect(request?.payload["minutes"] == .integer(240))
+    #expect(request?.payload["note"]?.stringValue?.count == 500)
+  }
 }
