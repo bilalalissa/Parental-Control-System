@@ -38,7 +38,7 @@
       "id": "STAGE-04",
       "name": "macOS app activity and chat",
       "version": "0.4.0-rc.1",
-      "status": "IMPLEMENTING",
+      "status": "READY_FOR_DEVELOPER_TEST",
       "branch": "stage/04-macos-activity-chat",
       "document": "stage-04.md"
     }
