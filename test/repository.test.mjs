@@ -234,6 +234,9 @@ test("Stage 05 CI verifies the fresh default install before child customization"
   const childInstall = workflow.indexOf("- name: Install, diagnose, and uninstall child choice");
   assert.ok(parentInstall >= 0);
   assert.ok(childInstall > parentInstall);
+  assert.match(workflow, /BEFORE_SHA: \$\{\{ github\.event\.before \}\}/);
+  assert.match(workflow, /git diff --quiet "\$BASE_SHA" HEAD/);
+  assert.doesNotMatch(workflow, /git diff --quiet HEAD\^ HEAD/);
   assert.match(
     workflow,
     /Install default parent choice[\s\S]*?codesign --verify --deep --strict[\s\S]*?pkgutil --forget com\.bilalalissa\.ParentalControlController\.component/,

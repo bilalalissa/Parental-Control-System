@@ -36,8 +36,16 @@ jobs:
           fetch-depth: 2
       - name: Detect installer-affecting changes
         id: scope
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if git diff --quiet HEAD^ HEAD -- \
+          BASE_SHA="$BEFORE_SHA"
+          if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ || "$BASE_SHA" =~ ^0+$ ]]; then
+            BASE_SHA="$PR_BASE_SHA"
+          fi
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          if git diff --quiet "$BASE_SHA" HEAD -- \
             .github/workflows/stage-03-macos.yml \
             .gitignore \
             .codex/environments/environment.toml \
