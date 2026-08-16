@@ -2,6 +2,14 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.5.0-rc.4 — 2026-08-16
+
+Status: **STAGE-05 ready for developer retest**
+
+- Fixes the physically reproduced Parent Controller race in which concurrent initial status and pairing-code requests could launch two hub helpers with different ephemeral IPC keys.
+- Coalesces concurrent hub startup requests into one launch, accepts a runtime file only when its process ID belongs to that launch, and terminates/clears a failed launch before a bounded retry.
+- Adds focused concurrency and retry regression tests while preserving the rc.3 browser, chat, speech, unread, mutation, and presence behavior.
+
 ## 0.5.0-rc.3 — 2026-08-16
 
 Status: **STAGE-05 ready for developer retest**

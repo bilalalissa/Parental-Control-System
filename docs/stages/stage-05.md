@@ -1,6 +1,6 @@
 # STAGE-05 — Shared Chromium extension and macOS integration
 
-- Version: `0.5.0-rc.3`
+- Version: `0.5.0-rc.4`
 - Branch: `stage/05-chromium-extension`
 - Status: `READY_FOR_RETEST`
 - Platform: Chrome, Microsoft Edge, and Arc on a universal macOS child endpoint; Parent Controller on Apple silicon; macOS 14 or newer
@@ -9,7 +9,7 @@
 
 Deliver one visible Manifest V3 WebExtension source for Chrome, Edge, and Arc, one packaged extension, and a narrowly authenticated macOS native-messaging host. When the parent explicitly enables sharing, collect at most 128 open HTTP(S) tab titles and query-free origins with browser, pseudonymous local profile, active state, and observation time. Exclude private tabs and clear retained metadata immediately when disabled.
 
-Complete the deferred Stage 04 chat feedback and `rc.2` physical-test corrections: a short system alert after a sender queues a message, generic system-controlled arrival sound for both receiver directions, explicit unread counters that clear only for the visible conversation, distinct `Sent`, `Delivered`, and `Read` indicators, authenticated parent-only edit/delete, and typed parent announcements spoken automatically through local macOS speech on each receiving child.
+Complete the deferred Stage 04 chat feedback, `rc.2` physical-test corrections, and `rc.4` pairing-startup correction: a short system alert after a sender queues a message, generic system-controlled arrival sound for both receiver directions, explicit unread counters that clear only for the visible conversation, distinct `Sent`, `Delivered`, and `Read` indicators, authenticated parent-only edit/delete, typed parent announcements spoken automatically through local macOS speech on each receiving child, and reliable one-time pairing-code creation even when the initial status refresh and button action overlap.
 
 Excluded: Safari, browser history, page/document contents, full URLs or paths, query strings, fragments, forms, cookies, passwords, private browsing, downloads, bookmarks, network traffic, screenshots, keystrokes, clipboard, microphone recording, audio attachments/files/uploads, message contents in logs/audit/notification diagnostics, schedule enforcement, remote actions, public relay, cloud storage, and Stage 06+ work.
 
@@ -26,18 +26,19 @@ Excluded: Safari, browser history, page/document contents, full URLs or paths, q
 - Parent-authored bubbles expose Edit and Delete. Mutations travel over authenticated, signed, replay-protected LAN messages and bounded offline queues. A deletion clears the stored body and leaves `Message deleted`; edits show `Edited`. Child-authored messages cannot be mutated by this path, and audits omit content.
 - Announcements remain ordinary persistent text chat records. The logged-in child helper speaks each newly received announcement through `AVSpeechSynthesizer`; it records no microphone input, creates no audio file, and sends no speech data to a service.
 - `Delivered` is set only after the receiving side durably saves the message and returns an authenticated receipt. `Read` is sent only when the receiver opens the relevant conversation; dashboard/status refreshes do not mark messages read.
+- Parent Controller hub startup is serialized. Concurrent status and pairing actions share one in-flight launch, the runtime file must identify that exact helper process, and a helper that exits or fails readiness is terminated and cleared before a later bounded retry. This preserves the per-launch in-memory IPC key and prevents two helpers from producing a runtime/key mismatch.
 
 ## Verification evidence
 
 | Check | Result |
 | --- | --- |
-| Repository tests | 34 passed; one Windows-only cleanup test skipped on macOS (35 total), including Arc installation/identity, local speech, custom badge, parent mutation, privacy, and fresh default-parent CI assertions. |
-| Controller/hub suite | 29 tests in 9 suites passed, including schema migration/idempotency, browser bounds/pruning, mutation persistence, monotonic receipts, and incoming-only unread counting. |
+| Repository tests | 35 passed; one Windows-only cleanup test skipped on macOS (36 total), including serialized hub startup, Arc installation/identity, local speech, custom badge, parent mutation, privacy, and fresh default-parent CI assertions. |
+| Controller/hub suite | 31 tests in 10 suites passed, including concurrent startup coalescing, retry after failure, schema migration/idempotency, browser bounds/pruning, mutation persistence, monotonic receipts, and incoming-only unread counting. |
 | Endpoint suite | All 11 tests passed locally, including real TLS pairing plus signed parent-message delivery/edit/delete, restart/reconnect, heartbeat progression, revocation, Chrome/Edge/Arc caller authorization, browser sanitization, and explicit-read behavior. |
 | Formatting/static checks | `swift format lint`, `git diff --check`, JSON parsing, JavaScript syntax, shell syntax, and extension packaging without optional `rg` passed. |
 | Privacy/security checks | Extension permission allowlist, private-tab filtering, query/fragment stripping, 128-record bounds, native caller identity, installed-host XPC identity, no private-key/API-token diff patterns, and no production npm dependencies passed. |
 | Extension package | ZIP integrity, eight required files, no key/certificate file extensions, and SHA-256 passed. Physical Chrome/Edge/Arc loading remains a developer check. |
-| Bundle/package | Strict nested ad-hoc app signatures, package payload/native manifests, Arc postinstall path, embedded `0.5.0-rc.3` build `5003`, source commit `535b9e4af3e0`, and SHA-256 passed. |
+| Bundle/package | Strict nested ad-hoc app signatures, package payload/native manifests, Arc postinstall path, embedded `0.5.0-rc.4` build `5004`, source commit `59856dffb88b`, and SHA-256 passed. |
 | Universal binaries | Child app, daemon, login helper, typed control tool, and browser host each report `x86_64 arm64`. |
 | GitHub Actions | Commit `535b9e4af3e0` passed macOS 15 repository tests, formatting, controller/endpoint suites, packaging, universal-slice checks, fresh default-parent installation, child installation/status/launch/uninstallation, seven-day artifact upload, and scoped cleanup. Supporting POSIX/Windows cleanup and secret-scanning checks also passed. |
 
@@ -45,14 +46,14 @@ The final package was not installed over the developer Mac's existing approved p
 
 ## Release candidates
 
-- `.artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.3.pkg`
+- `.artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.4.pkg`
   - Purpose: selectable Parent Controller or universal visible macOS Child Endpoint, including the native host and Chrome/Edge/Arc native-host integration
-  - SHA-256: `2dcfba205be448d653edcf4652902b1193ad76a6a8d024c869b88f281a201725`
+  - SHA-256: `b5405ffd1e1f3bb38aa8ea1a8553651644b9024dca7e9755760f2ad9f72528b6`
   - Apps/helpers: ad-hoc signed, no Team ID or restricted entitlements
   - Installer: unsigned and not notarized; no Developer ID Installer identity is available
-- `.artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.3.zip`
+- `.artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.4.zip`
   - Purpose: one shared unpacked-extension package for Chrome, Microsoft Edge, and Arc
-  - SHA-256: `d55a16064f130f6dc340057677318f1ba9b75cd965be21e88d5b08cd2e5ccce6`
+  - SHA-256: `c4899d520087e644afaa8488e0e8983332bda85206c56eced351c582702c163b`
   - ZIP/extension: unsigned and not store-published; contains only the public extension key, not private signing material
 
 ## Installation outline
@@ -68,8 +69,8 @@ Run `sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall
 
 ## Manual developer checklist
 
-1. Verify both SHA-256 values, install the parent default choice and child customized choice, and confirm both visible apps report `0.5.0-rc.3`.
-2. Confirm the existing pairing survives upgrade and the child appears Online without a new token.
+1. Fully quit the previous Parent Controller, verify both SHA-256 values, install the parent default choice and child customized choice, and confirm both visible apps report `0.5.0-rc.4`.
+2. With no paired device required, open the parent Dashboard, wait for **Local hub ready**, select **Create one-time pairing code**, and confirm exactly one code appears without a timeout or invalid-response error. Then confirm an existing pairing survives upgrade and the child appears Online without a new token.
 3. Extract the extension ZIP, load the folder in the child's browser (Arc in the reported failing case), restart that browser once after package installation, and confirm the popup says sharing is disabled before the parent opts in—not `Native host unavailable`.
 4. Enable browser sharing on the parent. Open normal HTTP(S) tabs, including one URL with a path, query, and fragment. Confirm the parent shows only tab title plus scheme/host/optional port—never path, query, fragment, credentials, or content.
 5. If another supported browser is installed, load the same extension folder there and confirm its records are labeled Chrome, Edge, or Arc correctly. Do not enable private/incognito access; if temporarily enabled for the test, confirm a private tab is never shown, then disable private access again.
@@ -94,6 +95,7 @@ Run `sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall
 - Free disk before Stage 05: 7.5 GiB; repository: 15 MiB; retained prior RC output: 9.3 MiB.
 - Free disk before the `rc.2` feedback fix: 10 GiB; repository: 17 MiB; retained `rc.1` candidate: 11 MiB.
 - Free disk before the `rc.3` feedback fix: 9.8 GiB; repository: 17 MiB; retained `rc.2` candidate: 11 MiB. The two temporary Swift test trees reached 400 MiB and were deleted before the release build.
+- Free disk before the `rc.4` pairing feedback fix: 9.4 GiB; repository: 18 MiB; retained `rc.3` candidate: 11 MiB. The two sequential Debug test trees totaled 395 MiB before removal; the subsequent retained-plus-Release build state was about 135 MiB.
 - Builds used two workers, one checkout, one project-owned Stage 05 build tree, sequential endpoint architectures, no simulator, VM, container, worktree, browser driver, or dev server.
 - Peak `rc.3` temporary build size is estimated below the previously measured 508 MiB Stage 05 peak; the largest directly observed `rc.3` retained-plus-temporary state was about 400 MiB. Lowest observed free space was 9.4 GiB, above the 5 GiB floor.
 - Final scoped cleanup removed both `.build` trees, `dist`, `.artifacts/derived-data`, and `.artifacts/package-staging`. The verified `rc.3` replacement removed all four superseded `rc.2` files and retained only the current PKG/ZIP and checksum files; no duplicate candidate remains.
@@ -102,6 +104,8 @@ Run `sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall
 ## Failure evidence to collect
 
 - `parental-control-agentctl status`
+- `ps aux | grep -E 'ParentalControlController|ParentalControlHub'` and the count of helpers owned by the one visible parent process
+- `~/Library/Application Support/ParentalControlController/hub-runtime.json` after removing the certificate fingerprint and process IDs from shared evidence
 - `launchctl print system/com.bilalalissa.ParentalControlAgent.daemon`
 - `/var/log/com.bilalalissa.ParentalControlAgent.daemon.log`
 - `/Library/Application Support/ParentalControlAgent/Logs/agent.log*` after reviewing for family metadata

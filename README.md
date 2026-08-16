@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–04 are merged; STAGE-05 `0.5.0-rc.3` is ready for developer retest.** It adds one visible Chrome/Edge/Arc extension, an exact-identity-checked macOS native-messaging host, opt-in bounded tab-title and query-free-origin sharing, reliable child receive sound, explicit unread Chat counters, parent-only edit/delete, local spoken announcements, and Sent/Delivered/Read behavior. Policy enforcement remains excluded. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–04 are merged; STAGE-05 `0.5.0-rc.4` is ready for developer retest.** It adds one visible Chrome/Edge/Arc extension, an exact-identity-checked macOS native-messaging host, opt-in bounded tab-title and query-free-origin sharing, reliable child receive sound, explicit unread Chat counters, parent-only edit/delete, local spoken announcements, Sent/Delivered/Read behavior, and serialized Parent Controller hub startup for reliable one-time pairing codes. Policy enforcement remains excluded. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
