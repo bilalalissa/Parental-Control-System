@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.5.0-rc.2 — 2026-08-16
 
-Status: **STAGE-05 changes requested**
+Status: **STAGE-05 ready for developer retest**
 
 - Adds a short system alert confirmation after the parent or child sender successfully queues a chat message.
 - Registers foreground notification delegates in both the visible child app and its logged-in helper so permitted arrival notifications can present their default sound while the app is open.
