@@ -5,7 +5,10 @@ public enum ProtocolMessageType: String, Codable, CaseIterable, Sendable {
   case capabilityAnnounce = "capability.announce"
   case snapshotRequest = "snapshot.request"
   case snapshotResponse = "snapshot.response"
+  case activityUpdate = "activity.update"
+  case activityConfiguration = "activity.configuration"
   case chatMessage = "chat.message"
+  case requestMoreTime = "time.request"
   case receipt
 }
 
@@ -248,10 +251,14 @@ public final class ReplayProtector: @unchecked Sendable {
       throw ProtocolSecurityError.unsupportedAlgorithm
     }
     guard envelope.payload.count <= 64 else { throw ProtocolSecurityError.tooManyPayloadFields }
-    guard abs(envelope.sentAt.timeIntervalSince(now)) <= acceptedClockSkew else {
+    guard envelope.sentAt.timeIntervalSince(now) <= acceptedClockSkew else {
       throw ProtocolSecurityError.timestampOutsideWindow
     }
-    if let expiresAt = envelope.expiresAt, expiresAt < now { throw ProtocolSecurityError.expired }
+    if let expiresAt = envelope.expiresAt {
+      if expiresAt < now { throw ProtocolSecurityError.expired }
+    } else if now.timeIntervalSince(envelope.sentAt) > acceptedClockSkew {
+      throw ProtocolSecurityError.timestampOutsideWindow
+    }
     let signingData = try ProtocolCodec.signingData(for: envelope)
     guard
       let signature = Data(base64Encoded: envelope.auth.signature),

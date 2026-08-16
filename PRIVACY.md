@@ -10,16 +10,16 @@ The project does not collect keystrokes, screenshots, camera or microphone recor
 
 ## Storage and transport
 
-- Controller and Stage 02 hub records use local SQLite storage.
+- Controller and hub device, app-activity, chat, receipt, request, and audit records use local SQLite storage in a mode-0700 application-support directory.
 - Secrets and private keys must use platform secure storage.
 - Controller/endpoint transport must be authenticated and encrypted.
 - Logs and queues must be bounded, redacted, and pruned.
 - Diagnostic bundles must be user-triggered, reviewable, sanitized, temporary, and compressed only once.
 - Synthetic fixtures are the only device/user data allowed in this public repository.
 
-Stage 02 Bonjour discovery and pairing stay on the local network. The public repository, logs, and audit details do not retain pairing codes, certificate private keys, family network addresses, or real device identifiers. The bundled mock agent emits synthetic presence and delta data only.
+Bonjour discovery, pairing, app activity, chat, and requests stay on the authenticated local network. Stage 04 app activity is limited to regular application names, bundle identifiers, foreground state, and observation time. It excludes command lines, executable paths, window/document titles, and content. Chat contents are stored only in protected local controller/endpoint storage; audit logs record message metadata without content. The public repository, logs, and audit details do not retain pairing codes, certificate private keys, family network addresses, real device identifiers, or chat contents.
 
-Default design targets are seven days for detailed app/tab metadata and thirty days for chat, connection, and audit records, configurable by the parent. Implemented defaults will be documented and tested in their delivery stages.
+Stage 04 defaults to seven days for app activity and thirty days for chat; app retention is configurable from one to thirty days per device. App collection can be disabled immediately, which clears retained activity for that device. Queues, activity lists, chat history, requests, receipts, and audit records have tested bounds.
 
 ## Transparency and control
 

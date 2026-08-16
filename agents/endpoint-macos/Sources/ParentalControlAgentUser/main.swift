@@ -1,6 +1,7 @@
 import AppKit
 import EndpointCore
 import Foundation
+import UserNotifications
 
 final class SessionReporter: NSObject, @unchecked Sendable {
   private let client = EndpointXPCClient()
@@ -14,7 +15,20 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     center.addObserver(
       self, selector: #selector(inactive), name: NSWorkspace.sessionDidResignActiveNotification,
       object: nil)
+    center.addObserver(
+      self, selector: #selector(applicationsChanged),
+      name: NSWorkspace.didLaunchApplicationNotification, object: nil)
+    center.addObserver(
+      self, selector: #selector(applicationsChanged),
+      name: NSWorkspace.didTerminateApplicationNotification, object: nil)
+    center.addObserver(
+      self, selector: #selector(applicationsChanged),
+      name: NSWorkspace.didActivateApplicationNotification, object: nil)
+    DistributedNotificationCenter.default().addObserver(
+      self, selector: #selector(chatReceived),
+      name: Notification.Name("com.bilalalissa.ParentalControlAgent.chat-received"), object: nil)
     report(.active)
+    reportApplications()
     timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
       guard let self else { return }
       report(currentState)
@@ -28,10 +42,42 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     currentState = .inactive
     report(currentState)
   }
+  @objc private func applicationsChanged() { reportApplications() }
+  @objc private func chatReceived() {
+    let content = UNMutableNotificationContent()
+    content.title = "Message from your parent"
+    content.body = "Open Parental Control to read it."
+    content.sound = .default
+    UNUserNotificationCenter.current().add(
+      UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+  }
   private func report(_ state: EndpointSessionState) {
     client.updateSession(
       SessionUpdate(state: state, consoleUser: DeviceSnapshotCollector.consoleUser())
     ) { _ in }
+  }
+  private func reportApplications() {
+    client.fetchStatus { [weak self] result in
+      guard let self, case .success(let status) = result, status.activityCollectionEnabled else {
+        return
+      }
+      let frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+      let applications = NSWorkspace.shared.runningApplications.compactMap {
+        application -> EndpointApplicationActivity? in
+        guard application.activationPolicy == .regular,
+          let bundleID = application.bundleIdentifier,
+          let name = application.localizedName
+        else { return nil }
+        return EndpointApplicationActivity(
+          bundleIdentifier: bundleID, applicationName: name,
+          isForeground: bundleID == frontmost)
+      }.sorted {
+        if $0.isForeground != $1.isForeground { return $0.isForeground }
+        return $0.applicationName.localizedCaseInsensitiveCompare($1.applicationName)
+          == .orderedAscending
+      }.prefix(64).map { $0 }
+      self.client.updateActivity(EndpointActivityUpdate(applications: applications)) { _ in }
+    }
   }
 }
 

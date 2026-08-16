@@ -685,7 +685,9 @@ Version: `0.4.0-rc.1`.
 
 Implement one shared Chrome/Edge WebExtension source, one packaged extension, and a macOS native-messaging host. Collect only approved active/open-tab metadata. Exclude private mode and strip query/fragment. Safari is deferred unless separately approved.
 
-Acceptance includes explicit permissions, host identity checks, bounded change events, disable/uninstall behavior, one extension package, one updated macOS agent package, and removal of temporary `node_modules`/package output after verification in low-disk mode.
+Complete the deferred macOS chat feedback requested after STAGE-04 approval: play an arrival sound through ordinary system notification behavior when the receiver permits it, respecting mute, Focus, notification authorization, and system preferences; show the sender distinct `Sent`, `Delivered`, and `Read` indicators. `Delivered` means the receiving endpoint accepted and durably stored the message, while `Read` requires the receiver to open the relevant conversation. Do not add message contents to logs, notification diagnostics, or audit metadata.
+
+Acceptance includes explicit permissions, host identity checks, bounded change events, disable/uninstall behavior, receipt-transition tests, system-sound behavior that remains subordinate to macOS controls, one extension package, one updated macOS agent package, and removal of temporary `node_modules`/package output after verification in low-disk mode.
 
 Version: `0.5.0-rc.1`.
 

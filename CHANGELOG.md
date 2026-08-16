@@ -2,6 +2,56 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.4.0-rc.5 — 2026-08-16
+
+Status: **STAGE-04 merged**
+
+- Refreshes derived Online/Offline presence on the parent every five seconds without requiring UI interaction.
+- Signals the daemon immediately when an established child connection closes, then preserves the bounded three-attempt, two-second retry sequence and 60-second cooldown.
+- Adds deterministic regression coverage for parent presence publication and the sleep/wake reconnect policy.
+- Approved by the developer with the exact command `APPROVED: STAGE-04 0.4.0-rc.5` and separately authorized for merge with `MERGE` on 2026-08-16; no release is implied.
+
+## 0.4.0-rc.4 — 2026-08-15
+
+Status: **STAGE-04 ready for developer retest**
+
+- Replaced the visible child app's actor-isolated UserNotifications completion handler with the concurrency-safe async authorization API, preventing the confirmed Intel launch crash.
+- Added source regression coverage and an installed-app CI launch-survival smoke test.
+
+## 0.4.0-rc.3 — 2026-08-15
+
+Status: **STAGE-04 ready for developer retest**
+
+- Corrected the installed child app's authenticated XPC path validation to accept the root-protected signed application bundle path returned by macOS as well as its canonical inner executable path.
+- Added regression coverage for both valid child code paths while continuing to reject paths outside the installed application.
+
+## 0.4.0-rc.2 — 2026-08-15
+
+Status: **STAGE-04 ready for developer retest**
+
+- Restored automatic TLS-pinned endpoint reconnection after the parent controller restarts by migrating paired devices to a stable LAN service port.
+- Reloaded and restarted the logged-in activity helper during upgrades, added bounded three-attempt startup, and configured launchd to recover it after abnormal termination.
+- Replaced the inaccessible paired-device disclosure row with a dedicated accessible expansion button and activity-sharing control.
+
+## 0.4.0-rc.1 — 2026-08-15
+
+Status: **STAGE-04 ready for developer test**
+
+- Added event-driven macOS foreground/running application metadata limited to names, bundle identifiers, state, and time; collection can be disabled and retention is configurable from one to thirty days.
+- Added authenticated two-way direct chat, family group chat, parent announcements to all paired child devices, generic child notifications, and request-more-time.
+- Added bounded persistent controller/endpoint offline queues, queued/sent/delivered/read/failed states, thirty-day chat pruning, audit metadata without message contents, and protected local storage permissions.
+- Updated both visible SwiftUI apps and replaced the prior selectable package with one universal `0.4.0-rc.1` candidate.
+- Browser tabs, schedule enforcement, remote actions, public relay, and cloud storage remain excluded.
+
+## 0.3.0-rc.2 — 2026-08-15
+
+Status: **STAGE-03 merged**
+
+- Added the visible universal macOS Child Endpoint, boot daemon, login helper, authenticated protected XPC, explicit pairing, status/uptime/session/network/health reporting, bounded logs, installer, and uninstaller.
+- Added the selectable combined package with the Parent Controller as the default role and the Child Endpoint available through Customize.
+- Added bounded three-attempt startup and packaging retries with short delays and confirmed physical-device pairing, revocation, unpairing, re-pairing, and reduced routine Keychain prompts.
+- App activity, browser tabs, chat, and enforcement remained excluded from Stage 03.
+
 ## 0.2.0-rc.1 — 2026-08-13
 
 Status: **STAGE-02 merged**

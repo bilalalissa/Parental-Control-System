@@ -34,11 +34,11 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   const active = tracker.stages.filter((stage) => stage.id === tracker.activeStage);
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
-  assert.equal(active[0].branch, "stage/03-macos-child-agent");
-  assert.equal(active[0].version, "0.3.0-rc.2");
+  assert.equal(active[0].branch, "stage/04-macos-activity-chat");
+  assert.equal(active[0].version, "0.4.0-rc.5");
 });
 
-test("Stage 03 installer defaults to the parent and offers an explicit child choice", async () => {
+test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
   const [distribution, choices] = await Promise.all([
     read("agents/endpoint-macos/Installer/Distribution.xml"),
     read("agents/endpoint-macos/Installer/ci-child-choices.xml"),
@@ -49,6 +49,49 @@ test("Stage 03 installer defaults to the parent and offers an explicit child cho
   assert.match(distribution, /ParentalControlChild\.pkg/);
   assert.match(choices, /<string>parent-controller<\/string>[\s\S]*<integer>0<\/integer>/);
   assert.match(choices, /<string>child-endpoint<\/string>[\s\S]*<integer>1<\/integer>/);
+});
+
+test("Stage 04 keeps the visible helper alive and refreshes its launch registration", async () => {
+  const [launchAgent, postinstall] = await Promise.all([
+    read("agents/endpoint-macos/Installer/com.bilalalissa.ParentalControlAgent.user.plist"),
+    read("agents/endpoint-macos/Installer/postinstall"),
+  ]);
+  assert.match(launchAgent, /<key>KeepAlive<\/key>/);
+  assert.match(launchAgent, /<key>SuccessfulExit<\/key><false\/>/);
+  assert.match(postinstall, /for attempt in 1 2 3/);
+  assert.match(postinstall, /launchctl bootstrap "gui\/\$CONSOLE_UID"/);
+  assert.match(postinstall, /launchctl kickstart -k "\$USER_SERVICE"/);
+});
+
+test("Stage 04 activity controls use an explicit accessible expansion button", async () => {
+  const devices = await read(
+    "apps/controller-macos/Sources/ParentalControlController/Views/DevicesView.swift",
+  );
+  assert.match(devices, /devices\.paired-disclosure|pairedDeviceDisclosure/);
+  assert.match(devices, /devices\.activity-sharing|activitySharingToggle/);
+  assert.doesNotMatch(devices, /DisclosureGroup/);
+});
+
+test("child notification authorization avoids actor-isolated completion callbacks", async () => {
+  const child = await read(
+    "agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift",
+  );
+  assert.match(
+    child,
+    /Task\s*\{[\s\S]*try\?\s+await\s+UNUserNotificationCenter\.current\(\)\.requestAuthorization/,
+  );
+  assert.doesNotMatch(child, /requestAuthorization\([^)]*\)\s*\{\s*_,\s*_\s+in/);
+});
+
+test("Stage 04 presence refreshes without interaction and wake reconnect remains bounded", async () => {
+  const [store, daemon] = await Promise.all([
+    read("apps/controller-macos/Sources/ParentalControlController/Stores/ControllerStore.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlAgentDaemon/main.swift"),
+  ]);
+  assert.match(store, /Presence is derived from lastSeen plus the current time/);
+  assert.doesNotMatch(store, /if status != hubStatus \{ hubStatus = status \}/);
+  assert.match(daemon, /EndpointReconnectPolicy/);
+  assert.match(daemon, /onEstablishedConnectionLoss/);
 });
 
 test("local Markdown links resolve inside the repository", async () => {
@@ -103,7 +146,8 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–03 are merged\. Stage 04 has not started/);
+  assert.match(readme, /Stages 00–04 are merged; STAGE-05 has not started/);
+  assert.match(readme, /0\.4\.0-rc\.5/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });

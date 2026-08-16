@@ -54,13 +54,18 @@ struct ProtocolSecurityTests {
       now: now.addingTimeInterval(-300),
       lifetime: 10
     )
-    #expect(throws: ProtocolSecurityError.timestampOutsideWindow) {
+    #expect(throws: ProtocolSecurityError.expired) {
       try ReplayProtector().verify(expired, publicKey: identity.publicKeyData, now: now)
     }
 
+    let queuedButValid = try identity.sign(
+      deviceID: "mock-device", sequence: 2, type: .chatMessage, payload: [:],
+      now: now.addingTimeInterval(-300), lifetime: 600)
+    try ReplayProtector().verify(queuedButValid, publicKey: identity.publicKeyData, now: now)
+
     let future = try identity.sign(
       deviceID: "mock-device",
-      sequence: 2,
+      sequence: 3,
       type: .snapshotResponse,
       payload: [:],
       now: now.addingTimeInterval(300)

@@ -46,6 +46,9 @@ final class ControllerDatabase {
       throw DatabaseError.open(message)
     }
     handle = database
+    if path != ":memory:" {
+      try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
+    }
     sqlite3_busy_timeout(handle, 2_000)
     try execute("PRAGMA foreign_keys = ON;")
     try execute("PRAGMA journal_mode = WAL;")
@@ -64,6 +67,7 @@ final class ControllerDatabase {
     )
     let directory = baseURL.appendingPathComponent("ParentalControlController", isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
     return try ControllerDatabase(path: directory.appendingPathComponent("controller.sqlite3").path)
   }
 

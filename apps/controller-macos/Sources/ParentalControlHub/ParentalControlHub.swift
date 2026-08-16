@@ -54,6 +54,26 @@ enum ParentalControlHubMain {
         try hub.revoke(deviceID: try requiredDeviceID(request))
       case .unpair:
         try hub.unpair(deviceID: try requiredDeviceID(request))
+      case .sendChat:
+        guard let text = request.payload["text"]?.stringValue,
+          let audienceText = request.payload["audience"]?.stringValue,
+          let audience = ChatAudience(rawValue: audienceText)
+        else { throw AuthenticatedIPCError.remote("Chat payload is incomplete") }
+        let threadID =
+          request.payload["threadId"]?.stringValue.flatMap(UUID.init(uuidString:))
+          ?? UUID()
+        try hub.sendChat(
+          deviceID: try requiredDeviceID(request), text: text, audience: audience,
+          threadID: threadID)
+      case .configureActivity:
+        guard let enabled = request.payload["enabled"]?.boolValue else {
+          throw AuthenticatedIPCError.remote("Activity configuration is incomplete")
+        }
+        let retention = Int(request.payload["retentionDays"]?.integerValue ?? 7)
+        try hub.configureActivity(
+          ActivityConfiguration(
+            deviceID: try requiredDeviceID(request), enabled: enabled,
+            retentionDays: retention))
       case .shutdown:
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { state.requestShutdown() }
       }
@@ -111,6 +131,7 @@ enum ParentalControlHubMain {
     let status = try AuthenticatedIPCClient.send(
       command: command,
       deviceID: arguments.deviceID,
+      payload: [:],
       port: runtime.ipcPort,
       key: key)
     let output = HubControlOutput(

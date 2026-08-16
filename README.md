@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–03 are merged. Stage 04 has not started.** The merged macOS package provides the Parent Controller by default and the visible universal Child Endpoint through Customize. The endpoint does not yet monitor apps, deliver chat, or enforce policy. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–04 are merged; STAGE-05 has not started.** The merged `0.4.0-rc.5` selectable macOS package refreshes time-based parent presence without requiring a click and reconnects promptly after child sleep/wake while preserving bounded retries. It also retains the prior child crash, authenticated XPC, parent-restart, helper-recovery, activity-control, app-name-only activity, direct/family/announcement chat, notification, and request-more-time corrections. Browser tabs and policy enforcement are not included. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
@@ -17,9 +17,10 @@ The project is intentionally visible and bounded. It will not implement hidden i
 | --- | --- | --- | --- |
 | Visible child UI | Stage 03 candidate | Planned | Planned |
 | Local policy enforcement | Planned | Planned | Planned through Family Controls APIs |
-| Foreground/running apps | Planned | Planned | Not available |
+| Foreground/running apps | Stage 04 candidate (names/bundle IDs only) | Planned | Not available |
 | Browser-tab metadata | Visible extension only | Visible extension only | Not available |
-| Reliable uptime or login state | Stage 03 candidate | Planned | Not available |
+| Reliable uptime or login state | Stage 04 candidate | Planned | Not available |
+| Text chat and announcements | Stage 04 candidate | Planned | While app is active in a later stage |
 | Lock/logoff/restart/shutdown | Supported APIs only | Supported APIs only | Not available to a normal app |
 | Presence | Authenticated heartbeat | Authenticated heartbeat | Approximate/best effort |
 
@@ -30,7 +31,7 @@ The full capability contract is in [the capability matrix](docs/architecture/cap
 The native Apple-silicon controller preview in [`apps/controller-macos`](apps/controller-macos/) includes:
 
 - Dashboard, device detail, schedule editor, chat, audit, storage, and settings shells built with SwiftUI
-- Direct chat, family group chat, and all-child-device announcement previews with explicit recipient lists
+- Direct chat, family group chat, and all-child-device announcements with explicit recipient lists and delivery state
 - Local SQLite migrations and bounded synthetic macOS, Windows, and standard-iPad fixtures
 - Truthful per-platform capability and limitation displays; `Offline` is never presented as proof of power-off
 - Deterministic schedule validation with lock as the default restriction
@@ -39,9 +40,9 @@ The native Apple-silicon controller preview in [`apps/controller-macos`](apps/co
 - HMAC-authenticated loopback IPC bootstrapped with an ephemeral in-memory session key, so routine launch and hub controls do not require Keychain password entry
 - A visible ordinary-process mock-agent CLI for safe pairing and concurrency tests
 
-Stage 02 adds local pairing and authenticated traffic through visible mock-agent processes. Real endpoint monitoring, policy enforcement, privileged services, and remote device actions remain intentionally unavailable.
+Stage 04 keeps all communication local-first. Policy enforcement, browser metadata, unrestricted commands, and remote device actions remain intentionally unavailable.
 
-The Stage 03 rc.2 package is one selectable installer. It installs the Apple-silicon Parent Controller by default; on a child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. The universal `arm64`/`x86_64` endpoint has a visible dashboard, a boot LaunchDaemon, a login LaunchAgent helper, launchd Mach-service XPC authenticated with kernel peer identity and signing identifiers, protected mode-0700/0600 configuration, a Keychain-backed Ed25519 device identity, adaptive delta heartbeats, bounded/redacted logs, a read-only status command, and an administrator uninstaller. It reports only device/OS information, uptime, session state, network IP/MAC metadata, and component health. MAC addresses are display metadata and are never device identity.
+The Stage 04 rc.1 package is one selectable installer. It installs the Apple-silicon Parent Controller by default; on a child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. The universal `arm64`/`x86_64` endpoint has a visible dashboard, boot daemon, login helper, authenticated XPC, protected configuration and queue files, Keychain-backed identity, adaptive delta heartbeats, bounded/redacted logs, and administrator uninstaller. When enabled, it reports at most 64 regular application names, bundle identifiers, and foreground state through event-driven workspace notifications. It never reports command lines, paths, window/document titles, or contents. Chat queues are bounded, messages have queued/sent/delivered/read/failed states, and parent broadcasts fan out to every paired child device. MAC addresses remain optional display metadata and never device identity.
 
 To test one mock after installing the developer candidate:
 
@@ -73,7 +74,7 @@ npm test
 npm run cleanup:list
 ```
 
-Building the Stage 03 macOS endpoint requires macOS 14 or newer with Xcode and Swift installed. Build work is constrained to two workers and one project-owned output tree:
+Building the Stage 04 macOS candidate requires macOS 14 or newer with Xcode and Swift installed. Build work is constrained to two workers and one project-owned output tree:
 
 ```sh
 swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests
@@ -85,7 +86,7 @@ swift test --package-path agents/endpoint-macos --jobs 2
 ./script/package_endpoint_release.sh
 ```
 
-The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; its protected XPC status requires the installed daemon. `package_endpoint_release.sh` creates the one retained selectable Stage 03 `.pkg` and checksum. The candidate is ad-hoc app-signed, installer-unsigned, and not notarized.
+The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; its protected XPC features require the installed daemon. `package_endpoint_release.sh` creates the one retained selectable Stage 04 `.pkg` and checksum. The candidate is ad-hoc app-signed, installer-unsigned, and not notarized.
 
 Install the same package on the parent Mac with its default **Parent Controller** choice. On the child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. Confirm the endpoint service before pairing:
 

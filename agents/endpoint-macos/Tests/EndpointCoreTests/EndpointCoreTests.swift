@@ -31,6 +31,7 @@ struct EndpointCoreTests {
     try hub.start(advertiseBonjour: false)
     #expect(ready.wait(timeout: .now() + 5) == .success)
     let issued = try hub.createPairingInvitation(code: "314159")
+    #expect(issued.port == SecureWebSocketServer.parentControlPort)
     let invitation = PairingInvitation(
       code: issued.code, expiresAt: issued.expiresAt, host: "127.0.0.1", port: issued.port,
       certificateFingerprint: issued.certificateFingerprint,
@@ -42,10 +43,11 @@ struct EndpointCoreTests {
     let repository = EndpointStatusRepository(
       initial: DeviceSnapshotCollector.collect(deviceID: configuration.deviceID))
     let logDirectory = root.appendingPathComponent("logs")
+    let deviceIdentity = try Ed25519Identity(keyID: "device-\(configuration.deviceID)")
     let agent = try EndpointAgent(
       store: store, repository: repository,
       log: BoundedLog(directory: logDirectory),
-      suppliedIdentity: Ed25519Identity(keyID: "device-\(configuration.deviceID)"))
+      suppliedIdentity: deviceIdentity)
     defer { agent.stop() }
     try agent.start()
     let pairingResult = paired.wait(timeout: .now() + 8)
@@ -62,8 +64,91 @@ struct EndpointCoreTests {
       Thread.sleep(forTimeInterval: 0.02)
     }
     #expect(try store.load().invitation == nil)
-    try hub.revoke(deviceID: configuration.deviceID)
+    let familyThread = UUID()
+    repository.queueChat(text: "Child reply", audience: .familyGroup, threadID: familyThread)
+    repository.queueMoreTime(minutes: 20, note: "Finish homework")
+    try hub.sendChat(
+      deviceID: configuration.deviceID, text: "Family announcement", audience: .familyGroup,
+      threadID: familyThread)
+    let chatDeadline = Date().addingTimeInterval(5)
+    while Date() < chatDeadline {
+      let childReceived = repository.dashboard(markRead: false).messages.contains {
+        $0.isFromParent && $0.text == "Family announcement"
+      }
+      let parentReceived = try database.chatMessages().contains {
+        !$0.isFromParent && $0.text == "Child reply"
+      }
+      let requestReceived = try !database.moreTimeRequests().isEmpty
+      if childReceived && parentReceived && requestReceived { break }
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(
+      repository.dashboard(markRead: false).messages.contains {
+        $0.isFromParent && $0.text == "Family announcement"
+      })
+    #expect(try database.chatMessages().contains { !$0.isFromParent && $0.text == "Child reply" })
+    #expect(try database.moreTimeRequests().first?.requestedMinutes == 20)
+    let deviceBeforeRestart = try database.device(id: configuration.deviceID)
+    let sequenceBeforeRestart = try #require(deviceBeforeRestart).lastSequence
+    agent.stop()
+    hub.stop()
+    Thread.sleep(forTimeInterval: 0.2)
+
+    let restartedHub = try LocalHub(
+      database: database, tlsIdentity: tls, controllerIdentity: controllerIdentity,
+      heartbeat: AdaptiveHeartbeat(activeInterval: 1, idleInterval: 2, offlineAfter: 4))
+    defer { restartedHub.stop() }
+    let restartedReady = DispatchSemaphore(value: 0)
+    restartedHub.onStatusChange = { status in
+      if status.port == SecureWebSocketServer.parentControlPort { restartedReady.signal() }
+    }
+    try restartedHub.start(advertiseBonjour: false)
+    #expect(restartedReady.wait(timeout: .now() + 5) == .success)
+
+    let restartedAgent = try EndpointAgent(
+      store: store, repository: repository,
+      log: BoundedLog(directory: logDirectory), suppliedIdentity: deviceIdentity)
+    defer { restartedAgent.stop() }
+    try restartedAgent.start()
+    let reconnectDeadline = Date().addingTimeInterval(5)
+    while repository.status().connectionState != .online, Date() < reconnectDeadline {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(repository.status().connectionState == .online)
+    let deviceAfterRestart = try database.device(id: configuration.deviceID)
+    #expect(try #require(deviceAfterRestart).lastSequence > sequenceBeforeRestart)
+
+    try restartedHub.revoke(deviceID: configuration.deviceID)
     #expect(try database.device(id: configuration.deviceID)?.isRevoked == true)
+  }
+
+  @Test("legacy paired endpoints migrate to the stable controller port")
+  func stableReconnectPort() {
+    let legacy = PairingInvitation(
+      code: "", expiresAt: .distantFuture, host: "parent.local", port: 61_234,
+      certificateFingerprint: String(repeating: "A", count: 64),
+      controllerPublicKey: Data(repeating: 7, count: 32))
+    let paired = EndpointConfiguration(pairedController: legacy)
+    #expect(
+      EndpointAgent.connectionPort(for: paired) == SecureWebSocketServer.parentControlPort)
+
+    let active = EndpointConfiguration(invitation: legacy)
+    #expect(EndpointAgent.connectionPort(for: active) == 61_234)
+    #expect(EndpointAgent.connectionPort(for: EndpointConfiguration()) == nil)
+  }
+
+  @Test("reconnects immediately after loss, then bounds short retries")
+  func boundedWakeReconnect() {
+    var policy = EndpointReconnectPolicy()
+
+    #expect(policy.timerFired(connectionState: .online) == .wait(60))
+    #expect(policy.establishedConnectionLost() == 0)
+    #expect(policy.timerFired(connectionState: .offline) == .connect(retryAfter: 2))
+    #expect(policy.timerFired(connectionState: .connecting) == .connect(retryAfter: 2))
+    #expect(policy.timerFired(connectionState: .offline) == .connect(retryAfter: 2))
+    #expect(policy.timerFired(connectionState: .offline) == .wait(60))
+    #expect(policy.timerFired(connectionState: .offline) == .connect(retryAfter: 2))
+    #expect(policy.timerFired(connectionState: .online) == .wait(60))
   }
 
   @Test("device snapshots are bounded and contain truthful platform data")
@@ -131,6 +216,10 @@ struct EndpointCoreTests {
     #expect(!XPCAuthorization.allows(uid: 501, signingIdentifier: "untrusted", operation: "status"))
     #expect(
       XPCAuthorization.isExpectedInstalledPath(
+        "/Applications/Parental Control Child.app",
+        identifier: EndpointMachService.childIdentifier))
+    #expect(
+      XPCAuthorization.isExpectedInstalledPath(
         "/Applications/Parental Control Child.app/Contents/MacOS/ParentalControlChild",
         identifier: EndpointMachService.childIdentifier))
     #expect(
@@ -165,5 +254,49 @@ struct EndpointCoreTests {
       let text = try String(contentsOf: file, encoding: .utf8)
       #expect(!text.contains("secret-"))
     }
+  }
+
+  @Test("activity disclosure and child queues are bounded and disable immediately")
+  func stage04RuntimeBounds() {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let queueURL = directory.appendingPathComponent("runtime-queue.json")
+    let repository = EndpointStatusRepository(
+      initial: DeviceSnapshotCollector.collect(deviceID: "synthetic-stage04"),
+      persistenceURL: queueURL)
+    let applications = (0..<90).map { index in
+      EndpointApplicationActivity(
+        bundleIdentifier: "com.example.app\(index)", applicationName: "App \(index)",
+        isForeground: index == 0)
+    }
+    repository.applyActivity(EndpointActivityUpdate(applications: applications))
+    #expect(repository.status().applications.count == 64)
+    repository.configureActivity(enabled: false, retentionDays: 3)
+    #expect(repository.status().applications.isEmpty)
+    #expect(repository.status().activityCollectionEnabled == false)
+    repository.applyActivity(EndpointActivityUpdate(applications: applications))
+    #expect(repository.status().applications.isEmpty)
+
+    for index in 0..<130 {
+      repository.queueChat(
+        text: "Synthetic message \(index)", audience: .direct, threadID: UUID())
+    }
+    let outbound = repository.drainOutbound()
+    #expect(outbound.count == 100)
+    #expect(repository.dashboard(markRead: false).messages.count <= 200)
+    repository.queueChat(text: "Survives restart", audience: .direct, threadID: UUID())
+    let restored = EndpointStatusRepository(
+      initial: DeviceSnapshotCollector.collect(deviceID: "synthetic-stage04"),
+      persistenceURL: queueURL)
+    #expect(restored.dashboard(markRead: false).messages.last?.text == "Survives restart")
+    let queueMode =
+      ((try? FileManager.default.attributesOfItem(atPath: queueURL.path)[.posixPermissions])
+      as? NSNumber)?.intValue ?? 0
+    #expect(queueMode & 0o777 == 0o600)
+    repository.queueMoreTime(minutes: 9_999, note: String(repeating: "n", count: 900))
+    let request = repository.drainOutbound().last
+    #expect(request?.payload["minutes"] == .integer(240))
+    #expect(request?.payload["note"]?.stringValue?.count == 500)
   }
 }

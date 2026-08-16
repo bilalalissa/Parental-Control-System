@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import HubCore
 import SystemConfiguration
 
 public enum EndpointConnectionState: String, Codable, Sendable {
@@ -45,6 +46,9 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var networks: [NetworkMetadata]
   public var daemonHealthy: Bool
   public var helperHealthy: Bool
+  public var activityCollectionEnabled: Bool
+  public var activityRetentionDays: Int
+  public var applications: [EndpointApplicationActivity]
   public var collectedAt: Date
 
   public init(
@@ -62,6 +66,9 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     networks: [NetworkMetadata] = [],
     daemonHealthy: Bool = true,
     helperHealthy: Bool = false,
+    activityCollectionEnabled: Bool = true,
+    activityRetentionDays: Int = 7,
+    applications: [EndpointApplicationActivity] = [],
     collectedAt: Date = Date()
   ) {
     self.deviceID = deviceID
@@ -78,7 +85,107 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     self.networks = networks
     self.daemonHealthy = daemonHealthy
     self.helperHealthy = helperHealthy
+    self.activityCollectionEnabled = activityCollectionEnabled
+    self.activityRetentionDays = max(1, min(activityRetentionDays, 30))
+    self.applications = Array(applications.prefix(64))
     self.collectedAt = collectedAt
+  }
+}
+
+public struct EndpointApplicationActivity: Codable, Equatable, Identifiable, Sendable {
+  public var id: String { bundleIdentifier }
+  public let bundleIdentifier: String
+  public let applicationName: String
+  public let isForeground: Bool
+  public let observedAt: Date
+
+  public init(
+    bundleIdentifier: String, applicationName: String, isForeground: Bool,
+    observedAt: Date = Date()
+  ) {
+    self.bundleIdentifier = String(bundleIdentifier.prefix(200))
+    self.applicationName = String(applicationName.prefix(120))
+    self.isForeground = isForeground
+    self.observedAt = observedAt
+  }
+}
+
+public struct EndpointActivityUpdate: Codable, Equatable, Sendable {
+  public let applications: [EndpointApplicationActivity]
+  public let observedAt: Date
+
+  public init(applications: [EndpointApplicationActivity], observedAt: Date = Date()) {
+    self.applications = Array(applications.prefix(64))
+    self.observedAt = observedAt
+  }
+}
+
+public struct EndpointChatMessage: Codable, Equatable, Identifiable, Sendable {
+  public let id: UUID
+  public let threadID: UUID
+  public let sentAt: Date
+  public let sender: String
+  public let text: String
+  public let audience: ChatAudience
+  public var state: ChatDeliveryState
+  public let isFromParent: Bool
+
+  public init(
+    id: UUID = UUID(), threadID: UUID = UUID(), sentAt: Date = Date(), sender: String,
+    text: String, audience: ChatAudience = .direct, state: ChatDeliveryState = .queued,
+    isFromParent: Bool
+  ) {
+    self.id = id
+    self.threadID = threadID
+    self.sentAt = sentAt
+    self.sender = String(sender.prefix(80))
+    self.text = String(text.prefix(2_000))
+    self.audience = audience
+    self.state = state
+    self.isFromParent = isFromParent
+  }
+}
+
+public struct EndpointDashboardSnapshot: Codable, Equatable, Sendable {
+  public let status: EndpointStatus
+  public let messages: [EndpointChatMessage]
+
+  public init(status: EndpointStatus, messages: [EndpointChatMessage]) {
+    self.status = status
+    self.messages = Array(messages.suffix(200))
+  }
+}
+
+public enum EndpointOutboundKind: String, Codable, Sendable {
+  case chat
+  case requestMoreTime
+  case receipt
+}
+
+public struct EndpointOutboundItem: Codable, Equatable, Identifiable, Sendable {
+  public let id: UUID
+  public let kind: EndpointOutboundKind
+  public let payload: [String: JSONValue]
+  public let createdAt: Date
+
+  public init(
+    id: UUID = UUID(), kind: EndpointOutboundKind, payload: [String: JSONValue],
+    createdAt: Date = Date()
+  ) {
+    self.id = id
+    self.kind = kind
+    self.payload = payload
+    self.createdAt = createdAt
+  }
+}
+
+public struct EndpointRuntimeState: Codable, Equatable, Sendable {
+  public let messages: [EndpointChatMessage]
+  public let outbound: [EndpointOutboundItem]
+
+  public init(messages: [EndpointChatMessage], outbound: [EndpointOutboundItem]) {
+    self.messages = Array(messages.suffix(200))
+    self.outbound = Array(outbound.suffix(100))
   }
 }
 

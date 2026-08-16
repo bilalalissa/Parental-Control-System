@@ -113,6 +113,118 @@ public struct ReceiptRecord: Codable, Equatable, Identifiable, Sendable {
   }
 }
 
+public enum ChatDeliveryState: String, Codable, Sendable {
+  case queued
+  case sent
+  case delivered
+  case read
+  case failed
+}
+
+public enum ChatAudience: String, Codable, Sendable {
+  case direct
+  case familyGroup = "family-group"
+  case announcement
+}
+
+public struct HubChatMessage: Codable, Equatable, Identifiable, Sendable {
+  public let id: UUID
+  public let deviceID: String
+  public let threadID: UUID
+  public let sentAt: Date
+  public let sender: String
+  public let text: String
+  public let state: ChatDeliveryState
+  public let audience: ChatAudience
+  public let isFromParent: Bool
+
+  public init(
+    id: UUID = UUID(), deviceID: String, threadID: UUID = UUID(), sentAt: Date = Date(),
+    sender: String, text: String, state: ChatDeliveryState, audience: ChatAudience,
+    isFromParent: Bool
+  ) {
+    self.id = id
+    self.deviceID = deviceID
+    self.threadID = threadID
+    self.sentAt = sentAt
+    self.sender = String(sender.prefix(80))
+    self.text = String(text.prefix(2_000))
+    self.state = state
+    self.audience = audience
+    self.isFromParent = isFromParent
+  }
+}
+
+public struct HubAppActivity: Codable, Equatable, Identifiable, Sendable {
+  public var id: String { "\(deviceID)|\(bundleIdentifier)" }
+  public let deviceID: String
+  public let bundleIdentifier: String
+  public let applicationName: String
+  public let isForeground: Bool
+  public let observedAt: Date
+
+  public init(
+    deviceID: String, bundleIdentifier: String, applicationName: String,
+    isForeground: Bool, observedAt: Date = Date()
+  ) {
+    self.deviceID = deviceID
+    self.bundleIdentifier = String(bundleIdentifier.prefix(200))
+    self.applicationName = String(applicationName.prefix(120))
+    self.isForeground = isForeground
+    self.observedAt = observedAt
+  }
+}
+
+public struct ActivityConfiguration: Codable, Equatable, Sendable {
+  public let deviceID: String
+  public let enabled: Bool
+  public let retentionDays: Int
+
+  public init(deviceID: String, enabled: Bool = true, retentionDays: Int = 7) {
+    self.deviceID = deviceID
+    self.enabled = enabled
+    self.retentionDays = max(1, min(retentionDays, 30))
+  }
+}
+
+public enum MoreTimeRequestState: String, Codable, Sendable {
+  case pending
+  case acknowledged
+}
+
+public struct MoreTimeRequestRecord: Codable, Equatable, Identifiable, Sendable {
+  public let id: UUID
+  public let deviceID: String
+  public let requestedMinutes: Int
+  public let note: String
+  public let createdAt: Date
+  public let state: MoreTimeRequestState
+
+  public init(
+    id: UUID = UUID(), deviceID: String, requestedMinutes: Int, note: String,
+    createdAt: Date = Date(), state: MoreTimeRequestState = .pending
+  ) {
+    self.id = id
+    self.deviceID = deviceID
+    self.requestedMinutes = max(5, min(requestedMinutes, 240))
+    self.note = String(note.prefix(500))
+    self.createdAt = createdAt
+    self.state = state
+  }
+}
+
+public struct HubStorageSummary: Codable, Equatable, Sendable {
+  public let activityRecords: Int
+  public let chatMessages: Int
+  public let queuedEnvelopes: Int
+
+  public init(activityRecords: Int, chatMessages: Int, queuedEnvelopes: Int) {
+    self.activityRecords = activityRecords
+    self.chatMessages = chatMessages
+    self.queuedEnvelopes = queuedEnvelopes
+  }
+}
+
 public struct PairingInvitation: Codable, Equatable, Sendable {
   public let code: String
   public let expiresAt: Date

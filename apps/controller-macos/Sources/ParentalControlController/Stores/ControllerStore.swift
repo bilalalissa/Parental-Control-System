@@ -17,6 +17,8 @@ final class ControllerStore {
   var hubStatus: LocalHubStatus?
   var hubStatusMessage = "Starting the authenticated local hub…"
   var pairingStatusMessage: String?
+  var chatStatusMessage: String?
+  var activityStatusMessage: String?
 
   private let database: ControllerDatabase
   private let hubClient = HubClient()
@@ -82,10 +84,12 @@ final class ControllerStore {
         hubStatusMessage = "Local hub unavailable: \(error)"
       }
       while !Task.isCancelled {
-        try? await Task.sleep(for: .seconds(15))
+        try? await Task.sleep(for: .seconds(5))
         guard !Task.isCancelled else { break }
         if let status = try? await hubClient.status() {
-          if status != hubStatus { hubStatus = status }
+          // Presence is derived from lastSeen plus the current time. Publish every sample even
+          // when the stored payload is equal so Online can age into Offline without a click.
+          hubStatus = status
           hubStatusMessage = "Local hub ready · TLS 1.3 · Authenticated IPC"
         }
       }
@@ -121,6 +125,46 @@ final class ControllerStore {
         pairingStatusMessage = "Device pairing record removed."
       } catch {
         pairingStatusMessage = "Could not unpair device: \(error)"
+      }
+    }
+  }
+
+  func sendChat(text: String, audience: ChatAudienceMode, deviceIDs: [String]) {
+    let trimmed = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(2_000))
+    guard !trimmed.isEmpty, !deviceIDs.isEmpty else { return }
+    let threadID = UUID()
+    chatStatusMessage = "Queuing for \(deviceIDs.count) device\(deviceIDs.count == 1 ? "" : "s")…"
+    Task {
+      var latest = hubStatus
+      var failures = 0
+      for deviceID in deviceIDs {
+        do {
+          latest = try await hubClient.sendChat(
+            deviceID: deviceID, text: trimmed, audience: audience.hubAudience,
+            threadID: threadID)
+        } catch {
+          failures += 1
+        }
+      }
+      if let latest { hubStatus = latest }
+      chatStatusMessage =
+        failures == 0
+        ? "Message secured locally for \(deviceIDs.count) device\(deviceIDs.count == 1 ? "" : "s")."
+        : "Queued for \(deviceIDs.count - failures); \(failures) failed validation."
+    }
+  }
+
+  func configureActivity(deviceID: String, enabled: Bool, retentionDays: Int) {
+    Task {
+      do {
+        hubStatus = try await hubClient.configureActivity(
+          deviceID: deviceID, enabled: enabled, retentionDays: retentionDays)
+        activityStatusMessage =
+          enabled
+          ? "Application-name collection enabled with \(retentionDays)-day retention."
+          : "Collection disabled; retained activity for this device was removed."
+      } catch {
+        activityStatusMessage = "Could not update activity collection: \(error)"
       }
     }
   }

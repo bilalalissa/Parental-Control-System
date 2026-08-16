@@ -1,6 +1,6 @@
 {
   "$schema": "./stage-status.schema.json",
-  "activeStage": "STAGE-03",
+  "activeStage": "STAGE-04",
   "stages": [
     {
       "id": "STAGE-00",
@@ -33,6 +33,14 @@
       "status": "MERGED",
       "branch": "stage/03-macos-child-agent",
       "document": "stage-03.md"
+    },
+    {
+      "id": "STAGE-04",
+      "name": "macOS app activity and chat",
+      "version": "0.4.0-rc.5",
+      "status": "MERGED",
+      "branch": "stage/04-macos-activity-chat",
+      "document": "stage-04.md"
     }
   ]
 }
