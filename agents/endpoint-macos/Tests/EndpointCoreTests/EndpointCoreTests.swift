@@ -147,6 +147,8 @@ struct EndpointCoreTests {
     #expect(policy.timerFired(connectionState: .connecting) == .connect(retryAfter: 2))
     #expect(policy.timerFired(connectionState: .offline) == .connect(retryAfter: 2))
     #expect(policy.timerFired(connectionState: .offline) == .wait(60))
+    #expect(policy.timerFired(connectionState: .offline) == .connect(retryAfter: 2))
+    #expect(policy.timerFired(connectionState: .online) == .wait(60))
   }
 
   @Test("device snapshots are bounded and contain truthful platform data")
