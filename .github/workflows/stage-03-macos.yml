@@ -30,33 +30,63 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+      - name: Detect installer-affecting changes
+        id: scope
+        run: |
+          if git diff --quiet HEAD^ HEAD -- \
+            .github/workflows/stage-03-macos.yml \
+            .gitignore \
+            .codex/environments/environment.toml \
+            agents/endpoint-macos \
+            apps/controller-macos \
+            packages/design-assets \
+            script \
+            test \
+            tools; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Set up Node.js
+        if: steps.scope.outputs.build == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22"
       - name: Run repository checks
+        if: steps.scope.outputs.build == 'true'
         run: npm test
       - name: Lint endpoint sources
+        if: steps.scope.outputs.build == 'true'
         run: swift format lint --recursive agents/endpoint-macos/Sources agents/endpoint-macos/Tests
       - name: Lint controller sources
+        if: steps.scope.outputs.build == 'true'
         run: swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests
       - name: Test controller and hub
+        if: steps.scope.outputs.build == 'true'
         run: swift test --disable-sandbox --package-path apps/controller-macos --scratch-path "$PWD/.artifacts/derived-data/stage-04/controller-tests" --jobs "$SWIFT_WORKERS"
       - name: Test endpoint core
+        if: steps.scope.outputs.build == 'true'
         run: swift test --disable-sandbox --package-path agents/endpoint-macos --scratch-path "$PWD/.artifacts/derived-data/stage-04/endpoint-tests" --jobs "$SWIFT_WORKERS"
       - name: Build selectable system installer
+        if: steps.scope.outputs.build == 'true'
         run: ./script/package_endpoint_release.sh
       - name: Verify universal slices
+        if: steps.scope.outputs.build == 'true'
         run: |
           for binary in "dist/Parental Control Child.app/Contents/MacOS/ParentalControlChild" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlAgentDaemon" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlAgentUser"; do
             /usr/bin/lipo -archs "$binary" | grep -q arm64
             /usr/bin/lipo -archs "$binary" | grep -q x86_64
           done
       - name: Verify selectable package choices
+        if: steps.scope.outputs.build == 'true'
         run: |
           /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.3.pkg" -target / | /usr/bin/plutil -lint -
           /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.3.pkg" || true
       - name: Install, diagnose, and uninstall child choice
+        if: steps.scope.outputs.build == 'true'
         run: |
           sudo /usr/sbin/installer \
             -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
@@ -93,6 +123,7 @@ jobs:
           test ! -e /usr/local/bin/parental-control-agentctl
           exit "$status_exit"
       - name: Install default parent choice
+        if: steps.scope.outputs.build == 'true'
         run: |
           sudo /usr/sbin/installer \
             -pkg ".artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.3.pkg" \
@@ -101,6 +132,7 @@ jobs:
           test ! -e "/Applications/Parental Control Child.app"
           /usr/bin/codesign --verify --deep --strict "/Applications/Parental Control.app"
       - name: Upload release candidate
+        if: steps.scope.outputs.build == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ParentalControlSystem-0.4.0-rc.3
@@ -110,7 +142,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Clean project-owned generated output
-        if: always()
+        if: always() && steps.scope.outputs.build == 'true'
         run: |
           if [[ -x "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh" ]]; then
             sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh"
