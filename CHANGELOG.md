@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.5.0-rc.1 — 2026-08-16
 
-Status: **STAGE-05 implementing**
+Status: **STAGE-05 ready for developer test**
 
 - Adds one shared visible Manifest V3 Chrome/Edge extension and one packaged ZIP with a stable extension identity and explicit minimal permissions.
 - Adds a universal macOS native-messaging host with exact extension-origin, browser signing/path, installed-host signing/path, and authenticated XPC checks.

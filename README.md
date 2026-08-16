@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–04 are merged; STAGE-05 `0.5.0-rc.1` is being prepared for developer test.** It adds one visible Chrome/Edge extension, a signed-path-checked macOS native-messaging host, opt-in bounded tab-title and query-free-origin sharing, generic system-controlled message sounds, and explicit Sent/Delivered/Read behavior. Policy enforcement remains excluded. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–04 are merged; STAGE-05 `0.5.0-rc.1` is ready for developer test.** It adds one visible Chrome/Edge extension, a signed-path-checked macOS native-messaging host, opt-in bounded tab-title and query-free-origin sharing, generic system-controlled message sounds, and explicit Sent/Delivered/Read behavior. Policy enforcement remains excluded. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
