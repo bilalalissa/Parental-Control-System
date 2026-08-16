@@ -91,15 +91,22 @@ final class ControllerStore {
         hubStatusMessage = "Local hub ready · TLS 1.3 · Authenticated IPC"
       } catch {
         hubStatusMessage = "Local hub unavailable: \(error)"
+        hubRefreshTask = nil
+        return
       }
       while !Task.isCancelled {
         try? await Task.sleep(for: .seconds(5))
         guard !Task.isCancelled else { break }
-        if let status = try? await hubClient.status() {
+        do {
+          let status = try await hubClient.statusIfRunning()
           // Presence is derived from lastSeen plus the current time. Publish every sample even
           // when the stored payload is equal so Online can age into Offline without a click.
           applyHubStatus(status)
           hubStatusMessage = "Local hub ready · TLS 1.3 · Authenticated IPC"
+        } catch {
+          hubStatusMessage = "Local hub unavailable: \(error)"
+          hubRefreshTask = nil
+          return
         }
       }
     }
@@ -110,6 +117,7 @@ final class ControllerStore {
       do {
         applyHubStatus(try await hubClient.createPairing())
         pairingStatusMessage = "One-time code created. It expires in five minutes."
+        if hubRefreshTask == nil { startHub() }
       } catch {
         pairingStatusMessage = "Could not create pairing code: \(error)"
       }

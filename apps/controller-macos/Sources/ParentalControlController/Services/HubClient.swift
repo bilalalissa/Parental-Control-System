@@ -4,11 +4,13 @@ import Security
 
 enum HubClientError: Error, CustomStringConvertible {
   case helperMissing
+  case helperNotRunning
   case keyUnavailable
 
   var description: String {
     switch self {
     case .helperMissing: "The local hub helper is not included in this build"
+    case .helperNotRunning: "The local hub stopped; use an explicit action to restart it"
     case .keyUnavailable: "The local hub IPC key is unavailable"
     }
   }
@@ -93,6 +95,11 @@ final class HubClient {
     try await request(.status)
   }
 
+  func statusIfRunning() async throws -> LocalHubStatus? {
+    let (runtime, key) = try currentSession()
+    return try await send(.status, runtime: runtime, key: key)
+  }
+
   func createPairing() async throws -> LocalHubStatus? {
     try await request(.createPairing)
   }
@@ -168,8 +175,27 @@ final class HubClient {
     -> LocalHubStatus?
   {
     try await ensureRunning()
-    let runtime = try HubRuntime.read()
+    let (runtime, key) = try currentSession()
+    return try await send(
+      command, deviceID: deviceID, payload: payload, runtime: runtime, key: key)
+  }
+
+  private func currentSession() throws -> (HubRuntimeInfo, Data) {
+    guard let process = helperProcess, process.isRunning,
+      let runtime = try? HubRuntime.read(),
+      runtime.processID == process.processIdentifier
+    else { throw HubClientError.helperNotRunning }
     guard let key = ipcKey else { throw HubClientError.keyUnavailable }
+    return (runtime, key)
+  }
+
+  private func send(
+    _ command: IPCCommand,
+    deviceID: String? = nil,
+    payload: [String: JSONValue] = [:],
+    runtime: HubRuntimeInfo,
+    key: Data
+  ) async throws -> LocalHubStatus? {
     return try await Task.detached {
       try AuthenticatedIPCClient.send(
         command: command, deviceID: deviceID, payload: payload,

@@ -2,6 +2,15 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.5.0-rc.5 — 2026-08-16
+
+Status: **STAGE-05 ready for developer retest**
+
+- Stops the Parent Controller's passive five-second status refresh from relaunching a failed or authorization-denied hub, eliminating the reproduced unbounded Keychain password prompt loop.
+- Keeps one bounded hub start on app launch and permits a later retry only after an explicit parent action or app relaunch; cancelling an authorization request now leaves the hub unavailable without generating more prompts.
+- Supports one stable local Apple Development signing identity for physical-device candidates so approved Keychain access can survive subsequent rebuilt installers, while retaining credential-free ad-hoc signing as the CI fallback.
+- Preserves existing controller Keychain items, pairings, and local family data; this repair does not reset or delete credentials.
+
 ## 0.5.0-rc.4 — 2026-08-16
 
 Status: **STAGE-05 ready for developer retest**
