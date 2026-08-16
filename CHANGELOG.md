@@ -2,6 +2,14 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.4.0-rc.5 — 2026-08-16
+
+Status: **STAGE-04 correction in progress**
+
+- Refreshes derived Online/Offline presence on the parent every five seconds without requiring UI interaction.
+- Signals the daemon immediately when an established child connection closes, then preserves the bounded three-attempt, two-second retry sequence and 60-second cooldown.
+- Adds deterministic regression coverage for parent presence publication and the sleep/wake reconnect policy.
+
 ## 0.4.0-rc.4 — 2026-08-15
 
 Status: **STAGE-04 ready for developer retest**

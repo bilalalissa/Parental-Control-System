@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/04-macos-activity-chat");
-  assert.equal(active[0].version, "0.4.0-rc.4");
+  assert.equal(active[0].version, "0.4.0-rc.5");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -81,6 +81,17 @@ test("child notification authorization avoids actor-isolated completion callback
     /Task\s*\{[\s\S]*try\?\s+await\s+UNUserNotificationCenter\.current\(\)\.requestAuthorization/,
   );
   assert.doesNotMatch(child, /requestAuthorization\([^)]*\)\s*\{\s*_,\s*_\s+in/);
+});
+
+test("Stage 04 presence refreshes without interaction and wake reconnect remains bounded", async () => {
+  const [store, daemon] = await Promise.all([
+    read("apps/controller-macos/Sources/ParentalControlController/Stores/ControllerStore.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlAgentDaemon/main.swift"),
+  ]);
+  assert.match(store, /Presence is derived from lastSeen plus the current time/);
+  assert.doesNotMatch(store, /if status != hubStatus \{ hubStatus = status \}/);
+  assert.match(daemon, /EndpointReconnectPolicy/);
+  assert.match(daemon, /onEstablishedConnectionLoss/);
 });
 
 test("local Markdown links resolve inside the repository", async () => {
@@ -135,7 +146,8 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stage 04 is ready for developer retest; Stages 00–03 are merged/);
+  assert.match(readme, /Stage 04 is (?:being corrected|ready) for developer retest; Stages 00–03 are merged/);
+  assert.match(readme, /0\.4\.0-rc\.5/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });

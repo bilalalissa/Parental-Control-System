@@ -87,7 +87,9 @@ final class ControllerStore {
         try? await Task.sleep(for: .seconds(5))
         guard !Task.isCancelled else { break }
         if let status = try? await hubClient.status() {
-          if status != hubStatus { hubStatus = status }
+          // Presence is derived from lastSeen plus the current time. Publish every sample even
+          // when the stored payload is equal so Online can age into Offline without a click.
+          hubStatus = status
           hubStatusMessage = "Local hub ready · TLS 1.3 · Authenticated IPC"
         }
       }

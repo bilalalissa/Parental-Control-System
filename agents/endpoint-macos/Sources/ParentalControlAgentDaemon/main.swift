@@ -21,51 +21,10 @@ enum DaemonMain {
     service?.resume()
     log.write(event: "daemon.started", detail: "Visible parental control endpoint started")
 
-    var attempts = 0
-    var agent: EndpointAgent?
-    func connect() {
-      guard repository.status().connectionState != .online else { return }
-      agent?.stop()
-      guard let current = try? store.load(),
-        current.invitation != nil || current.pairedController != nil
-      else {
-        repository.update { $0.connectionState = .unpaired }
-        return
-      }
-      do {
-        if agent == nil {
-          agent = try EndpointAgent(
-            store: store, repository: repository, log: log,
-            keychain: KeychainStore(service: arguments.keychainService))
-        }
-        try agent?.start()
-      } catch {
-        agent = nil
-        repository.update {
-          $0.connectionState =
-            current.invitation == nil && current.pairedController == nil
-            ? .unpaired : .offline
-        }
-        log.write(event: "connection.retry", detail: String(describing: error))
-      }
-      attempts += 1
-    }
-    connect()
-    let retry = DispatchSource.makeTimerSource(
-      queue: DispatchQueue(label: "parental-control.endpoint.retry"))
-    retry.schedule(deadline: .now() + 2, repeating: 2)
-    retry.setEventHandler {
-      if repository.status().connectionState == .online {
-        retry.schedule(deadline: .now() + 60, repeating: 60)
-        attempts = 0
-      } else if attempts < 3 {
-        connect()
-      } else {
-        retry.schedule(deadline: .now() + 60, repeating: 60)
-        attempts = 0
-      }
-    }
-    retry.resume()
+    let retry = EndpointDaemonRetryLoop(
+      store: store, repository: repository, log: log,
+      keychainService: arguments.keychainService)
+    retry.start()
 
     signal(SIGTERM, SIG_IGN)
     signal(SIGINT, SIG_IGN)
@@ -81,10 +40,101 @@ enum DaemonMain {
     }
     semaphore.wait()
     _ = signals
-    retry.cancel()
-    agent?.stop()
+    retry.stop()
     service?.invalidate()
     log.write(event: "daemon.stopped", detail: "Normal shutdown")
+  }
+}
+
+private final class EndpointDaemonRetryLoop: @unchecked Sendable {
+  private let store: ProtectedConfigurationStore
+  private let repository: EndpointStatusRepository
+  private let log: BoundedLog
+  private let keychainService: String
+  private let queue = DispatchQueue(label: "parental-control.endpoint.retry")
+  private let timer: DispatchSourceTimer
+  private var policy = EndpointReconnectPolicy()
+  private var agent: EndpointAgent?
+  private var running = false
+
+  init(
+    store: ProtectedConfigurationStore, repository: EndpointStatusRepository, log: BoundedLog,
+    keychainService: String
+  ) {
+    self.store = store
+    self.repository = repository
+    self.log = log
+    self.keychainService = keychainService
+    timer = DispatchSource.makeTimerSource(queue: queue)
+  }
+
+  func start() {
+    queue.sync {
+      guard !running else { return }
+      running = true
+      timer.setEventHandler { [weak self] in self?.timerFired() }
+      timer.schedule(deadline: .now())
+      timer.resume()
+    }
+  }
+
+  func stop() {
+    queue.sync {
+      guard running else { return }
+      running = false
+      timer.setEventHandler {}
+      timer.cancel()
+      agent?.stop()
+      agent = nil
+    }
+  }
+
+  private func timerFired() {
+    guard running else { return }
+    switch policy.timerFired(connectionState: repository.status().connectionState) {
+    case .connect(let retryAfter):
+      connect()
+      schedule(after: retryAfter)
+    case .wait(let delay):
+      schedule(after: delay)
+    }
+  }
+
+  private func connect() {
+    guard repository.status().connectionState != .online else { return }
+    agent?.stop()
+    guard let current = try? store.load(),
+      current.invitation != nil || current.pairedController != nil
+    else {
+      repository.update { $0.connectionState = .unpaired }
+      return
+    }
+    do {
+      let next = try EndpointAgent(
+        store: store, repository: repository, log: log,
+        keychain: KeychainStore(service: keychainService),
+        onEstablishedConnectionLoss: { [weak self] in self?.connectionLost() })
+      agent = next
+      try next.start()
+    } catch {
+      agent = nil
+      repository.update {
+        $0.connectionState =
+          current.invitation == nil && current.pairedController == nil ? .unpaired : .offline
+      }
+      log.write(event: "connection.retry", detail: String(describing: error))
+    }
+  }
+
+  private func connectionLost() {
+    queue.async { [weak self] in
+      guard let self, running else { return }
+      schedule(after: policy.establishedConnectionLost())
+    }
+  }
+
+  private func schedule(after delay: TimeInterval) {
+    timer.schedule(deadline: .now() + delay)
   }
 }
 

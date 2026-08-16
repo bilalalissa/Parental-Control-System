@@ -137,6 +137,18 @@ struct EndpointCoreTests {
     #expect(EndpointAgent.connectionPort(for: EndpointConfiguration()) == nil)
   }
 
+  @Test("reconnects immediately after loss, then bounds short retries")
+  func boundedWakeReconnect() {
+    var policy = EndpointReconnectPolicy()
+
+    #expect(policy.timerFired(connectionState: .online) == .wait(60))
+    #expect(policy.establishedConnectionLost() == 0)
+    #expect(policy.timerFired(connectionState: .offline) == .connect(retryAfter: 2))
+    #expect(policy.timerFired(connectionState: .connecting) == .connect(retryAfter: 2))
+    #expect(policy.timerFired(connectionState: .offline) == .connect(retryAfter: 2))
+    #expect(policy.timerFired(connectionState: .offline) == .wait(60))
+  }
+
   @Test("device snapshots are bounded and contain truthful platform data")
   func snapshot() {
     let value = DeviceSnapshotCollector.collect(deviceID: "synthetic-device")

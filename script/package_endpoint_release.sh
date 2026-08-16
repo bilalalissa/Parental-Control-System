@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-VERSION="0.4.0-rc.4"
+VERSION="0.4.0-rc.5"
 STAGING="$ROOT_DIR/.artifacts/package-staging/stage-04"
 COMPONENTS="$STAGING/component-packages"
 CHILD_PAYLOAD="$STAGING/child-payload"

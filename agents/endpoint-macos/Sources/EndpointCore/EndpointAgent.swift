@@ -8,6 +8,7 @@ public final class EndpointAgent: @unchecked Sendable {
   private let repository: EndpointStatusRepository
   private let log: BoundedLog
   private let identity: Ed25519Identity
+  private let onEstablishedConnectionLoss: @Sendable () -> Void
   private var replay = ReplayProtector()
   private let delta = DeltaSnapshotTracker()
   private let lock = NSLock()
@@ -22,11 +23,13 @@ public final class EndpointAgent: @unchecked Sendable {
   public init(
     store: ProtectedConfigurationStore, repository: EndpointStatusRepository, log: BoundedLog,
     keychain: KeychainStore = KeychainStore(service: "com.bilalalissa.ParentalControlAgent.device"),
-    suppliedIdentity: Ed25519Identity? = nil
+    suppliedIdentity: Ed25519Identity? = nil,
+    onEstablishedConnectionLoss: @escaping @Sendable () -> Void = {}
   ) throws {
     self.store = store
     self.repository = repository
     self.log = log
+    self.onEstablishedConnectionLoss = onEstablishedConnectionLoss
     let configuration = try store.load()
     repository.configureActivity(
       enabled: configuration.activityCollectionEnabled,
@@ -324,12 +327,16 @@ public final class EndpointAgent: @unchecked Sendable {
   }
 
   private func disconnected() {
+    let wasOnline = repository.status().connectionState == .online
     repository.update { if $0.connectionState != .unpaired { $0.connectionState = .offline } }
     log.write(event: "connection.offline", detail: "Controller connection closed")
+    if wasOnline { onEstablishedConnectionLoss() }
   }
   private func fail(_ error: Error) {
+    let wasOnline = repository.status().connectionState == .online
     repository.update { $0.connectionState = .offline }
     log.write(event: "connection.error", detail: String(describing: error))
+    if wasOnline { onEstablishedConnectionLoss() }
   }
 }
 

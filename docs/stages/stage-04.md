@@ -1,6 +1,6 @@
 # STAGE-04 — macOS app activity and chat
 
-- Version: `0.4.0-rc.4`
+- Version: `0.4.0-rc.5`
 - Branch: `stage/04-macos-activity-chat`
 - Status: `READY_FOR_RETEST`
 - Platform: Parent Controller on Apple silicon; Child Endpoint universal `arm64`/`x86_64`; macOS 14 or newer
@@ -43,6 +43,12 @@ Excluded: command lines, executable paths, window/document titles or contents, b
 - The physical Intel crash report proved an `EXC_BAD_INSTRUCTION` actor-isolation trap on the UserNotifications callback queue in `closure #1 in ChildDashboardModel.init()`. The callback inherited `@MainActor`, but the framework invoked it off the main executor.
 - Notification authorization now uses the async UserNotifications API from a Swift task, eliminating the mismatched completion-handler executor without weakening notification disclosure or prompting in the background helper.
 - Repository regression coverage rejects reintroduction of the callback form, and CI now launches the installed visible child app and verifies that it remains alive through the authorization callback window.
+
+## rc.5 feedback correction
+
+- Physical sleep/wake testing proved the parent retained a stale Online label until the paired-device row was clicked. The controller did poll the hub every five seconds, but discarded equal snapshots even though presence is derived from `lastSeen` and the current time. Every bounded status sample is now published so the existing 75-second Offline threshold redraws without interaction.
+- The same test showed a roughly three-minute wake delay. The daemon's online timer was changed to 60 seconds and never restored the two-second cadence after connection loss, so its three attempts could occur a minute apart. An established transport loss now wakes the retry loop immediately; failures remain limited to three attempts with two-second delays followed by the existing 60-second cooldown.
+- Unit coverage proves the immediate loss signal, exactly three short attempts, and cooldown. Repository coverage prevents equal presence samples from being suppressed again.
 
 ## Verification evidence
 
@@ -90,7 +96,7 @@ This intentionally removes the child app, launchd jobs, helper/tool, protected e
 
 ## Manual developer checklist
 
-1. Install the default parent role and customized child role; confirm both visible apps report `0.4.0-rc.4`.
+1. Install the default parent role and customized child role; confirm both visible apps report `0.4.0-rc.5`.
 2. Confirm existing Stage 03 pairing survives an in-place upgrade, or pair with a fresh one-time token.
 3. Open several normal applications on the child. In Parent Controller → Devices, expand the child and confirm only names, bundle IDs, foreground state, and timestamps appear—never command lines, paths, window titles, or contents.
 4. Disable **Share application names**. Confirm the child Privacy tab says sharing is disabled and retained activity disappears from the parent. Re-enable and test retention values from one to thirty days.

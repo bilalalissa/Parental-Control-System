@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stage 04 is ready for developer retest; Stages 00–03 are merged.** The replacement `0.4.0-rc.4` selectable macOS package fixes the child app's notification-authorization actor crash and authenticated XPC bundle-path validation in addition to parent-restart reconnection, helper recovery after upgrade, and the paired-device activity controls. It retains app-name-only activity, direct/family/announcement chat, notifications, and request-more-time. Browser tabs and policy enforcement are not included. See [Stage status](docs/stages/stage-status.json).
+> **Stage 04 is being corrected for developer retest; Stages 00–03 are merged.** The forthcoming `0.4.0-rc.5` selectable macOS package refreshes time-based parent presence without requiring a click and reconnects promptly after child sleep/wake while preserving bounded retries. It also retains the prior child crash, authenticated XPC, parent-restart, helper-recovery, activity-control, app-name-only activity, direct/family/announcement chat, notification, and request-more-time corrections. Browser tabs and policy enforcement are not included. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
