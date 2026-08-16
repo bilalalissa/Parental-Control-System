@@ -87,7 +87,7 @@ swift test --package-path agents/endpoint-macos --jobs 2
 ./script/package_endpoint_release.sh
 ```
 
-The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; its protected XPC features require the installed daemon. `package_browser_extension.sh` creates the single shared Chrome/Edge/Arc ZIP; `package_endpoint_release.sh` creates the selectable Stage 05 `.pkg`. The apps and helpers are ad-hoc signed; the installer and extension ZIP are unsigned and not notarized.
+The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; its protected XPC features require the installed daemon. `package_browser_extension.sh` creates the single shared Chrome/Edge/Arc ZIP; `package_endpoint_release.sh` creates the selectable Stage 05 `.pkg`. Builders default to ad-hoc app/helper signing for credential-free CI; a physical developer candidate can set `MACOS_SIGNING_IDENTITY` to one stable local Apple Development identity. The installer and extension ZIP remain unsigned and not notarized.
 
 Install the same package on the parent Mac with its default **Parent Controller** choice. On the child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. Confirm the endpoint service before pairing:
 

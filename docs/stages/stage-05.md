@@ -1,6 +1,6 @@
 # STAGE-05 — Shared Chromium extension and macOS integration
 
-- Version: `0.5.0-rc.4`
+- Version: `0.5.0-rc.5`
 - Branch: `stage/05-chromium-extension`
 - Status: `READY_FOR_RETEST`
 - Platform: Chrome, Microsoft Edge, and Arc on a universal macOS child endpoint; Parent Controller on Apple silicon; macOS 14 or newer
@@ -9,7 +9,7 @@
 
 Deliver one visible Manifest V3 WebExtension source for Chrome, Edge, and Arc, one packaged extension, and a narrowly authenticated macOS native-messaging host. When the parent explicitly enables sharing, collect at most 128 open HTTP(S) tab titles and query-free origins with browser, pseudonymous local profile, active state, and observation time. Exclude private tabs and clear retained metadata immediately when disabled.
 
-Complete the deferred Stage 04 chat feedback, `rc.2` physical-test corrections, and `rc.4` pairing-startup correction: a short system alert after a sender queues a message, generic system-controlled arrival sound for both receiver directions, explicit unread counters that clear only for the visible conversation, distinct `Sent`, `Delivered`, and `Read` indicators, authenticated parent-only edit/delete, typed parent announcements spoken automatically through local macOS speech on each receiving child, and reliable one-time pairing-code creation even when the initial status refresh and button action overlap.
+Complete the deferred Stage 04 chat feedback, `rc.2` physical-test corrections, `rc.4` pairing-startup correction, and `rc.5` Keychain-prompt correction: a short system alert after a sender queues a message, generic system-controlled arrival sound for both receiver directions, explicit unread counters that clear only for the visible conversation, distinct `Sent`, `Delivered`, and `Read` indicators, authenticated parent-only edit/delete, typed parent announcements spoken automatically through local macOS speech on each receiving child, reliable one-time pairing-code creation even when the initial status refresh and button action overlap, and bounded authorization behavior if the parent hub cannot start.
 
 Excluded: Safari, browser history, page/document contents, full URLs or paths, query strings, fragments, forms, cookies, passwords, private browsing, downloads, bookmarks, network traffic, screenshots, keystrokes, clipboard, microphone recording, audio attachments/files/uploads, message contents in logs/audit/notification diagnostics, schedule enforcement, remote actions, public relay, cloud storage, and Stage 06+ work.
 
@@ -27,18 +27,20 @@ Excluded: Safari, browser history, page/document contents, full URLs or paths, q
 - Announcements remain ordinary persistent text chat records. The logged-in child helper speaks each newly received announcement through `AVSpeechSynthesizer`; it records no microphone input, creates no audio file, and sends no speech data to a service.
 - `Delivered` is set only after the receiving side durably saves the message and returns an authenticated receipt. `Read` is sent only when the receiver opens the relevant conversation; dashboard/status refreshes do not mark messages read.
 - Parent Controller hub startup is serialized. Concurrent status and pairing actions share one in-flight launch, the runtime file must identify that exact helper process, and a helper that exits or fails readiness is terminated and cleared before a later bounded retry. This preserves the per-launch in-memory IPC key and prevents two helpers from producing a runtime/key mismatch.
+- The parent performs one explicit hub start when it launches. Its passive five-second status refresh now checks only the already-running helper and stops if that helper exits or authorization is denied; it cannot relaunch the helper and cannot generate an unbounded Keychain prompt loop. A later retry requires an explicit pairing action or app relaunch.
+- macOS build scripts accept one `MACOS_SIGNING_IDENTITY` for every app and nested helper. The local physical-test candidate uses the same Apple Development identity throughout, giving Keychain a stable designated requirement across subsequent locally built candidates. Credential-free CI continues to use the documented ad-hoc fallback and does not contain signing credentials.
 
 ## Verification evidence
 
 | Check | Result |
 | --- | --- |
-| Repository tests | 35 passed; one Windows-only cleanup test skipped on macOS (36 total), including serialized hub startup, Arc installation/identity, local speech, custom badge, parent mutation, privacy, and fresh default-parent CI assertions. |
+| Repository tests | 36 passed; one Windows-only cleanup test skipped on macOS (37 total), including non-launching passive hub polling, configurable stable signing, serialized hub startup, Arc installation/identity, local speech, custom badge, parent mutation, privacy, and fresh default-parent CI assertions. |
 | Controller/hub suite | 31 tests in 10 suites passed, including concurrent startup coalescing, retry after failure, schema migration/idempotency, browser bounds/pruning, mutation persistence, monotonic receipts, and incoming-only unread counting. |
 | Endpoint suite | All 11 tests passed locally, including real TLS pairing plus signed parent-message delivery/edit/delete, restart/reconnect, heartbeat progression, revocation, Chrome/Edge/Arc caller authorization, browser sanitization, and explicit-read behavior. |
 | Formatting/static checks | `swift format lint`, `git diff --check`, JSON parsing, JavaScript syntax, shell syntax, and extension packaging without optional `rg` passed. |
 | Privacy/security checks | Extension permission allowlist, private-tab filtering, query/fragment stripping, 128-record bounds, native caller identity, installed-host XPC identity, no private-key/API-token diff patterns, and no production npm dependencies passed. |
 | Extension package | ZIP integrity, eight required files, no key/certificate file extensions, and SHA-256 passed. Physical Chrome/Edge/Arc loading remains a developer check. |
-| Bundle/package | Strict nested ad-hoc app signatures, package payload/native manifests, Arc postinstall path, embedded `0.5.0-rc.4` build `5004`, source commit `934dc3e6ee0e`, and SHA-256 passed. |
+| Bundle/package | Strict nested Apple Development app/helper signatures with Team ID `23B5VSH5UY`, stable designated requirements, package payload/native manifests, Arc postinstall path, embedded `0.5.0-rc.5` build `5005`, source commit `ec92b657ba77`, and SHA-256 passed. The product PKG remains unsigned and not notarized. |
 | Universal binaries | Child app, daemon, login helper, typed control tool, and browser host each report `x86_64 arm64`. |
 | GitHub Actions | Commit `934dc3e6ee0e` passed [macOS 15 repository tests, formatting, controller/endpoint suites, packaging, universal-slice checks, fresh default-parent installation, child installation/status/launch/uninstallation, seven-day artifact upload, and scoped cleanup](https://github.com/bilalalissa/Parental-Control-System/actions/runs/31977643075). Supporting POSIX/Windows cleanup and secret-scanning checks also passed. |
 
@@ -46,14 +48,14 @@ The final package was not installed over the developer Mac's existing approved p
 
 ## Release candidates
 
-- `.artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.4.pkg`
+- `.artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.5.pkg`
   - Purpose: selectable Parent Controller or universal visible macOS Child Endpoint, including the native host and Chrome/Edge/Arc native-host integration
-  - SHA-256: `1034ed3d6ab2aa755768d18f18531d9c9321e5ea53504a1fdbf8eab15853da9e`
-  - Apps/helpers: ad-hoc signed, no Team ID or restricted entitlements
+  - SHA-256: `a9472689fb9ee5ecc74c54f60186c098fc962c44e4c229e7c1a8d15cc2b9add7`
+  - Apps/helpers: Apple Development signed with Team ID `23B5VSH5UY`; strict nested verification and designated requirements passed
   - Installer: unsigned and not notarized; no Developer ID Installer identity is available
-- `.artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.4.zip`
+- `.artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.5.zip`
   - Purpose: one shared unpacked-extension package for Chrome, Microsoft Edge, and Arc
-  - SHA-256: `345de3e96fa3822f3279c5ece561819a7def9b0ec30678e4546654959daf9bea`
+  - SHA-256: `47ea1080f4f23c8d45fa5ee2b113dbe42a70ef644324cedbb6bd2b601f18e49a`
   - ZIP/extension: unsigned and not store-published; contains only the public extension key, not private signing material
 
 ## Installation outline
@@ -69,24 +71,25 @@ Run `sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall
 
 ## Manual developer checklist
 
-1. Fully quit the previous Parent Controller, verify both SHA-256 values, install the parent default choice and child customized choice, and confirm both visible apps report `0.5.0-rc.4`.
-2. With no paired device required, open the parent Dashboard and immediately select **Create one-time pairing code** once while initial status may still be starting. Confirm **Local hub ready** and exactly one code appear without a timeout or invalid-response error. Then confirm an existing pairing survives upgrade and the child appears Online without a new token.
-3. Extract the extension ZIP, load the folder in the child's browser (Arc in the reported failing case), restart that browser once after package installation, and confirm the popup says sharing is disabled before the parent opts in—not `Native host unavailable`.
-4. Enable browser sharing on the parent. Open normal HTTP(S) tabs, including one URL with a path, query, and fragment. Confirm the parent shows only tab title plus scheme/host/optional port—never path, query, fragment, credentials, or content.
-5. If another supported browser is installed, load the same extension folder there and confirm its records are labeled Chrome, Edge, or Arc correctly. Do not enable private/incognito access; if temporarily enabled for the test, confirm a private tab is never shown, then disable private access again.
-6. Open more than 128 synthetic/ordinary tabs only if safe for the test Mac and confirm the controller remains capped at 128 records; otherwise leave this bound to automated evidence.
-7. Disable browser sharing and confirm retained tab records disappear from the parent and the extension popup reports disabled. Re-enable and test one-to-thirty-day retention controls.
-8. Keep the child on Status, send a parent-to-child direct message, and confirm one parent send alert, one child arrival sound, and a visible red count inside the child's custom Chat tab control. Open Chat and confirm that count clears and the parent advances Sent → Delivered → Read.
-9. Keep the parent outside Chat, send a child-to-parent direct message, and confirm one child send alert, one parent arrival sound, and a red parent Chat count. Open Chat; confirm it selects the unread device/audience and clears that count. Repeat with Family group to confirm unread counts are not falsely cleared from a conversation that was not opened.
-10. From a parent-authored message's ellipsis menu, edit it and confirm `Edited` plus the corrected text appears on both devices. Delete it and confirm `Message deleted` replaces the body on both devices. Confirm child-authored messages have no parent mutation menu.
-11. Send a typed Announcement. Confirm it persists in both chat histories and is spoken once on the child through local macOS speech without recording the microphone or creating an attachment. Repeat one family group text and confirm it is not spoken as an announcement.
-12. Confirm no message text, tab title, or origin appears in audit/log details. Quit/reopen both apps and confirm chat history/mutations persist. Sleep/wake the child and confirm the already-approved offline/reconnect behavior remains correct.
-13. Remove the extension from all loaded browser profiles and confirm no new browser records arrive. Run the bundled child uninstaller and confirm the exact Chrome/Edge/Arc native-host manifests and endpoint app/jobs/tool/data are removed.
+1. Fully quit the previous Parent Controller, verify both SHA-256 values, install the parent default choice and child customized choice, and confirm both visible apps report `0.5.0-rc.5`.
+2. On the parent, launch rc.5 once. If macOS asks about either preserved controller key during the one-time transition from the old ad-hoc build, choose **Always Allow**; expect no more than two distinct authorization prompts. If a prompt is cancelled instead, confirm the app reports the local hub unavailable and does not prompt again automatically. Do not delete Keychain items or existing pairings.
+3. Reopen the parent or select **Create one-time pairing code** once to make one explicit retry. Confirm **Local hub ready** and exactly one code appear without a timeout, invalid response, or repeating prompt. Confirm an existing pairing survives the upgrade and the child appears Online without a new token.
+4. Extract the extension ZIP, load the folder in the child's browser (Arc in the reported failing case), restart that browser once after package installation, and confirm the popup says sharing is disabled before the parent opts in—not `Native host unavailable`.
+5. Enable browser sharing on the parent. Open normal HTTP(S) tabs, including one URL with a path, query, and fragment. Confirm the parent shows only tab title plus scheme/host/optional port—never path, query, fragment, credentials, or content.
+6. If another supported browser is installed, load the same extension folder there and confirm its records are labeled Chrome, Edge, or Arc correctly. Do not enable private/incognito access; if temporarily enabled for the test, confirm a private tab is never shown, then disable private access again.
+7. Open more than 128 synthetic/ordinary tabs only if safe for the test Mac and confirm the controller remains capped at 128 records; otherwise leave this bound to automated evidence.
+8. Disable browser sharing and confirm retained tab records disappear from the parent and the extension popup reports disabled. Re-enable and test one-to-thirty-day retention controls.
+9. Keep the child on Status, send a parent-to-child direct message, and confirm one parent send alert, one child arrival sound, and a visible red count inside the child's custom Chat tab control. Open Chat and confirm that count clears and the parent advances Sent → Delivered → Read.
+10. Keep the parent outside Chat, send a child-to-parent direct message, and confirm one child send alert, one parent arrival sound, and a red parent Chat count. Open Chat; confirm it selects the unread device/audience and clears that count. Repeat with Family group to confirm unread counts are not falsely cleared from a conversation that was not opened.
+11. From a parent-authored message's ellipsis menu, edit it and confirm `Edited` plus the corrected text appears on both devices. Delete it and confirm `Message deleted` replaces the body on both devices. Confirm child-authored messages have no parent mutation menu.
+12. Send a typed Announcement. Confirm it persists in both chat histories and is spoken once on the child through local macOS speech without recording the microphone or creating an attachment. Repeat one family group text and confirm it is not spoken as an announcement.
+13. Confirm no message text, tab title, or origin appears in audit/log details. Quit/reopen both apps and confirm chat history/mutations persist. Sleep/wake the child and confirm the already-approved offline/reconnect behavior remains correct.
+14. Remove the extension from all loaded browser profiles and confirm no new browser records arrive. Run the bundled child uninstaller and confirm the exact Chrome/Edge/Arc native-host manifests and endpoint app/jobs/tool/data are removed.
 
 ## Known development-candidate limitations
 
 - The extension is a developer package, not Chrome Web Store, Microsoft Edge Add-ons, or another store-signed distribution. Each Chrome, Edge, or Arc profile must load it explicitly and should be restarted after the endpoint package installs its native-host manifest.
-- The app/helper signatures are local ad-hoc signatures; the installer and ZIP are unsigned and not notarized.
+- The retained physical-test apps/helpers use a local Apple Development identity, not a Developer ID distribution identity. The installer and ZIP are unsigned and not notarized; the CI artifact uses the ad-hoc fallback because no signing credential is uploaded.
 - Browser collection depends on the visible extension, installed child endpoint, active paired daemon, and local LAN. There is no relay or background cloud delivery.
 - Tab metadata is a current bounded snapshot, not browsing history or usage-duration accounting.
 
@@ -101,6 +104,7 @@ Run `sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall
 - Final scoped cleanup removed both `.build` trees, `dist`, `.artifacts/derived-data`, and `.artifacts/package-staging`. The verified `rc.3` replacement removed all four superseded `rc.2` files and retained only the current PKG/ZIP and checksum files; no duplicate candidate remains.
 - Final free disk after `rc.3` cleanup: 9.6 GiB; repository/project-owned output: 18 MiB/11 MiB. No simulator/emulator was used.
 - Final `rc.4` cleanup removed the 395 MiB Debug test output, Release Derived Data, package staging, verification/download trees, and `dist`. The CI-verified `rc.4` set replaced the local build and all `rc.3` files; 9.5 GiB is free and only the current 11 MiB PKG/ZIP/checksum set remains. No simulator/emulator was used and no process was started by the rc.4 build/test work.
+- Free disk before the `rc.5` Keychain feedback fix: 9.3 GiB; repository/project-owned output: 202 MiB/195 MiB, including the retained 11 MiB `rc.4` set and one 183 MiB controller test tree from active work. Sequential rc.5 Debug test trees peaked at 407 MiB and were removed before the Release build. The retained-plus-Release build state reached 109 MiB before final cleanup.
 
 ## Failure evidence to collect
 
