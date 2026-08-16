@@ -38,9 +38,9 @@ Excluded: Safari, browser history, page/document contents, full URLs or paths, q
 | Formatting/static checks | `swift format lint`, `git diff --check`, JSON parsing, JavaScript syntax, shell syntax, and extension packaging without optional `rg` passed. |
 | Privacy/security checks | Extension permission allowlist, private-tab filtering, query/fragment stripping, 128-record bounds, native caller identity, installed-host XPC identity, no private-key/API-token diff patterns, and no production npm dependencies passed. |
 | Extension package | ZIP integrity, eight required files, no key/certificate file extensions, and SHA-256 passed. Physical Chrome/Edge/Arc loading remains a developer check. |
-| Bundle/package | Strict nested ad-hoc app signatures, package payload/native manifests, Arc postinstall path, embedded `0.5.0-rc.4` build `5004`, source commit `59856dffb88b`, and SHA-256 passed. |
+| Bundle/package | Strict nested ad-hoc app signatures, package payload/native manifests, Arc postinstall path, embedded `0.5.0-rc.4` build `5004`, source commit `934dc3e6ee0e`, and SHA-256 passed. |
 | Universal binaries | Child app, daemon, login helper, typed control tool, and browser host each report `x86_64 arm64`. |
-| GitHub Actions | Commit `535b9e4af3e0` passed macOS 15 repository tests, formatting, controller/endpoint suites, packaging, universal-slice checks, fresh default-parent installation, child installation/status/launch/uninstallation, seven-day artifact upload, and scoped cleanup. Supporting POSIX/Windows cleanup and secret-scanning checks also passed. |
+| GitHub Actions | Commit `934dc3e6ee0e` passed [macOS 15 repository tests, formatting, controller/endpoint suites, packaging, universal-slice checks, fresh default-parent installation, child installation/status/launch/uninstallation, seven-day artifact upload, and scoped cleanup](https://github.com/bilalalissa/Parental-Control-System/actions/runs/31977643075). Supporting POSIX/Windows cleanup and secret-scanning checks also passed. |
 
 The final package was not installed over the developer Mac's existing approved parent installation. A fresh macOS CI runner performs the disposable default-parent and child install/uninstall checks. No claim is made for Intel execution or physical Chrome/Edge/Arc behavior until developer evidence is available.
 
@@ -48,12 +48,12 @@ The final package was not installed over the developer Mac's existing approved p
 
 - `.artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.4.pkg`
   - Purpose: selectable Parent Controller or universal visible macOS Child Endpoint, including the native host and Chrome/Edge/Arc native-host integration
-  - SHA-256: `b5405ffd1e1f3bb38aa8ea1a8553651644b9024dca7e9755760f2ad9f72528b6`
+  - SHA-256: `1034ed3d6ab2aa755768d18f18531d9c9321e5ea53504a1fdbf8eab15853da9e`
   - Apps/helpers: ad-hoc signed, no Team ID or restricted entitlements
   - Installer: unsigned and not notarized; no Developer ID Installer identity is available
 - `.artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.4.zip`
   - Purpose: one shared unpacked-extension package for Chrome, Microsoft Edge, and Arc
-  - SHA-256: `c4899d520087e644afaa8488e0e8983332bda85206c56eced351c582702c163b`
+  - SHA-256: `345de3e96fa3822f3279c5ece561819a7def9b0ec30678e4546654959daf9bea`
   - ZIP/extension: unsigned and not store-published; contains only the public extension key, not private signing material
 
 ## Installation outline
@@ -70,7 +70,7 @@ Run `sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall
 ## Manual developer checklist
 
 1. Fully quit the previous Parent Controller, verify both SHA-256 values, install the parent default choice and child customized choice, and confirm both visible apps report `0.5.0-rc.4`.
-2. With no paired device required, open the parent Dashboard, wait for **Local hub ready**, select **Create one-time pairing code**, and confirm exactly one code appears without a timeout or invalid-response error. Then confirm an existing pairing survives upgrade and the child appears Online without a new token.
+2. With no paired device required, open the parent Dashboard and immediately select **Create one-time pairing code** once while initial status may still be starting. Confirm **Local hub ready** and exactly one code appear without a timeout or invalid-response error. Then confirm an existing pairing survives upgrade and the child appears Online without a new token.
 3. Extract the extension ZIP, load the folder in the child's browser (Arc in the reported failing case), restart that browser once after package installation, and confirm the popup says sharing is disabled before the parent opts in—not `Native host unavailable`.
 4. Enable browser sharing on the parent. Open normal HTTP(S) tabs, including one URL with a path, query, and fragment. Confirm the parent shows only tab title plus scheme/host/optional port—never path, query, fragment, credentials, or content.
 5. If another supported browser is installed, load the same extension folder there and confirm its records are labeled Chrome, Edge, or Arc correctly. Do not enable private/incognito access; if temporarily enabled for the test, confirm a private tab is never shown, then disable private access again.
@@ -100,6 +100,7 @@ Run `sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall
 - Peak `rc.3` temporary build size is estimated below the previously measured 508 MiB Stage 05 peak; the largest directly observed `rc.3` retained-plus-temporary state was about 400 MiB. Lowest observed free space was 9.4 GiB, above the 5 GiB floor.
 - Final scoped cleanup removed both `.build` trees, `dist`, `.artifacts/derived-data`, and `.artifacts/package-staging`. The verified `rc.3` replacement removed all four superseded `rc.2` files and retained only the current PKG/ZIP and checksum files; no duplicate candidate remains.
 - Final free disk after `rc.3` cleanup: 9.6 GiB; repository/project-owned output: 18 MiB/11 MiB. No simulator/emulator was used.
+- Final `rc.4` cleanup removed the 395 MiB Debug test output, Release Derived Data, package staging, verification/download trees, and `dist`. The CI-verified `rc.4` set replaced the local build and all `rc.3` files; 9.5 GiB is free and only the current 11 MiB PKG/ZIP/checksum set remains. No simulator/emulator was used and no process was started by the rc.4 build/test work.
 
 ## Failure evidence to collect
 
