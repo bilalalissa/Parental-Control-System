@@ -44,11 +44,11 @@ Excluded: command lines, executable paths, window/document titles or contents, b
 | --- | --- |
 | Repository tests | 28 passed; one Windows-only cleanup test skipped on macOS (29 total). |
 | Controller/hub suite | 26 tests in 9 suites passed. |
-| Endpoint suite | rc.2 baseline: 8 tests passed. rc.3 affected XPC authorization test passes locally; the unchanged live-pairing test cannot bind port `49171` while the developer Mac's installed hub is running and remains pending isolated CI. |
+| Endpoint suite | rc.3 affected XPC authorization test passed locally. The unchanged live-pairing test could not bind port `49171` while the developer Mac's installed hub was running; all 8 endpoint tests then passed on the isolated macOS CI runner. |
 | Formatting/static checks | `swift format lint` and `git diff --check` passed. |
 | Protocol contract | Canonical schema accepts the new allowlisted activity/configuration/chat/time-request types; invalid fixtures continue to fail closed. |
 | Universal verification | Child app, daemon, login helper, and typed control tool each report `x86_64 arm64`. |
-| Bundle/package verification | Embedded versions and commit, strict nested ad-hoc signatures, selectable choices XML, both component payloads, and SHA-256 verified. |
+| Bundle/package verification | CI and local inspection verified embedded `0.4.0-rc.3`/build `4003`, the tested PR merge commit, strict nested ad-hoc signatures, universal slices, selectable choices XML, both component payloads, and SHA-256. |
 | Resource spot sample | Unpaired daemon: 14,467,072-byte maximum RSS and effectively zero CPU over five seconds. Login helper: 33,200 KiB RSS and 0.0% CPU after five seconds. Combined about 46.2 MiB. |
 
 The resource run is a short local idle spot sample, not the five-minute production target measurement. It remains well below the 200 MiB combined endpoint target. The final installer was not installed locally because the development Mac has an existing approved controller installation and data; the draft PR CI is configured to perform disposable child install/status/uninstall and default-parent install checks. Those checks must be reported separately and not treated as local physical-hardware evidence.
@@ -57,8 +57,8 @@ The resource run is a short local idle spot sample, not the five-minute producti
 
 - Artifact: `.artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.3.pkg`
 - Purpose: selectable Parent Controller or universal visible macOS Child Endpoint
-- SHA-256: pending replacement build
-- Embedded source commit: pending replacement build
+- SHA-256: `db551f4ef0370a6fae0d16dd594e5c7ceb7c92cd03e9f144aa47c022247d0cdb`
+- Embedded tested PR merge commit: `99c9fcbb2834` (head source commit `0e853d9`)
 - App/executable signing: local ad-hoc signatures; no Team ID or restricted entitlements
 - Installer signing/notarization: unsigned and not notarized because no Developer ID Installer identity is available
 
@@ -118,6 +118,7 @@ This intentionally removes the child app, launchd jobs, helper/tool, protected e
 - The resource daemon and helper processes were stopped. The pre-existing installed Parent Controller/Hub processes were not started by Stage 04 and were deliberately preserved.
 - The rc.2 feedback run began with 8.7 GiB free and 9.3 MiB of retained project output. Generated output peaked near 506 MiB (450 MiB derived data, 20 MiB `dist`, 27 MiB expanded inspection, and the 9.3 MiB RC); the lowest observed free space was 7.8 GiB.
 - Final rc.2 cleanup restored 8.3 GiB free and retains only the 9.3 MiB package plus checksum. One explicit administrator ownership repair was required for stale repository-owned `dist/ParentalControlController.app` output from the earlier package run; the generated tree was then rebuilt and removed normally.
+- The rc.3 diagnosis began with 8.2 GiB free and 9.3 MiB retained output. Local targeted test output peaked at 188 MiB; free space briefly measured 5.6 GiB, so the release build moved to the isolated CI runner rather than risking the 5 GiB floor. After project cleanup and local package inspection, 5.8 GiB is free and only the 9.2 MiB rc.3 package/checksum remain. No simulator, VM, container, or project-started process remains.
 
 ## Failure evidence to collect
 
