@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.4.0-rc.5 — 2026-08-16
 
-Status: **STAGE-04 correction in progress**
+Status: **STAGE-04 ready for developer retest**
 
 - Refreshes derived Online/Offline presence on the parent every five seconds without requiring UI interaction.
 - Signals the daemon immediately when an established child connection closes, then preserves the bounded three-attempt, two-second retry sequence and 60-second cooldown.

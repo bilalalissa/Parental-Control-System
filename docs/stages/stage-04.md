@@ -54,27 +54,27 @@ Excluded: command lines, executable paths, window/document titles or contents, b
 
 | Check | Result |
 | --- | --- |
-| Repository tests | 28 passed; one Windows-only cleanup test skipped on macOS (29 total). |
+| Repository tests | 30 passed; one Windows-only cleanup test skipped on macOS (31 total). |
 | Controller/hub suite | 26 tests in 9 suites passed. |
-| Endpoint suite | rc.3 affected XPC authorization test passed locally. The unchanged live-pairing test could not bind port `49171` while the developer Mac's installed hub was running; all 8 endpoint tests then passed on the isolated macOS CI runner. |
+| Endpoint suite | The new reconnect-policy test passed locally. The unchanged live-pairing test could not bind port `49171` while the developer Mac's installed hub was running; all 9 endpoint tests passed on the isolated macOS CI runner. |
 | Formatting/static checks | `swift format lint` and `git diff --check` passed. |
 | Protocol contract | Canonical schema accepts the new allowlisted activity/configuration/chat/time-request types; invalid fixtures continue to fail closed. |
 | Universal verification | Child app, daemon, login helper, and typed control tool each report `x86_64 arm64`. |
-| Bundle/package verification | CI and local inspection verified embedded `0.4.0-rc.4`/build `4004`, source commit `efd155eed297`, strict nested ad-hoc signatures, universal slices, selectable choices XML, both component payloads, installed-child launch survival, and SHA-256. |
+| Bundle/package verification | CI and local inspection verified embedded `0.4.0-rc.5`/build `4005`, source commit `8ac59e03bf5c`, strict nested ad-hoc signatures, universal slices, selectable choices XML, both component payloads, installed-child launch survival, and SHA-256. |
 | Resource spot sample | Unpaired daemon: 14,467,072-byte maximum RSS and effectively zero CPU over five seconds. Login helper: 33,200 KiB RSS and 0.0% CPU after five seconds. Combined about 46.2 MiB. |
 
 The resource run is a short local idle spot sample, not the five-minute production target measurement. It remains well below the 200 MiB combined endpoint target. The final installer was not installed locally because the development Mac has an existing approved controller installation and data; the draft PR CI is configured to perform disposable child install/status/uninstall and default-parent install checks. Those checks must be reported separately and not treated as local physical-hardware evidence.
 
 ## Release candidate
 
-- Artifact: `.artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.4.pkg`
+- Artifact: `.artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.5.pkg`
 - Purpose: selectable Parent Controller or universal visible macOS Child Endpoint
-- SHA-256: `7b7889bf2232b8cfb7015156c48f33b421136a179ec61a7f49c85d5c0234e428`
-- Embedded head source commit: `efd155eed297`
+- SHA-256: `629a85095dab9a503b440005a822457f57528560effa8b6e01ac968ef4f74330`
+- Embedded head source commit: `8ac59e03bf5c`
 - App/executable signing: local ad-hoc signatures; no Team ID or restricted entitlements
 - Installer signing/notarization: unsigned and not notarized because no Developer ID Installer identity is available
 
-This single package replaces the rejected Stage 04 rc.3 candidate. No duplicate `.app`, `.pkg`, `.dmg`, archive, or extracted package is retained after cleanup.
+This single package replaces the rejected Stage 04 rc.4 candidate. No duplicate `.app`, `.pkg`, `.dmg`, archive, or extracted package is retained after cleanup.
 
 ## Installation
 
@@ -132,6 +132,8 @@ This intentionally removes the child app, launchd jobs, helper/tool, protected e
 - Final rc.2 cleanup restored 8.3 GiB free and retains only the 9.3 MiB package plus checksum. One explicit administrator ownership repair was required for stale repository-owned `dist/ParentalControlController.app` output from the earlier package run; the generated tree was then rebuilt and removed normally.
 - The rc.3 diagnosis began with 8.2 GiB free and 9.3 MiB retained output. Local targeted test output peaked at 188 MiB; free space measured 5.6 GiB, so the release build moved to the isolated CI runner rather than risking the 5 GiB floor. After project cleanup and local package inspection, 5.6 GiB is free and only the 9.2 MiB rc.3 package/checksum remain. No simulator, VM, container, or project-started process remains.
 - The rc.4 crash correction began with 5.5 GiB free and the single 9.2 MiB rc.3 candidate. No native build ran locally; source/static checks created no retained build tree, and temporary package download/expansion peaked near 45 MiB before removal. The universal Release build and installed-app launch smoke ran in isolated CI. Final cleanup leaves 5.6 GiB free and only the 9.2 MiB rc.4 package/checksum; no simulator or project-started process remains.
+- The rc.5 correction began with 6.6 GiB free and the single 9.2 MiB rc.4 candidate. One scoped temporary Swift build compiled the changed endpoint and exercised the reconnect policy; the local live-pairing test remained intentionally unable to take port `49171` from the pre-existing installed parent hub. The full two-worker build, all 9 endpoint tests, all 26 controller/hub tests, disposable child/default-parent installs, child launch survival, uninstall, and cleanup passed in isolated CI in 3m57s.
+- The temporary local Swift output, downloaded artifact ZIP, and expanded package were removed. Final cleanup leaves 6.4 GiB free and only the 9.3 MiB rc.5 package/checksum; no simulator, VM, container, or project-started process is retained. The superseded rc.4 local files were removed and remain recoverable only from their short-retention CI artifact.
 
 ## Failure evidence to collect
 
