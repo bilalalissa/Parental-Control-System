@@ -2,7 +2,7 @@
 
 - Version: `0.4.0-rc.5`
 - Branch: `stage/04-macos-activity-chat`
-- Status: `READY_FOR_RETEST`
+- Status: `APPROVED`
 - Platform: Parent Controller on Apple silicon; Child Endpoint universal `arm64`/`x86_64`; macOS 14 or newer
 
 ## Objective and scope
@@ -134,6 +134,10 @@ This intentionally removes the child app, launchd jobs, helper/tool, protected e
 - The rc.4 crash correction began with 5.5 GiB free and the single 9.2 MiB rc.3 candidate. No native build ran locally; source/static checks created no retained build tree, and temporary package download/expansion peaked near 45 MiB before removal. The universal Release build and installed-app launch smoke ran in isolated CI. Final cleanup leaves 5.6 GiB free and only the 9.2 MiB rc.4 package/checksum; no simulator or project-started process remains.
 - The rc.5 correction began with 6.6 GiB free and the single 9.2 MiB rc.4 candidate. One scoped temporary Swift build compiled the changed endpoint and exercised the reconnect policy; the local live-pairing test remained intentionally unable to take port `49171` from the pre-existing installed parent hub. The full two-worker build, all 9 endpoint tests, all 26 controller/hub tests, disposable child/default-parent installs, child launch survival, uninstall, and cleanup passed in isolated CI in 3m57s.
 - The temporary local Swift output, downloaded artifact ZIP, and expanded package were removed. The final measurement showed 6.3 GiB free and only the 9.3 MiB rc.5 package/checksum; no simulator, VM, container, or project-started process is retained. The superseded rc.4 local files were removed and remain recoverable only from their short-retention CI artifact.
+
+## Developer approval
+
+The developer approved this release candidate with the exact command `APPROVED: STAGE-04 0.4.0-rc.5` on 2026-08-16. The approved artifact, scope, known limitations, signing status, and verification evidence remain unchanged. The stage is approved but unmerged and unreleased; merging still requires the separate exact command `MERGE`.
 
 ## Failure evidence to collect
 
