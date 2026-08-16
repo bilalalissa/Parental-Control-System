@@ -64,7 +64,7 @@ final class ControllerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotifi
     _ center: UNUserNotificationCenter,
     willPresent notification: UNNotification,
     withCompletionHandler completionHandler:
-      @escaping @Sendable (UNNotificationPresentationOptions) -> Void
+      @escaping (UNNotificationPresentationOptions) -> Void
   ) {
     completionHandler([.banner, .sound])
   }

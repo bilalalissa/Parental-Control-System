@@ -83,6 +83,20 @@ test("child notification authorization avoids actor-isolated completion callback
   assert.doesNotMatch(child, /requestAuthorization\([^)]*\)\s*\{\s*_,\s*_\s+in/);
 });
 
+test("parent foreground notification delegate matches the macOS SDK signature", async () => {
+  const controllerApp = await read(
+    "apps/controller-macos/Sources/ParentalControlController/App/ParentalControlControllerApp.swift",
+  );
+  assert.match(
+    controllerApp,
+    /nonisolated func userNotificationCenter\([\s\S]*?willPresent[\s\S]*?withCompletionHandler completionHandler:\s*@escaping \(UNNotificationPresentationOptions\) -> Void\s*\)\s*\{/,
+  );
+  assert.doesNotMatch(
+    controllerApp,
+    /withCompletionHandler completionHandler:\s*@escaping @Sendable/,
+  );
+});
+
 test("Stage 04 presence refreshes without interaction and wake reconnect remains bounded", async () => {
   const [store, daemon] = await Promise.all([
     read("apps/controller-macos/Sources/ParentalControlController/Stores/ControllerStore.swift"),
