@@ -29,6 +29,8 @@ public struct LocalHubStatus: Codable, Equatable, Sendable {
   public let chatMessages: [HubChatMessage]
   public let activity: [HubAppActivity]
   public let activityConfigurations: [ActivityConfiguration]
+  public let browserTabs: [HubBrowserTab]
+  public let browserConfigurations: [BrowserConfiguration]
   public let moreTimeRequests: [MoreTimeRequestRecord]
   public let storage: HubStorageSummary
 
@@ -40,6 +42,8 @@ public struct LocalHubStatus: Codable, Equatable, Sendable {
     chatMessages: [HubChatMessage] = [],
     activity: [HubAppActivity] = [],
     activityConfigurations: [ActivityConfiguration] = [],
+    browserTabs: [HubBrowserTab] = [],
+    browserConfigurations: [BrowserConfiguration] = [],
     moreTimeRequests: [MoreTimeRequestRecord] = [],
     storage: HubStorageSummary = HubStorageSummary(
       activityRecords: 0, chatMessages: 0, queuedEnvelopes: 0)
@@ -51,6 +55,8 @@ public struct LocalHubStatus: Codable, Equatable, Sendable {
     self.chatMessages = chatMessages
     self.activity = activity
     self.activityConfigurations = activityConfigurations
+    self.browserTabs = browserTabs
+    self.browserConfigurations = browserConfigurations
     self.moreTimeRequests = moreTimeRequests
     self.storage = storage
   }
@@ -185,6 +191,8 @@ public final class LocalHub: @unchecked Sendable {
       chatMessages: try database.chatMessages(),
       activity: try database.activity(),
       activityConfigurations: try database.activityConfigurations(),
+      browserTabs: try database.browserTabs(),
+      browserConfigurations: try database.browserConfigurations(),
       moreTimeRequests: try database.moreTimeRequests(),
       storage: try database.storageSummary())
   }
@@ -264,6 +272,52 @@ public final class LocalHub: @unchecked Sendable {
           ? "App activity enabled; \(configuration.retentionDays)-day retention"
           : "App activity disabled and retained records removed"))
     publishStatus()
+  }
+
+  public func configureBrowser(_ configuration: BrowserConfiguration) throws {
+    guard let device = try database.device(id: configuration.deviceID), !device.isRevoked else {
+      throw LocalHubError.unknownDevice
+    }
+    try database.saveBrowserConfiguration(configuration)
+    let envelope = try controllerIdentity.sign(
+      deviceID: "controller", sequence: nextControllerSequence(), type: .browserConfiguration,
+      payload: [
+        "targetDeviceId": .string(configuration.deviceID),
+        "enabled": .bool(configuration.enabled),
+        "retentionDays": .integer(Int64(configuration.retentionDays)),
+      ], lifetime: 7 * 86_400)
+    try sendOrQueue(envelope, deviceID: configuration.deviceID, lifetime: 7 * 86_400)
+    try database.appendAudit(
+      HubAuditRecord(
+        event: "browser.configuration", deviceID: configuration.deviceID,
+        detail: configuration.enabled
+          ? "Browser title/origin sharing enabled; \(configuration.retentionDays)-day retention"
+          : "Browser sharing disabled and retained tab metadata removed"))
+    publishStatus()
+  }
+
+  public func markChatRead(deviceID: String, audience: ChatAudience) throws {
+    let messages = try database.chatMessages(limit: 2_000).filter {
+      $0.deviceID == deviceID && !$0.isFromParent && $0.audience == audience
+        && $0.state != .read
+    }
+    for message in messages {
+      try database.updateChatState(id: message.id, state: .read)
+      let receipt = try controllerIdentity.sign(
+        deviceID: "controller", sequence: nextControllerSequence(), type: .receipt,
+        payload: [
+          "originalMessageId": .string(message.id.uuidString),
+          "state": .string(ChatDeliveryState.read.rawValue),
+        ], lifetime: 30 * 86_400)
+      try sendOrQueue(receipt, deviceID: deviceID, lifetime: 30 * 86_400)
+    }
+    if !messages.isEmpty {
+      try database.appendAudit(
+        HubAuditRecord(
+          event: "chat.read", deviceID: deviceID,
+          detail: "Marked \(messages.count) message receipt(s) read; content omitted"))
+      publishStatus()
+    }
   }
 
   public func revoke(deviceID: String) throws {
@@ -388,6 +442,34 @@ public final class LocalHub: @unchecked Sendable {
         HubAuditRecord(
           event: "activity.delta", deviceID: device.id,
           detail: "Accepted bounded app activity metadata; no command lines or content"))
+    case .browserUpdate:
+      let enabled =
+        try database.browserConfigurations().first { $0.deviceID == device.id }?.enabled ?? false
+      if enabled, case .array(let values) = envelope.payload["tabs"] {
+        let records = values.prefix(128).compactMap { value -> HubBrowserTab? in
+          guard case .object(let item) = value,
+            let browser = item["browser"]?.stringValue,
+            let profile = item["profile"]?.stringValue,
+            let title = item["title"]?.stringValue,
+            let originValue = item["origin"]?.stringValue,
+            let origin = Self.sanitizedBrowserOrigin(originValue),
+            let active = item["isActive"]?.boolValue,
+            let observedText = item["observedAt"]?.stringValue,
+            let observed = ISO8601DateFormatter().date(from: observedText)
+          else { return nil }
+          return HubBrowserTab(
+            deviceID: device.id, browser: browser, profileID: profile, title: title,
+            origin: origin, isActive: active, observedAt: observed)
+        }
+        try database.replaceBrowserTabs(records, for: device.id)
+      }
+      try database.updateSeen(
+        deviceID: device.id, sequence: envelope.sequence,
+        snapshotVersion: device.snapshotVersion)
+      try database.appendAudit(
+        HubAuditRecord(
+          event: "browser.delta", deviceID: device.id,
+          detail: "Accepted bounded tab titles and query-free origins; content omitted"))
     case .chatMessage:
       guard let text = envelope.payload["text"]?.stringValue,
         let audienceText = envelope.payload["audience"]?.stringValue,
@@ -438,7 +520,7 @@ public final class LocalHub: @unchecked Sendable {
       try database.updateSeen(
         deviceID: device.id, sequence: envelope.sequence,
         snapshotVersion: device.snapshotVersion)
-    case .activityConfiguration, .snapshotRequest:
+    case .activityConfiguration, .browserConfiguration, .snapshotRequest:
       throw LocalHubError.unexpectedMessage
     }
     try sendReceipt(for: envelope, state: "accepted", to: peer, deviceID: device.id)
@@ -469,6 +551,18 @@ public final class LocalHub: @unchecked Sendable {
           expiresAt: Date().addingTimeInterval(120),
           envelope: data))
     }
+  }
+
+  private static func sanitizedBrowserOrigin(_ value: String) -> String? {
+    guard let url = URL(string: value), let scheme = url.scheme?.lowercased(),
+      scheme == "http" || scheme == "https", let host = url.host?.lowercased(),
+      url.query == nil, url.fragment == nil
+    else { return nil }
+    var components = URLComponents()
+    components.scheme = scheme
+    components.host = host
+    components.port = url.port
+    return components.url?.absoluteString
   }
 
   private func bind(peer: SecureWebSocketPeer, deviceID: String) {

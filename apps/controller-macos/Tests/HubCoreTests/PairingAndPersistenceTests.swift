@@ -161,6 +161,51 @@ struct PairingAndPersistenceTests {
     #expect(try database.activity().isEmpty)
     #expect(try database.storageSummary().queuedEnvelopes == 2)
   }
+
+  @Test("browser records are bounded, retained briefly, and cleared on disable")
+  func stage05BrowserPersistence() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let database = try HubDatabase(path: fixture.path)
+    try database.saveBrowserConfiguration(
+      BrowserConfiguration(deviceID: "child-browser", enabled: true, retentionDays: 1))
+    let records = (0..<150).map { index in
+      HubBrowserTab(
+        deviceID: "child-browser", browser: index.isMultiple(of: 2) ? "chrome" : "edge",
+        profileID: "synthetic-profile", title: "Tab \(index)",
+        origin: "https://example\(index).test", isActive: index == 0,
+        observedAt: index == 0 ? Date().addingTimeInterval(-2 * 86_400) : Date())
+    }
+    try database.replaceBrowserTabs(records, for: "child-browser")
+    #expect(try database.browserTabs().count == HubDatabase.maximumBrowserTabsPerDevice)
+    try database.pruneActivity(now: Date())
+    #expect(try database.browserTabs().allSatisfy { $0.title != "Tab 0" })
+    #expect(try database.storageSummary().browserTabRecords == 127)
+
+    try database.saveBrowserConfiguration(
+      BrowserConfiguration(deviceID: "child-browser", enabled: false, retentionDays: 7))
+    #expect(try database.browserTabs().isEmpty)
+    let configuration = try #require(
+      database.browserConfigurations().first { $0.deviceID == "child-browser" })
+    #expect(configuration.enabled == false)
+    #expect(configuration.retentionDays == 7)
+  }
+
+  @Test("late delivery callbacks cannot regress read receipts")
+  func stage05MonotonicReceipts() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let database = try HubDatabase(path: fixture.path)
+    let message = HubChatMessage(
+      deviceID: "child-receipt", sender: "Parent", text: "Synthetic message", state: .sent,
+      audience: .direct, isFromParent: true)
+    try database.saveChatMessage(message)
+    try database.updateChatState(id: message.id, state: .delivered)
+    try database.updateChatState(id: message.id, state: .read)
+    try database.updateChatState(id: message.id, state: .failed)
+    try database.updateChatState(id: message.id, state: .delivered)
+    #expect(try database.chatMessages().first?.state == .read)
+  }
 }
 
 private struct TemporaryHubDatabase {

@@ -34,8 +34,8 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   const active = tracker.stages.filter((stage) => stage.id === tracker.activeStage);
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
-  assert.equal(active[0].branch, "stage/04-macos-activity-chat");
-  assert.equal(active[0].version, "0.4.0-rc.5");
+  assert.equal(active[0].branch, "stage/05-chromium-extension");
+  assert.equal(active[0].version, "0.5.0-rc.1");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -94,6 +94,42 @@ test("Stage 04 presence refreshes without interaction and wake reconnect remains
   assert.match(daemon, /onEstablishedConnectionLoss/);
 });
 
+test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minimal", async () => {
+  const [manifest, nativeManifest, worker, popup, packager] = await Promise.all([
+    readJson("browser-extensions/webextension/manifest.json"),
+    readJson("browser-extensions/webextension/native-host-manifest.json"),
+    read("browser-extensions/webextension/service-worker.js"),
+    read("browser-extensions/webextension/popup.html"),
+    read("script/package_browser_extension.sh"),
+  ]);
+  assert.equal(manifest.manifest_version, 3);
+  assert.deepEqual(manifest.permissions.sort(), ["alarms", "nativeMessaging", "storage", "tabs"]);
+  for (const forbidden of ["history", "webRequest", "cookies", "downloads", "debugger"])
+    assert.ok(!manifest.permissions.includes(forbidden));
+  assert.equal(nativeManifest.allowed_origins.length, 1);
+  assert.match(nativeManifest.allowed_origins[0], /^chrome-extension:\/\/[a-p]{32}\/$/);
+  assert.match(worker, /tab\.incognito !== true/);
+  assert.match(worker, /return url\.origin/);
+  assert.match(worker, /\.slice\(0, MAX_TABS\)/);
+  assert.match(worker, /configuration\.query/);
+  assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
+  assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
+  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.1\.zip/);
+  assert.match(packager, /Refusing an extension package containing signing secrets/);
+});
+
+test("Stage 05 chat feedback uses system-controlled audio and explicit read visibility", async () => {
+  const [controller, child, chat] = await Promise.all([
+    read("apps/controller-macos/Sources/ParentalControlController/Stores/ControllerStore.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlAgentUser/main.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/ChatShellView.swift"),
+  ]);
+  assert.match(controller, /content\.sound = \.default/);
+  assert.match(child, /content\.sound = \.default/);
+  assert.match(chat, /markVisibleMessagesRead/);
+  assert.doesNotMatch(controller, /message\.text/);
+});
+
 test("local Markdown links resolve inside the repository", async () => {
   const markdownFiles = await walk(root, ".md");
   const missing = [];
@@ -146,8 +182,8 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–04 are merged; STAGE-05 has not started/);
-  assert.match(readme, /0\.4\.0-rc\.5/);
+  assert.match(readme, /Stages 00–04 are merged; STAGE-05 `0\.5\.0-rc\.1` is being prepared/);
+  assert.match(readme, /0\.5\.0-rc\.1/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });

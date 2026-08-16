@@ -45,6 +45,8 @@
         "snapshot.response",
         "activity.update",
         "activity.configuration",
+        "browser.update",
+        "browser.configuration",
         "policy.apply",
         "policy.query",
         "chat.message",

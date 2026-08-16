@@ -49,6 +49,9 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var activityCollectionEnabled: Bool
   public var activityRetentionDays: Int
   public var applications: [EndpointApplicationActivity]
+  public var browserCollectionEnabled: Bool
+  public var browserRetentionDays: Int
+  public var browserTabs: [EndpointBrowserTab]
   public var collectedAt: Date
 
   public init(
@@ -69,6 +72,9 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     activityCollectionEnabled: Bool = true,
     activityRetentionDays: Int = 7,
     applications: [EndpointApplicationActivity] = [],
+    browserCollectionEnabled: Bool = false,
+    browserRetentionDays: Int = 7,
+    browserTabs: [EndpointBrowserTab] = [],
     collectedAt: Date = Date()
   ) {
     self.deviceID = deviceID
@@ -88,6 +94,9 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     self.activityCollectionEnabled = activityCollectionEnabled
     self.activityRetentionDays = max(1, min(activityRetentionDays, 30))
     self.applications = Array(applications.prefix(64))
+    self.browserCollectionEnabled = browserCollectionEnabled
+    self.browserRetentionDays = max(1, min(browserRetentionDays, 30))
+    self.browserTabs = Array(browserTabs.prefix(128))
     self.collectedAt = collectedAt
   }
 }
@@ -117,6 +126,65 @@ public struct EndpointActivityUpdate: Codable, Equatable, Sendable {
   public init(applications: [EndpointApplicationActivity], observedAt: Date = Date()) {
     self.applications = Array(applications.prefix(64))
     self.observedAt = observedAt
+  }
+}
+
+public struct EndpointBrowserTab: Codable, Equatable, Identifiable, Sendable {
+  public var id: String { "\(browser)|\(profileID)|\(origin)|\(title)" }
+  public let browser: String
+  public let profileID: String
+  public let title: String
+  public let origin: String
+  public let isActive: Bool
+  public let observedAt: Date
+
+  public init(
+    browser: String, profileID: String, title: String, origin: String, isActive: Bool,
+    observedAt: Date = Date()
+  ) {
+    self.browser = String(browser.lowercased().prefix(40))
+    self.profileID = String(profileID.prefix(80))
+    self.title = String(title.prefix(300))
+    self.origin = Self.sanitizedOrigin(origin) ?? ""
+    self.isActive = isActive
+    self.observedAt = observedAt
+  }
+
+  public static func sanitizedOrigin(_ value: String) -> String? {
+    guard let url = URL(string: value), let scheme = url.scheme?.lowercased(),
+      scheme == "http" || scheme == "https", let host = url.host?.lowercased()
+    else { return nil }
+    var components = URLComponents()
+    components.scheme = scheme
+    components.host = host
+    components.port = url.port
+    return components.url?.absoluteString
+  }
+}
+
+public struct EndpointBrowserUpdate: Codable, Equatable, Sendable {
+  public let browser: String
+  public let profileID: String
+  public let tabs: [EndpointBrowserTab]
+  public let observedAt: Date
+
+  public init(
+    browser: String, profileID: String, tabs: [EndpointBrowserTab], observedAt: Date = Date()
+  ) {
+    self.browser = String(browser.lowercased().prefix(40))
+    self.profileID = String(profileID.prefix(80))
+    self.tabs = Array(tabs.filter { !$0.origin.isEmpty }.prefix(128))
+    self.observedAt = observedAt
+  }
+}
+
+public struct EndpointBrowserConfiguration: Codable, Equatable, Sendable {
+  public let enabled: Bool
+  public let retentionDays: Int
+
+  public init(enabled: Bool, retentionDays: Int) {
+    self.enabled = enabled
+    self.retentionDays = max(1, min(retentionDays, 30))
   }
 }
 

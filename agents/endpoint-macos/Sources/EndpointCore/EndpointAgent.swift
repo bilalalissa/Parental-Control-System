@@ -19,6 +19,7 @@ public final class EndpointAgent: @unchecked Sendable {
   private var idleInterval: TimeInterval = 120
   private var pendingPairingMessage: UUID?
   private var lastSentApplications: [EndpointApplicationActivity] = []
+  private var lastSentBrowserTabs: [EndpointBrowserTab] = []
 
   public init(
     store: ProtectedConfigurationStore, repository: EndpointStatusRepository, log: BoundedLog,
@@ -34,6 +35,9 @@ public final class EndpointAgent: @unchecked Sendable {
     repository.configureActivity(
       enabled: configuration.activityCollectionEnabled,
       retentionDays: configuration.activityRetentionDays)
+    repository.configureBrowser(
+      enabled: configuration.browserCollectionEnabled,
+      retentionDays: configuration.browserRetentionDays)
     if let suppliedIdentity {
       identity = suppliedIdentity
     } else {
@@ -101,7 +105,7 @@ public final class EndpointAgent: @unchecked Sendable {
         .string("presence"), .string("device-info"), .string("uptime"), .string("session-state"),
         .string("network-metadata"), .string("health"), .string("delta-snapshot"),
         .string("receipt"), .string("app-activity"), .string("chat"),
-        .string("request-more-time"), .string("notifications"),
+        .string("browser-tabs"), .string("request-more-time"), .string("notifications"),
       ]),
     ]
     if let code = configuration.invitation?.code, !code.isEmpty {
@@ -135,10 +139,13 @@ public final class EndpointAgent: @unchecked Sendable {
         }
         if let originalText = envelope.payload["originalMessageId"]?.stringValue,
           let original = UUID(uuidString: originalText),
-          let stateText = envelope.payload["state"]?.stringValue,
-          let state = ChatDeliveryState(rawValue: stateText)
+          let stateText = envelope.payload["state"]?.stringValue
         {
-          repository.updateMessageState(original, state: state)
+          if let state = ChatDeliveryState(rawValue: stateText) {
+            repository.updateMessageState(original, state: state)
+          } else if stateText == "accepted" {
+            repository.updateMessageState(original, state: .delivered)
+          }
         }
         repository.update {
           $0.connectionState = .online
@@ -156,7 +163,10 @@ public final class EndpointAgent: @unchecked Sendable {
         try receiveChat(envelope)
       case .activityConfiguration:
         try receiveActivityConfiguration(envelope)
-      case .activityUpdate, .requestMoreTime, .capabilityAnnounce, .snapshotResponse:
+      case .browserConfiguration:
+        try receiveBrowserConfiguration(envelope)
+      case .activityUpdate, .browserUpdate, .requestMoreTime, .capabilityAnnounce,
+        .snapshotResponse:
         break
       }
     } catch { fail(error) }
@@ -174,6 +184,9 @@ public final class EndpointAgent: @unchecked Sendable {
     refreshed.activityCollectionEnabled = former.activityCollectionEnabled
     refreshed.activityRetentionDays = former.activityRetentionDays
     refreshed.applications = former.applications
+    refreshed.browserCollectionEnabled = former.browserCollectionEnabled
+    refreshed.browserRetentionDays = former.browserRetentionDays
+    refreshed.browserTabs = former.browserTabs
     repository.update { $0 = refreshed }
     let networks: [JSONValue] = refreshed.networks.map { network in
       .object([
@@ -203,7 +216,31 @@ public final class EndpointAgent: @unchecked Sendable {
       ])
     try send(envelope)
     try sendActivityIfChanged(configuration: configuration, status: refreshed)
+    try sendBrowserIfChanged(configuration: configuration, status: refreshed)
     try flushOutbound()
+  }
+
+  private func sendBrowserIfChanged(
+    configuration: EndpointConfiguration, status: EndpointStatus
+  ) throws {
+    let tabs = status.browserCollectionEnabled ? Array(status.browserTabs.prefix(128)) : []
+    lock.lock()
+    let changed = tabs != lastSentBrowserTabs
+    if changed { lastSentBrowserTabs = tabs }
+    lock.unlock()
+    guard changed else { return }
+    let values: [JSONValue] = tabs.map { tab in
+      .object([
+        "browser": .string(tab.browser), "profile": .string(tab.profileID),
+        "title": .string(tab.title), "origin": .string(tab.origin),
+        "isActive": .bool(tab.isActive),
+        "observedAt": .string(ISO8601DateFormatter().string(from: tab.observedAt)),
+      ])
+    }
+    let envelope = try identity.sign(
+      deviceID: configuration.deviceID, sequence: store.nextSequence(), type: .browserUpdate,
+      payload: ["tabs": .array(values)])
+    try send(envelope)
   }
 
   private func sendActivityIfChanged(
@@ -265,6 +302,22 @@ public final class EndpointAgent: @unchecked Sendable {
       detail: enabled
         ? "Collection enabled with \(max(1, min(retention, 30))) day retention"
         : "Collection disabled")
+  }
+
+  private func receiveBrowserConfiguration(_ envelope: ProtocolEnvelope) throws {
+    let configuration = try store.load()
+    guard envelope.payload["targetDeviceId"]?.stringValue == configuration.deviceID,
+      let enabled = envelope.payload["enabled"]?.boolValue
+    else { throw EndpointAgentError.invalidMessage }
+    let retention = Int(envelope.payload["retentionDays"]?.integerValue ?? 7)
+    try store.setBrowserCollection(enabled: enabled, retentionDays: retention)
+    repository.configureBrowser(enabled: enabled, retentionDays: retention)
+    try sendReceipt(for: envelope.id, state: .delivered)
+    log.write(
+      event: "browser.configuration",
+      detail: enabled
+        ? "Browser metadata enabled with \(max(1, min(retention, 30))) day retention"
+        : "Browser metadata disabled and cleared")
   }
 
   private func sendReceipt(for originalID: UUID, state: ChatDeliveryState) throws {

@@ -21,6 +21,7 @@ final class ChildDashboardModel: ObservableObject {
   @Published var actionMessage = ""
   private let client = EndpointXPCClient()
   private var timer: Timer?
+  private var chatVisible = false
 
   init() {
     Task {
@@ -41,11 +42,25 @@ final class ChildDashboardModel: ObservableObject {
           self?.status = value.status
           self?.messages = value.messages
           self?.error = ""
+          if self?.chatVisible == true { self?.markChatRead() }
         case .failure:
           self?.error =
             "Endpoint service unavailable. Ask an administrator to run parental-control-agentctl status."
         }
       }
+    }
+  }
+
+  func setChatVisible(_ visible: Bool) {
+    chatVisible = visible
+    if visible { markChatRead() }
+  }
+
+  private func markChatRead() {
+    guard messages.contains(where: { $0.isFromParent && $0.state != .read }) else { return }
+    client.markChatRead { [weak self] result in
+      guard result.isSuccess else { return }
+      Task { @MainActor in self?.refresh() }
     }
   }
 
@@ -91,6 +106,7 @@ struct ChildDashboard: View {
   @State private var draft = ""
   @State private var requestMinutes = 15
   @State private var requestNote = ""
+  @State private var selectedTab = 0
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -105,12 +121,13 @@ struct ChildDashboard: View {
       }
       Divider()
       if let status = model.status {
-        TabView {
-          statusView(status).tabItem { Label("Status", systemImage: "checkmark.shield") }
-          chatView.tabItem { Label("Chat", systemImage: "message") }
-          requestView.tabItem { Label("Request Time", systemImage: "hourglass.badge.plus") }
-          disclosureView(status).tabItem { Label("Privacy", systemImage: "hand.raised") }
+        TabView(selection: $selectedTab) {
+          statusView(status).tabItem { Label("Status", systemImage: "checkmark.shield") }.tag(0)
+          chatView.tabItem { Label("Chat", systemImage: "message") }.tag(1)
+          requestView.tabItem { Label("Request Time", systemImage: "hourglass.badge.plus") }.tag(2)
+          disclosureView(status).tabItem { Label("Privacy", systemImage: "hand.raised") }.tag(3)
         }
+        .onChange(of: selectedTab) { _, value in model.setChatVisible(value == 1) }
       } else {
         Spacer()
         ProgressView().frame(maxWidth: .infinity)
@@ -137,9 +154,11 @@ struct ChildDashboard: View {
         row("Session", status.sessionState.rawValue.capitalized)
         row("Applications", status.activityCollectionEnabled ? "Shared (names only)" : "Not shared")
         row("Retention", "\(status.activityRetentionDays) days on parent controller")
+        row("Browser tabs", status.browserCollectionEnabled ? "Shared by extension" : "Not shared")
+        row("Tab retention", "\(status.browserRetentionDays) days on parent controller")
       }
       GroupBox("Schedule") {
-        Text("No schedule enforcement is configured in Stage 04.")
+        Text("No schedule enforcement is configured in Stage 05.")
           .frame(maxWidth: .infinity, alignment: .leading).padding(6)
       }
       Spacer()
@@ -159,7 +178,11 @@ struct ChildDashboard: View {
               VStack(alignment: .leading, spacing: 4) {
                 Text(message.sender).font(.caption.bold())
                 Text(message.text).textSelection(.enabled)
-                Text(message.state.rawValue.capitalized).font(.caption2).foregroundStyle(.secondary)
+                Label(
+                  message.state.rawValue.capitalized,
+                  systemImage: stateIcon(message.state.rawValue)
+                )
+                .font(.caption2).foregroundStyle(.secondary)
               }
               .padding(10)
               .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
@@ -200,12 +223,12 @@ struct ChildDashboard: View {
       VStack(alignment: .leading, spacing: 14) {
         GroupBox("Information shared") {
           Text(
-            "Device and system details, uptime, login/session state, network interface metadata, health, and—when enabled—running and foreground application names and bundle identifiers. Chat text is shared only within the paired family connection."
+            "Device and system details, uptime, login/session state, network interface metadata, health, and—when enabled—running application names plus bounded Chrome/Edge tab titles and website origins. Chat text is shared only within the paired family connection."
           ).frame(maxWidth: .infinity, alignment: .leading).padding(6)
         }
         GroupBox("Never collected") {
           Text(
-            "No command lines, window or document titles, file contents, screenshots, keystrokes, passwords, clipboard, camera, microphone, browser tabs, page content, forms, cookies, or network traffic."
+            "No command lines, window or document contents, file contents, screenshots, keystrokes, passwords, clipboard, camera, microphone, private tabs, URL query strings/fragments, page content, forms, cookies, or network traffic."
           ).frame(maxWidth: .infinity, alignment: .leading).padding(6)
         }
         Label(
@@ -213,6 +236,12 @@ struct ChildDashboard: View {
             ? "Application-name sharing is enabled by your parent."
             : "Application-name sharing is disabled.",
           systemImage: status.activityCollectionEnabled ? "eye" : "eye.slash")
+        Label(
+          status.browserCollectionEnabled
+            ? "Browser title/origin sharing is enabled by your parent."
+            : "Browser sharing is disabled.",
+          systemImage: status.browserCollectionEnabled
+            ? "globe.badge.chevron.backward" : "eye.slash")
       }.padding(.top, 14)
     }
   }
@@ -221,6 +250,17 @@ struct ChildDashboard: View {
     GridRow {
       Text(label).foregroundStyle(.secondary)
       Text(value).textSelection(.enabled)
+    }
+  }
+
+  private func stateIcon(_ state: String) -> String {
+    switch state {
+    case "queued": "tray"
+    case "sent": "paperplane"
+    case "delivered": "checkmark.circle"
+    case "read": "checkmark.circle.fill"
+    case "failed": "exclamationmark.triangle"
+    default: "questionmark.circle"
     }
   }
 }

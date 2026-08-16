@@ -9,6 +9,9 @@ chmod 700 "$SUPPORT" "$SUPPORT/Logs"
 chmod 644 "$TARGET_VOLUME/Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist"
 chmod 644 "$TARGET_VOLUME/Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist"
 chmod 755 "$TARGET_VOLUME/Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon"
+chmod 644 \
+  "$TARGET_VOLUME/Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json" \
+  "$TARGET_VOLUME/Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json"
 
 if [[ "$TARGET_VOLUME" == "/" ]]; then
   /bin/launchctl bootout system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null 2>&1 || true

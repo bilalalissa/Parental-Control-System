@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UserNotifications
 
 @main
 struct ParentalControlControllerApp: App {
@@ -46,10 +47,26 @@ struct ParentalControlControllerApp: App {
   }
 }
 
-final class ControllerAppDelegate: NSObject, NSApplicationDelegate {
+final class ControllerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate
+{
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.setActivationPolicy(.regular)
     NSApp.activate(ignoringOtherApps: true)
+    UNUserNotificationCenter.current().delegate = self
+    Task {
+      _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [
+        .alert, .sound,
+      ])
+    }
+  }
+
+  nonisolated func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler:
+      @escaping @Sendable (UNNotificationPresentationOptions) -> Void
+  ) {
+    completionHandler([.banner, .sound])
   }
 }
 

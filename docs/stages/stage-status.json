@@ -1,6 +1,6 @@
 {
   "$schema": "./stage-status.schema.json",
-  "activeStage": "STAGE-04",
+  "activeStage": "STAGE-05",
   "stages": [
     {
       "id": "STAGE-00",
@@ -41,6 +41,14 @@
       "status": "MERGED",
       "branch": "stage/04-macos-activity-chat",
       "document": "stage-04.md"
+    },
+    {
+      "id": "STAGE-05",
+      "name": "Shared Chromium extension and macOS integration",
+      "version": "0.5.0-rc.1",
+      "status": "IMPLEMENTING",
+      "branch": "stage/05-chromium-extension",
+      "document": "stage-05.md"
     }
   ]
 }

@@ -36,10 +36,17 @@ struct DevicesView: View {
                 $0.deviceID == device.id
               } ?? ActivityConfiguration(deviceID: device.id),
               activity: store.hubStatus?.activity.filter { $0.deviceID == device.id } ?? [],
+              browserConfiguration: store.hubStatus?.browserConfigurations.first {
+                $0.deviceID == device.id
+              } ?? BrowserConfiguration(deviceID: device.id),
+              browserTabs: store.hubStatus?.browserTabs.filter { $0.deviceID == device.id } ?? [],
               requests: store.hubStatus?.moreTimeRequests.filter { $0.deviceID == device.id } ?? [],
               store: store)
           }
           if let status = store.activityStatusMessage {
+            Text(status).font(.caption).foregroundStyle(.secondary)
+          }
+          if let status = store.browserStatusMessage {
             Text(status).font(.caption).foregroundStyle(.secondary)
           }
         }
@@ -56,21 +63,28 @@ private struct PairedDeviceControlRow: View {
   let device: HubDeviceRecord
   let configuration: ActivityConfiguration
   let activity: [HubAppActivity]
+  let browserConfiguration: BrowserConfiguration
+  let browserTabs: [HubBrowserTab]
   let requests: [MoreTimeRequestRecord]
   let store: ControllerStore
   @State private var retentionDays: Int
+  @State private var browserRetentionDays: Int
   @State private var isExpanded = false
 
   init(
     device: HubDeviceRecord, configuration: ActivityConfiguration,
-    activity: [HubAppActivity], requests: [MoreTimeRequestRecord], store: ControllerStore
+    activity: [HubAppActivity], browserConfiguration: BrowserConfiguration,
+    browserTabs: [HubBrowserTab], requests: [MoreTimeRequestRecord], store: ControllerStore
   ) {
     self.device = device
     self.configuration = configuration
     self.activity = activity
+    self.browserConfiguration = browserConfiguration
+    self.browserTabs = browserTabs
     self.requests = requests
     self.store = store
     _retentionDays = State(initialValue: configuration.retentionDays)
+    _browserRetentionDays = State(initialValue: browserConfiguration.retentionDays)
   }
 
   var body: some View {
@@ -141,6 +155,52 @@ private struct PairedDeviceControlRow: View {
             )
             .font(.caption).foregroundStyle(.secondary)
           }
+          Divider()
+          HStack {
+            Toggle(
+              "Share Chrome/Edge tab titles and origins",
+              isOn: Binding(
+                get: { browserConfiguration.enabled },
+                set: {
+                  store.configureBrowser(
+                    deviceID: device.id, enabled: $0, retentionDays: browserRetentionDays)
+                })
+            )
+            .accessibilityIdentifier(AccessibilityID.browserSharingToggle.rawValue)
+            Spacer()
+            Stepper(
+              "Retain \(browserRetentionDays) days", value: $browserRetentionDays, in: 1...30
+            )
+            .onChange(of: browserRetentionDays) { _, days in
+              store.configureBrowser(
+                deviceID: device.id, enabled: browserConfiguration.enabled,
+                retentionDays: days)
+            }
+          }
+          Text(
+            "Requires the visible extension. Shares titles and website origins only; private tabs, query strings, fragments, page content, forms, cookies, and traffic are excluded."
+          )
+          .font(.caption).foregroundStyle(.secondary)
+          ForEach(Array(browserTabs.prefix(8).enumerated()), id: \.offset) { _, tab in
+            HStack {
+              Image(systemName: tab.isActive ? "globe.badge.chevron.backward" : "globe")
+              VStack(alignment: .leading, spacing: 2) {
+                Text(tab.title)
+                Text("\(tab.browser.capitalized) · \(tab.origin)")
+                  .font(.caption).foregroundStyle(.secondary)
+              }
+              Spacer()
+              if tab.isActive { Text("Active").font(.caption).foregroundStyle(.green) }
+            }
+          }
+          if browserTabs.isEmpty {
+            Text(
+              browserConfiguration.enabled
+                ? "No browser metadata received. Install and enable the extension in Chrome or Edge."
+                : "Browser sharing is disabled."
+            )
+            .font(.caption).foregroundStyle(.secondary)
+          }
           ForEach(requests.prefix(3)) { request in
             Label(
               "Requested \(request.requestedMinutes) minutes · \(request.createdAt.formatted(date: .omitted, time: .shortened))",
@@ -154,6 +214,7 @@ private struct PairedDeviceControlRow: View {
       }
     }
     .onChange(of: configuration.retentionDays) { _, days in retentionDays = days }
+    .onChange(of: browserConfiguration.retentionDays) { _, days in browserRetentionDays = days }
   }
 }
 

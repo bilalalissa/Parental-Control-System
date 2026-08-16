@@ -2,6 +2,16 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.5.0-rc.1 — 2026-08-16
+
+Status: **STAGE-05 implementing**
+
+- Adds one shared visible Manifest V3 Chrome/Edge extension and one packaged ZIP with a stable extension identity and explicit minimal permissions.
+- Adds a universal macOS native-messaging host with exact extension-origin, browser signing/path, installed-host signing/path, and authenticated XPC checks.
+- Adds opt-in, bounded, short-retention tab-title and query-free-origin metadata; private tabs, page content, paths, queries, fragments, forms, cookies, passwords, and network traffic remain excluded.
+- Adds generic system-controlled arrival sound for both receiver directions and explicit conversation-visible Read receipts, while preserving content-free logs, audit rows, and notification diagnostics.
+- Adds controller/child disclosures and controls, local SQLite migration/pruning, protocol types, installer/uninstaller integration, and privacy/security regression coverage.
+
 ## 0.4.0-rc.5 — 2026-08-16
 
 Status: **STAGE-04 merged**

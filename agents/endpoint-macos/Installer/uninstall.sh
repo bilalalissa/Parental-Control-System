@@ -14,6 +14,10 @@ fi
 /bin/rm -f -- /Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist
 /bin/rm -f -- /Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon
 /bin/rm -f -- /usr/local/bin/parental-control-agentctl
+/bin/rm -f -- /Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json
+/bin/rm -f -- /Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json
+/bin/rmdir /Library/Google/Chrome/NativeMessagingHosts >/dev/null 2>&1 || true
+/bin/rmdir /Library/Microsoft/Edge/NativeMessagingHosts >/dev/null 2>&1 || true
 /bin/rm -rf -- "/Applications/Parental Control Child.app"
 /bin/rm -rf -- "/Library/Application Support/ParentalControlAgent"
 /usr/sbin/pkgutil --forget com.bilalalissa.ParentalControlChild.component >/dev/null 2>&1 || true

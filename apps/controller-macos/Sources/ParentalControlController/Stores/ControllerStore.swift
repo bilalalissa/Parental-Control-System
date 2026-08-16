@@ -1,6 +1,7 @@
 import Foundation
 import HubCore
 import Observation
+import UserNotifications
 
 @MainActor
 @Observable
@@ -19,10 +20,13 @@ final class ControllerStore {
   var pairingStatusMessage: String?
   var chatStatusMessage: String?
   var activityStatusMessage: String?
+  var browserStatusMessage: String?
 
   private let database: ControllerDatabase
   private let hubClient = HubClient()
   private var hubRefreshTask: Task<Void, Never>?
+  private var knownInboundMessageIDs: Set<UUID> = []
+  private var loadedInitialHubStatus = false
 
   init(database: ControllerDatabase) throws {
     self.database = database
@@ -78,7 +82,7 @@ final class ControllerStore {
     hubRefreshTask = Task { [weak self] in
       guard let self else { return }
       do {
-        hubStatus = try await hubClient.status()
+        applyHubStatus(try await hubClient.status())
         hubStatusMessage = "Local hub ready · TLS 1.3 · Authenticated IPC"
       } catch {
         hubStatusMessage = "Local hub unavailable: \(error)"
@@ -89,7 +93,7 @@ final class ControllerStore {
         if let status = try? await hubClient.status() {
           // Presence is derived from lastSeen plus the current time. Publish every sample even
           // when the stored payload is equal so Online can age into Offline without a click.
-          hubStatus = status
+          applyHubStatus(status)
           hubStatusMessage = "Local hub ready · TLS 1.3 · Authenticated IPC"
         }
       }
@@ -99,7 +103,7 @@ final class ControllerStore {
   func createPairingInvitation() {
     Task {
       do {
-        hubStatus = try await hubClient.createPairing()
+        applyHubStatus(try await hubClient.createPairing())
         pairingStatusMessage = "One-time code created. It expires in five minutes."
       } catch {
         pairingStatusMessage = "Could not create pairing code: \(error)"
@@ -110,7 +114,7 @@ final class ControllerStore {
   func revokePairedDevice(_ id: String) {
     Task {
       do {
-        hubStatus = try await hubClient.revoke(deviceID: id)
+        applyHubStatus(try await hubClient.revoke(deviceID: id))
         pairingStatusMessage = "Device revoked. Its active connection was closed."
       } catch {
         pairingStatusMessage = "Could not revoke device: \(error)"
@@ -121,7 +125,7 @@ final class ControllerStore {
   func unpairDevice(_ id: String) {
     Task {
       do {
-        hubStatus = try await hubClient.unpair(deviceID: id)
+        applyHubStatus(try await hubClient.unpair(deviceID: id))
         pairingStatusMessage = "Device pairing record removed."
       } catch {
         pairingStatusMessage = "Could not unpair device: \(error)"
@@ -146,7 +150,7 @@ final class ControllerStore {
           failures += 1
         }
       }
-      if let latest { hubStatus = latest }
+      if let latest { applyHubStatus(latest) }
       chatStatusMessage =
         failures == 0
         ? "Message secured locally for \(deviceIDs.count) device\(deviceIDs.count == 1 ? "" : "s")."
@@ -157,8 +161,10 @@ final class ControllerStore {
   func configureActivity(deviceID: String, enabled: Bool, retentionDays: Int) {
     Task {
       do {
-        hubStatus = try await hubClient.configureActivity(
-          deviceID: deviceID, enabled: enabled, retentionDays: retentionDays)
+        applyHubStatus(
+          try await hubClient.configureActivity(
+            deviceID: deviceID, enabled: enabled, retentionDays: retentionDays)
+        )
         activityStatusMessage =
           enabled
           ? "Application-name collection enabled with \(retentionDays)-day retention."
@@ -167,6 +173,54 @@ final class ControllerStore {
         activityStatusMessage = "Could not update activity collection: \(error)"
       }
     }
+  }
+
+  func configureBrowser(deviceID: String, enabled: Bool, retentionDays: Int) {
+    Task {
+      do {
+        applyHubStatus(
+          try await hubClient.configureBrowser(
+            deviceID: deviceID, enabled: enabled, retentionDays: retentionDays))
+        browserStatusMessage =
+          enabled
+          ? "Browser title/origin sharing enabled with \(retentionDays)-day retention."
+          : "Browser sharing disabled; retained tab metadata was removed."
+      } catch {
+        browserStatusMessage = "Could not update browser sharing: \(error)"
+      }
+    }
+  }
+
+  func markChatRead(deviceIDs: [String], audience: ChatAudience) {
+    guard !deviceIDs.isEmpty else { return }
+    Task {
+      var latest = hubStatus
+      for deviceID in deviceIDs {
+        if let status = try? await hubClient.markChatRead(deviceID: deviceID, audience: audience) {
+          latest = status
+        }
+      }
+      if let latest { applyHubStatus(latest) }
+    }
+  }
+
+  private func applyHubStatus(_ status: LocalHubStatus?) {
+    guard let status else { return }
+    let inbound = status.chatMessages.filter { !$0.isFromParent }
+    let inboundIDs = Set(inbound.map(\.id))
+    if loadedInitialHubStatus {
+      for message in inbound where !knownInboundMessageIDs.contains(message.id) {
+        let content = UNMutableNotificationContent()
+        content.title = "Message from a child device"
+        content.body = "Open Parental Control to read it."
+        content.sound = .default
+        UNUserNotificationCenter.current().add(
+          UNNotificationRequest(identifier: message.id.uuidString, content: content, trigger: nil))
+      }
+    }
+    knownInboundMessageIDs = inboundIDs
+    loadedInitialHubStatus = true
+    hubStatus = status
   }
 
   func stopHub() {

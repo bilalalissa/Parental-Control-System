@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document records the target architecture and the Stage 04 macOS activity/chat implementation boundary. Delivery remains gated by [`stage-status.json`](../stages/stage-status.json).
+This document records the target architecture and the Stage 05 shared Chromium/macOS implementation boundary. Delivery remains gated by [`stage-status.json`](../stages/stage-status.json).
 
 ## Local-first topology
 
@@ -10,7 +10,7 @@ The Apple-silicon macOS Parent Controller is the local policy authority and user
 
 The controller never treats an absent heartbeat as proof of shutdown. It displays `Offline` and the last-seen time; `Shutdown confirmed` requires an endpoint event or command receipt.
 
-The local hub uses Bonjour `_parental-control._tcp`, a certificate-pinned TLS 1.3 WebSocket, Ed25519-signed protocol envelopes, and short-lived one-time pairing codes. The GUI authenticates loopback IPC with an ephemeral HMAC key transferred through a private child-process pipe. Stage 04 extends the same channel with bounded activity deltas, direct/group/announcement chat, delivery receipts, activity configuration, and more-time requests. No second service or cloud data path is introduced.
+The local hub uses Bonjour `_parental-control._tcp`, a certificate-pinned TLS 1.3 WebSocket, Ed25519-signed protocol envelopes, and short-lived one-time pairing codes. The GUI authenticates loopback IPC with an ephemeral HMAC key transferred through a private child-process pipe. Stage 05 extends the same channel with bounded opt-in browser deltas and browser configuration, plus explicit chat delivery/read receipts and generic system-controlled sound. No second service or cloud data path is introduced.
 
 A standard iPadOS app uses FamilyControls, DeviceActivity, ManagedSettings, and ManagedSettingsUI. It is not a persistent desktop agent. APNs may support honest best-effort notifications, but scheduling and shielding do not depend on a custom cloud database.
 
@@ -20,7 +20,7 @@ A standard iPadOS app uses FamilyControls, DeviceActivity, ManagedSettings, and 
 2. **Controller storage:** policy and operational data are local; private keys and credentials are held in Keychain.
 3. **LAN transport:** pairing and later sessions mutually authenticate controller and endpoint. TLS protects confidentiality and integrity; message IDs, expiry, sequence, and signatures provide replay protection and auditability.
 4. **Desktop privileged boundary:** future narrow privileged services accept only authenticated, typed IPC operations from their visible user component. They do not expose shell execution.
-5. **Browser extension boundary:** a separately installed visible extension sends bounded metadata through an authenticated native-messaging host. It excludes private sessions and page content.
+5. **Browser extension boundary:** a separately installed visible Chrome/Edge extension sends bounded tab titles and query-free HTTP(S) origins through a fixed-origin native host. The host validates the signed parent browser and installed endpoint XPC validates the signed/root-protected host. Private tabs, page content, paths, queries, fragments, forms, cookies, passwords, and network traffic are excluded.
 6. **Apple Family Controls boundary:** iPad capability is constrained to supported public APIs and entitlement approval.
 
 ## Canonical contracts
@@ -33,9 +33,9 @@ Platform code may generate types from these definitions, but copied schemas are 
 
 ## Data flow and retention
 
-Endpoints send capability-negotiated snapshots and bounded deltas. The active heartbeat is 15 seconds and backs off to 60 seconds while idle; a device becomes `Offline` after 75 seconds without a valid signed message. The login helper uses `NSWorkspace` launch, termination, and activation notifications rather than continuous process polling. At most 64 regular application names and bundle IDs are retained in an endpoint snapshot, and unchanged activity is not resent. Browser tabs remain stage-gated.
+Endpoints send capability-negotiated snapshots and bounded deltas. The active heartbeat is 15 seconds and backs off to 60 seconds while idle; a device becomes `Offline` after 75 seconds without a valid signed message. The login helper uses `NSWorkspace` launch, termination, and activation notifications rather than continuous process polling. At most 64 regular application names and bundle IDs are retained in an endpoint snapshot, and unchanged activity is not resent. Stage 05 keeps at most 128 sanitized tab records per device, debounces extension changes, and reconciles at most every 15 minutes.
 
-Stage 04 implements configurable one-to-thirty-day app-activity retention (seven days by default), thirty-day chat retention, a 100-envelope offline queue per device, a 200-message endpoint view, and bounded requests, receipts, replay caches, and audit records. Endpoint logs remain capped below 25 MiB by their existing rotation policy.
+Stage 05 implements independent configurable one-to-thirty-day app/browser retention (seven days by default), thirty-day chat retention, a 100-envelope offline queue per device, a 200-message endpoint view, and bounded requests, receipts, replay caches, and audit records. Endpoint logs remain capped below 25 MiB by their existing rotation policy.
 
 ## Failure posture
 

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Browser Sharing</title>
+    <style>
+      body { font: 13px system-ui, sans-serif; margin: 16px; width: 290px; color: #17233a; }
+      h1 { font-size: 16px; margin: 0 0 8px; }
+      #status { font-weight: 650; margin: 10px 0; }
+      p { line-height: 1.4; }
+      .private { color: #526078; }
+    </style>
+  </head>
+  <body>
+    <h1>Parental Control Browser Sharing</h1>
+    <div id="status">Checking local sharing…</div>
+    <p>When your parent enables sharing, this extension reports at most 128 tab titles and website origins to the paired controller on your local network.</p>
+    <p class="private">Private tabs, page contents, forms, cookies, passwords, query strings, fragments, and network traffic are never shared.</p>
+    <script src="popup.js"></script>
+  </body>
+</html>

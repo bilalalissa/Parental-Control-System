@@ -1,4 +1,4 @@
-name: Stage 04 macOS activity and chat installer
+name: Stage 05 Chromium and macOS integration
 
 on:
   pull_request:
@@ -8,6 +8,7 @@ on:
       - ".codex/environments/environment.toml"
       - "agents/endpoint-macos/**"
       - "apps/controller-macos/**"
+      - "browser-extensions/**"
       - "packages/design-assets/**"
       - "script/**"
       - "test/**"
@@ -16,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: stage-04-macos-${{ github.ref }}
+  group: stage-05-macos-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -25,8 +26,8 @@ jobs:
     timeout-minutes: 30
     env:
       SWIFT_WORKERS: "2"
-      CLANG_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-04/module-cache
-      SWIFT_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-04/module-cache
+      CLANG_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-05/module-cache
+      SWIFT_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-05/module-cache
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -42,6 +43,7 @@ jobs:
             .codex/environments/environment.toml \
             agents/endpoint-macos \
             apps/controller-macos \
+            browser-extensions \
             packages/design-assets \
             script \
             test \
@@ -66,31 +68,32 @@ jobs:
         run: swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests
       - name: Test controller and hub
         if: steps.scope.outputs.build == 'true'
-        run: swift test --disable-sandbox --package-path apps/controller-macos --scratch-path "$PWD/.artifacts/derived-data/stage-04/controller-tests" --jobs "$SWIFT_WORKERS"
+        run: swift test --disable-sandbox --package-path apps/controller-macos --scratch-path "$PWD/.artifacts/derived-data/stage-05/controller-tests" --jobs "$SWIFT_WORKERS"
       - name: Test endpoint core
         if: steps.scope.outputs.build == 'true'
-        run: swift test --disable-sandbox --package-path agents/endpoint-macos --scratch-path "$PWD/.artifacts/derived-data/stage-04/endpoint-tests" --jobs "$SWIFT_WORKERS"
+        run: swift test --disable-sandbox --package-path agents/endpoint-macos --scratch-path "$PWD/.artifacts/derived-data/stage-05/endpoint-tests" --jobs "$SWIFT_WORKERS"
       - name: Build selectable system installer
         if: steps.scope.outputs.build == 'true'
         run: ./script/package_endpoint_release.sh
       - name: Verify universal slices
         if: steps.scope.outputs.build == 'true'
         run: |
-          for binary in "dist/Parental Control Child.app/Contents/MacOS/ParentalControlChild" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlAgentDaemon" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlAgentUser"; do
+          for binary in "dist/Parental Control Child.app/Contents/MacOS/ParentalControlChild" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlAgentDaemon" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlAgentUser" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost"; do
             /usr/bin/lipo -archs "$binary" | grep -q arm64
             /usr/bin/lipo -archs "$binary" | grep -q x86_64
           done
       - name: Verify selectable package choices
         if: steps.scope.outputs.build == 'true'
         run: |
-          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.5.pkg" -target / | /usr/bin/plutil -lint -
-          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.5.pkg" || true
+          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.1.pkg" -target / | /usr/bin/plutil -lint -
+          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.1.pkg" || true
+          /usr/bin/unzip -t ".artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.1.zip"
       - name: Install, diagnose, and uninstall child choice
         if: steps.scope.outputs.build == 'true'
         run: |
           sudo /usr/sbin/installer \
             -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.5.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.1.pkg" \
             -target /
           status_ok=false
           for attempt in 1 2 3; do
@@ -102,8 +105,11 @@ jobs:
           done
           status_exit=0
           if [[ "$status_ok" == true ]]; then
-            node -e 'const fs = require("node:fs"); const status = JSON.parse(fs.readFileSync(".artifacts/endpoint-status.json", "utf8")); if (status.daemonHealthy !== true || status.connectionState !== "unpaired" || !status.deviceID || status.activityCollectionEnabled !== true || status.activityRetentionDays !== 7) process.exit(1)'
+            node -e 'const fs = require("node:fs"); const status = JSON.parse(fs.readFileSync(".artifacts/endpoint-status.json", "utf8")); if (status.daemonHealthy !== true || status.connectionState !== "unpaired" || !status.deviceID || status.activityCollectionEnabled !== true || status.activityRetentionDays !== 7 || status.browserCollectionEnabled !== false || status.browserRetentionDays !== 7 || status.browserTabs.length !== 0) process.exit(1)'
             /bin/launchctl print system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null
+            test -x "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost"
+            test -f "/Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json"
+            test -f "/Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json"
           else
             status_exit=1
             sudo /bin/launchctl print system/com.bilalalissa.ParentalControlAgent.daemon || true
@@ -140,12 +146,14 @@ jobs:
           test ! -e /Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist
           test ! -e /Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon
           test ! -e /usr/local/bin/parental-control-agentctl
+          test ! -e /Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json
+          test ! -e /Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json
           exit "$status_exit"
       - name: Install default parent choice
         if: steps.scope.outputs.build == 'true'
         run: |
           sudo /usr/sbin/installer \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.5.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.1.pkg" \
             -target /
           test -x "/Applications/Parental Control.app/Contents/MacOS/ParentalControlController"
           test ! -e "/Applications/Parental Control Child.app"
@@ -154,10 +162,12 @@ jobs:
         if: steps.scope.outputs.build == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ParentalControlSystem-0.4.0-rc.5
+          name: ParentalControlSystem-0.5.0-rc.1
           path: |
-            .artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.5.pkg
-            .artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.5.pkg.sha256
+            .artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.1.pkg
+            .artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.1.pkg.sha256
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.1.zip
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.1.zip.sha256
           if-no-files-found: error
           retention-days: 7
       - name: Clean project-owned generated output

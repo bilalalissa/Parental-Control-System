@@ -1,0 +1,9 @@
+{
+  "name": "com.bilalalissa.parental_control",
+  "description": "Visible Parental Control tab-metadata bridge",
+  "path": "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://pdcjgejgdjomjjemejhjhmdkcabkidmi/"
+  ]
+}

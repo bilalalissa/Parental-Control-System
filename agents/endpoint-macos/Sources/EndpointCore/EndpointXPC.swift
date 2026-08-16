@@ -9,6 +9,7 @@ public enum EndpointMachService {
   public static let childIdentifier = "com.bilalalissa.ParentalControlChild"
   public static let helperIdentifier = "com.bilalalissa.ParentalControlAgent.user"
   public static let controlIdentifier = "com.bilalalissa.ParentalControlAgent.ctl"
+  public static let browserHostIdentifier = "com.bilalalissa.ParentalControlBrowserHost"
 }
 
 @objc public protocol EndpointXPCProtocol {
@@ -16,15 +17,21 @@ public enum EndpointMachService {
   func dashboard(withReply reply: @escaping (Data?, String?) -> Void)
   func updateSession(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
   func updateActivity(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
+  func browserConfiguration(withReply reply: @escaping (Data?, String?) -> Void)
+  func updateBrowser(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
   func sendChat(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
+  func markChatRead(withReply reply: @escaping (Bool, String?) -> Void)
   func requestMoreTime(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
 }
 
 public enum XPCAuthorization {
   public static func allows(uid: uid_t, signingIdentifier: String?, operation: String) -> Bool {
     guard
-      ["status", "dashboard", "session-update", "activity-update", "send-chat", "time-request"]
-        .contains(operation)
+      [
+        "status", "dashboard", "session-update", "activity-update", "browser-configuration",
+        "browser-update", "send-chat", "mark-chat-read", "time-request",
+      ]
+      .contains(operation)
     else { return false }
     guard uid != 0, let signingIdentifier else { return false }
     if operation == "status" || operation == "dashboard" {
@@ -35,7 +42,18 @@ public enum XPCAuthorization {
     if operation == "session-update" || operation == "activity-update" {
       return signingIdentifier == EndpointMachService.helperIdentifier
     }
+    if operation == "browser-configuration" || operation == "browser-update" {
+      return signingIdentifier == EndpointMachService.browserHostIdentifier
+    }
     return signingIdentifier == EndpointMachService.childIdentifier
+  }
+
+  public static func isRecognizedClient(_ signingIdentifier: String?) -> Bool {
+    guard let signingIdentifier else { return false }
+    return [
+      EndpointMachService.childIdentifier, EndpointMachService.helperIdentifier,
+      EndpointMachService.controlIdentifier, EndpointMachService.browserHostIdentifier,
+    ].contains(signingIdentifier)
   }
 
   public static func signingIdentifier(pid: pid_t) -> String? {
@@ -122,6 +140,10 @@ public enum XPCAuthorization {
       ]
     case EndpointMachService.controlIdentifier:
       expected = ["/usr/local/bin/parental-control-agentctl"]
+    case EndpointMachService.browserHostIdentifier:
+      expected = [
+        "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost"
+      ]
     default: expected = []
     }
     let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
@@ -202,12 +224,35 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     value.collectedAt = update.observedAt
   }
 
+  public func applyBrowser(_ update: EndpointBrowserUpdate) {
+    lock.lock()
+    defer { lock.unlock() }
+    guard value.browserCollectionEnabled else {
+      value.browserTabs = []
+      return
+    }
+    value.browserTabs.removeAll {
+      $0.browser == update.browser && $0.profileID == update.profileID
+    }
+    value.browserTabs.append(contentsOf: update.tabs.prefix(128))
+    value.browserTabs = Array(value.browserTabs.suffix(128))
+    value.collectedAt = update.observedAt
+  }
+
   public func configureActivity(enabled: Bool, retentionDays: Int) {
     lock.lock()
     defer { lock.unlock() }
     value.activityCollectionEnabled = enabled
     value.activityRetentionDays = max(1, min(retentionDays, 30))
     if !enabled { value.applications = [] }
+  }
+
+  public func configureBrowser(enabled: Bool, retentionDays: Int) {
+    lock.lock()
+    defer { lock.unlock() }
+    value.browserCollectionEnabled = enabled
+    value.browserRetentionDays = max(1, min(retentionDays, 30))
+    if !enabled { value.browserTabs = [] }
   }
 
   public func receiveChat(_ message: EndpointChatMessage) {
@@ -219,7 +264,7 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     persistLocked()
   }
 
-  public func dashboard(markRead: Bool) -> EndpointDashboardSnapshot {
+  public func dashboard(markRead: Bool = false) -> EndpointDashboardSnapshot {
     lock.lock()
     defer { lock.unlock() }
     if markRead {
@@ -240,6 +285,28 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     var current = value
     current.helperHealthy = helperLastSeen.map { Date().timeIntervalSince($0) <= 90 } ?? false
     return EndpointDashboardSnapshot(status: current, messages: messages)
+  }
+
+  @discardableResult
+  public func markParentMessagesRead() -> Int {
+    lock.lock()
+    defer { lock.unlock() }
+    var count = 0
+    for index in messages.indices
+    where messages[index].isFromParent && messages[index].state != .read {
+      messages[index].state = .read
+      outbound.append(
+        EndpointOutboundItem(
+          kind: .receipt,
+          payload: [
+            "originalMessageId": .string(messages[index].id.uuidString),
+            "state": .string(ChatDeliveryState.read.rawValue),
+          ]))
+      count += 1
+    }
+    trimOutbound()
+    if count > 0 { persistLocked() }
+    return count
   }
 
   public func queueChat(text: String, audience: ChatAudience, threadID: UUID) {
@@ -299,7 +366,7 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
     if let index = messages.firstIndex(where: { $0.id == id }) {
-      messages[index].state = .sent
+      messages[index].state = messages[index].state.advanced(to: .sent)
       persistLocked()
     }
   }
@@ -308,7 +375,7 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
     if let index = messages.firstIndex(where: { $0.id == id }) {
-      messages[index].state = state
+      messages[index].state = messages[index].state.advanced(to: state)
       persistLocked()
     }
   }
@@ -360,7 +427,8 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
       reply(nil, "unauthorized")
       return
     }
-    do { reply(try JSONEncoder.endpoint.encode(repository.dashboard(markRead: true)), nil) } catch {
+    do { reply(try JSONEncoder.endpoint.encode(repository.dashboard(markRead: false)), nil) } catch
+    {
       reply(nil, "encoding failed")
     }
   }
@@ -401,6 +469,42 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
     } catch { reply(false, "invalid update") }
   }
 
+  func browserConfiguration(withReply reply: @escaping (Data?, String?) -> Void) {
+    guard
+      XPCAuthorization.allows(
+        uid: uid, signingIdentifier: identifier, operation: "browser-configuration")
+    else {
+      reply(nil, "unauthorized")
+      return
+    }
+    let status = repository.status()
+    do {
+      reply(
+        try JSONEncoder.endpoint.encode(
+          EndpointBrowserConfiguration(
+            enabled: status.browserCollectionEnabled,
+            retentionDays: status.browserRetentionDays)), nil)
+    } catch { reply(nil, "encoding failed") }
+  }
+
+  func updateBrowser(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void) {
+    guard
+      XPCAuthorization.allows(uid: uid, signingIdentifier: identifier, operation: "browser-update")
+    else {
+      reply(false, "unauthorized")
+      return
+    }
+    do {
+      let update = try JSONDecoder.endpoint.decode(EndpointBrowserUpdate.self, from: payload)
+      guard abs(update.observedAt.timeIntervalSinceNow) <= 120 else {
+        reply(false, "expired update")
+        return
+      }
+      repository.applyBrowser(update)
+      reply(true, nil)
+    } catch { reply(false, "invalid browser update") }
+  }
+
   func sendChat(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void) {
     guard XPCAuthorization.allows(uid: uid, signingIdentifier: identifier, operation: "send-chat")
     else {
@@ -413,6 +517,17 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
         text: request.text, audience: request.audience, threadID: request.threadID)
       reply(true, nil)
     } catch { reply(false, "invalid chat request") }
+  }
+
+  func markChatRead(withReply reply: @escaping (Bool, String?) -> Void) {
+    guard
+      XPCAuthorization.allows(uid: uid, signingIdentifier: identifier, operation: "mark-chat-read")
+    else {
+      reply(false, "unauthorized")
+      return
+    }
+    _ = repository.markParentMessagesRead()
+    reply(true, nil)
   }
 
   func requestMoreTime(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void) {
@@ -471,8 +586,7 @@ public final class EndpointXPCService: NSObject, NSXPCListenerDelegate, @uncheck
   ) -> Bool {
     let uid = connection.effectiveUserIdentifier
     let identifier = XPCAuthorization.signingIdentifier(pid: connection.processIdentifier)
-    guard let identifier,
-      XPCAuthorization.allows(uid: uid, signingIdentifier: identifier, operation: "status")
+    guard let identifier, XPCAuthorization.isRecognizedClient(identifier)
     else {
       rejectionHandler(
         "uid=\(uid) pid=\(connection.processIdentifier) \(XPCAuthorization.diagnostic(pid: connection.processIdentifier))"
@@ -558,6 +672,39 @@ public final class EndpointXPCClient: @unchecked Sendable {
     } catch { completion(.failure(error)) }
   }
 
+  public func fetchBrowserConfiguration(
+    completion: @escaping @Sendable (Result<EndpointBrowserConfiguration, Error>) -> Void
+  ) {
+    let proxy =
+      connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
+      as? EndpointXPCProtocol
+    proxy?.browserConfiguration { data, error in
+      do {
+        if let error { throw EndpointXPCError.remote(error) }
+        guard let data else { throw EndpointXPCError.malformed }
+        completion(
+          .success(try JSONDecoder.endpoint.decode(EndpointBrowserConfiguration.self, from: data)))
+      } catch { completion(.failure(error)) }
+    }
+  }
+
+  public func updateBrowser(
+    _ update: EndpointBrowserUpdate,
+    completion: @escaping @Sendable (Result<Void, Error>) -> Void
+  ) {
+    do {
+      let data = try JSONEncoder.endpoint.encode(update)
+      let proxy =
+        connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
+        as? EndpointXPCProtocol
+      proxy?.updateBrowser(data) { accepted, error in
+        accepted
+          ? completion(.success(()))
+          : completion(.failure(EndpointXPCError.remote(error ?? "rejected")))
+      }
+    } catch { completion(.failure(error)) }
+  }
+
   public func sendChat(
     _ request: EndpointChatRequest,
     completion: @escaping @Sendable (Result<Void, Error>) -> Void
@@ -573,6 +720,19 @@ public final class EndpointXPCClient: @unchecked Sendable {
           : completion(.failure(EndpointXPCError.remote(error ?? "rejected")))
       }
     } catch { completion(.failure(error)) }
+  }
+
+  public func markChatRead(
+    completion: @escaping @Sendable (Result<Void, Error>) -> Void
+  ) {
+    let proxy =
+      connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
+      as? EndpointXPCProtocol
+    proxy?.markChatRead { accepted, error in
+      accepted
+        ? completion(.success(()))
+        : completion(.failure(EndpointXPCError.remote(error ?? "rejected")))
+    }
   }
 
   public func requestMoreTime(

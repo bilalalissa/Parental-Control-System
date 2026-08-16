@@ -7,6 +7,8 @@ public enum ProtocolMessageType: String, Codable, CaseIterable, Sendable {
   case snapshotResponse = "snapshot.response"
   case activityUpdate = "activity.update"
   case activityConfiguration = "activity.configuration"
+  case browserUpdate = "browser.update"
+  case browserConfiguration = "browser.configuration"
   case chatMessage = "chat.message"
   case requestMoreTime = "time.request"
   case receipt

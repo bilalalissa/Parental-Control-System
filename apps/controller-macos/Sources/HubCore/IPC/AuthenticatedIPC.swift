@@ -9,6 +9,8 @@ public enum IPCCommand: String, Codable, Sendable {
   case unpair
   case sendChat
   case configureActivity
+  case configureBrowser
+  case markChatRead
   case shutdown
 }
 

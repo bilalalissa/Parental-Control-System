@@ -34,11 +34,15 @@ struct ChatShellView: View {
     .navigationTitle("Chat")
     .accessibilityIdentifier(AccessibilityID.chat.rawValue)
     .onAppear { if selectedDeviceID == nil { selectedDeviceID = devices.first?.id } }
+    .onAppear(perform: markVisibleMessagesRead)
     .onChange(of: devices.map(\.id)) { _, ids in
       if selectedDeviceID == nil || !ids.contains(selectedDeviceID ?? "") {
         selectedDeviceID = ids.first
       }
     }
+    .onChange(of: selectedDeviceID) { _, _ in markVisibleMessagesRead() }
+    .onChange(of: audience) { _, _ in markVisibleMessagesRead() }
+    .onChange(of: messages.map(\.id)) { _, _ in markVisibleMessagesRead() }
   }
 
   private var header: some View {
@@ -139,6 +143,11 @@ struct ChatShellView: View {
     guard !text.isEmpty else { return }
     store.sendChat(text: text, audience: audience, deviceIDs: recipients.map(\.id))
     draft = ""
+  }
+
+  private func markVisibleMessagesRead() {
+    let deviceIDs = Set(messages.filter { !$0.isFromParent }.map(\.deviceID))
+    store.markChatRead(deviceIDs: Array(deviceIDs), audience: audience.hubAudience)
   }
 }
 

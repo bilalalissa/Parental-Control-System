@@ -38,7 +38,8 @@ let package = Package(
             name: "ParentalControlController",
             dependencies: ["HubCore"],
             linkerSettings: [
-                .linkedLibrary("sqlite3")
+                .linkedLibrary("sqlite3"),
+                .linkedFramework("UserNotifications")
             ]
         ),
         .executableTarget(

@@ -95,6 +95,22 @@ final class HubClient {
       ])
   }
 
+  func configureBrowser(
+    deviceID: String, enabled: Bool, retentionDays: Int
+  ) async throws -> LocalHubStatus? {
+    try await request(
+      .configureBrowser, deviceID: deviceID,
+      payload: [
+        "enabled": .bool(enabled), "retentionDays": .integer(Int64(retentionDays)),
+      ])
+  }
+
+  func markChatRead(deviceID: String, audience: ChatAudience) async throws -> LocalHubStatus? {
+    try await request(
+      .markChatRead, deviceID: deviceID,
+      payload: ["audience": .string(audience.rawValue)])
+  }
+
   func stop() {
     guard let runtime = try? HubRuntime.read(), let key = ipcKey else { return }
     _ = try? AuthenticatedIPCClient.send(
