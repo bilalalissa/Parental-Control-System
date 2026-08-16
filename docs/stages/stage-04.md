@@ -57,8 +57,8 @@ The resource run is a short local idle spot sample, not the five-minute producti
 
 - Artifact: `.artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.3.pkg`
 - Purpose: selectable Parent Controller or universal visible macOS Child Endpoint
-- SHA-256: `db551f4ef0370a6fae0d16dd594e5c7ceb7c92cd03e9f144aa47c022247d0cdb`
-- Embedded tested PR merge commit: `99c9fcbb2834` (head source commit `0e853d9`)
+- SHA-256: `f4fd153bef017dea6bba16263484b860ca524d6022b915368a5142fb89ed375c`
+- Embedded tested PR merge commit: `d44d88b16ed2` (head source commit `c414a57`)
 - App/executable signing: local ad-hoc signatures; no Team ID or restricted entitlements
 - Installer signing/notarization: unsigned and not notarized because no Developer ID Installer identity is available
 
