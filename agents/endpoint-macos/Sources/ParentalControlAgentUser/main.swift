@@ -3,11 +3,16 @@ import EndpointCore
 import Foundation
 import UserNotifications
 
-final class SessionReporter: NSObject, @unchecked Sendable {
+final class SessionReporter: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
   private let client = EndpointXPCClient()
   private var timer: Timer?
   private var currentState: EndpointSessionState = .active
   func start() {
+    let notificationCenter = UNUserNotificationCenter.current()
+    notificationCenter.delegate = self
+    Task {
+      _ = try? await notificationCenter.requestAuthorization(options: [.alert, .sound])
+    }
     let center = NSWorkspace.shared.notificationCenter
     center.addObserver(
       self, selector: #selector(active), name: NSWorkspace.sessionDidBecomeActiveNotification,
@@ -43,6 +48,14 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     report(currentState)
   }
   @objc private func applicationsChanged() { reportApplications() }
+  nonisolated func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler:
+      @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    completionHandler([.banner, .sound])
+  }
   @objc private func chatReceived() {
     let content = UNMutableNotificationContent()
     content.title = "Message from your parent"

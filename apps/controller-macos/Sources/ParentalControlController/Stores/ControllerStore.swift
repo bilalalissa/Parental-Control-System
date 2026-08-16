@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import HubCore
 import Observation
@@ -64,6 +65,10 @@ final class ControllerStore {
   var onlineDeviceCount: Int { devices.filter(\.isOnline).count }
   var offlineDeviceCount: Int { devices.filter { $0.connectionState == .offline }.count }
   var approximateDeviceCount: Int { devices.filter { $0.connectionState == .approximate }.count }
+
+  var unreadChatCount: Int {
+    hubStatus?.chatMessages.filter(\.isUnreadForParent).count ?? 0
+  }
 
   var pairedDevices: [HubDeviceRecord] {
     hubStatus?.devices.filter { !$0.isRevoked } ?? []
@@ -141,16 +146,19 @@ final class ControllerStore {
     Task {
       var latest = hubStatus
       var failures = 0
+      var accepted = 0
       for deviceID in deviceIDs {
         do {
           latest = try await hubClient.sendChat(
             deviceID: deviceID, text: trimmed, audience: audience.hubAudience,
             threadID: threadID)
+          accepted += 1
         } catch {
           failures += 1
         }
       }
       if let latest { applyHubStatus(latest) }
+      if accepted > 0 { NSSound.beep() }
       chatStatusMessage =
         failures == 0
         ? "Message secured locally for \(deviceIDs.count) device\(deviceIDs.count == 1 ? "" : "s")."

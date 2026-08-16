@@ -1,4 +1,5 @@
 import Foundation
+import HubCore
 import Testing
 
 @testable import ParentalControlController
@@ -22,6 +23,21 @@ struct ChatAudienceTests {
     #expect(
       ChatAudienceMode.announcement.recipients(from: devices, selectedDeviceID: nil).map(\.id)
         == devices.map(\.id))
+  }
+
+  @Test("unread badge counts only incoming messages that are not read")
+  func unreadCount() {
+    let incoming = HubChatMessage(
+      deviceID: "child", sender: "Child", text: "One", state: .delivered,
+      audience: .direct, isFromParent: false)
+    let read = HubChatMessage(
+      deviceID: "child", sender: "Child", text: "Two", state: .read,
+      audience: .direct, isFromParent: false)
+    let outgoing = HubChatMessage(
+      deviceID: "child", sender: "Parent", text: "Three", state: .delivered,
+      audience: .direct, isFromParent: true)
+
+    #expect([incoming, read, outgoing].filter(\.isUnreadForParent).count == 1)
   }
 
   private var fixtures: [ManagedDevice] {

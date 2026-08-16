@@ -198,6 +198,8 @@ public struct EndpointChatMessage: Codable, Equatable, Identifiable, Sendable {
   public var state: ChatDeliveryState
   public let isFromParent: Bool
 
+  public var isUnreadFromParent: Bool { isFromParent && state != .read }
+
   public init(
     id: UUID = UUID(), threadID: UUID = UUID(), sentAt: Date = Date(), sender: String,
     text: String, audience: ChatAudience = .direct, state: ChatDeliveryState = .queued,

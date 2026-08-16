@@ -368,11 +368,15 @@ struct EndpointCoreTests {
       initial: DeviceSnapshotCollector.collect(deviceID: "synthetic-stage05"))
     let message = EndpointChatMessage(
       sender: "Parent", text: "Synthetic message", state: .delivered, isFromParent: true)
+    let outgoing = EndpointChatMessage(
+      sender: "Child", text: "Synthetic reply", state: .delivered, isFromParent: false)
+    #expect([message, outgoing].filter(\.isUnreadFromParent).count == 1)
     repository.receiveChat(message)
     #expect(repository.dashboard(markRead: false).messages.first?.state == .delivered)
     #expect(repository.drainOutbound().isEmpty)
     #expect(repository.markParentMessagesRead() == 1)
     #expect(repository.dashboard(markRead: false).messages.first?.state == .read)
+    #expect(repository.dashboard(markRead: false).messages.filter(\.isUnreadFromParent).isEmpty)
     let receipt = repository.drainOutbound().first
     #expect(receipt?.kind == .receipt)
     #expect(receipt?.payload["originalMessageId"] == .string(message.id.uuidString))

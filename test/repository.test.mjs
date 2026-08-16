@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/05-chromium-extension");
-  assert.equal(active[0].version, "0.5.0-rc.1");
+  assert.equal(active[0].version, "0.5.0-rc.2");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -128,20 +128,30 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /configuration\.query/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.1\.zip/);
+  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.2\.zip/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
   assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
 });
 
-test("Stage 05 chat feedback uses system-controlled audio and explicit read visibility", async () => {
-  const [controller, child, chat] = await Promise.all([
+test("Stage 05 chat feedback uses system-controlled audio, unread badges, and explicit read visibility", async () => {
+  const [controller, childHelper, childApp, chat, root] = await Promise.all([
     read("apps/controller-macos/Sources/ParentalControlController/Stores/ControllerStore.swift"),
     read("agents/endpoint-macos/Sources/ParentalControlAgentUser/main.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift"),
     read("apps/controller-macos/Sources/ParentalControlController/Views/ChatShellView.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/ControllerRootView.swift"),
   ]);
   assert.match(controller, /content\.sound = \.default/);
-  assert.match(child, /content\.sound = \.default/);
+  assert.match(controller, /accepted > 0 \{ NSSound\.beep\(\) \}/);
+  assert.match(childHelper, /content\.sound = \.default/);
+  assert.match(childHelper, /UNUserNotificationCenterDelegate/);
+  assert.match(childHelper, /completionHandler\(\[\.banner, \.sound\]\)/);
+  assert.match(childApp, /ChildAppDelegate/);
+  assert.match(childApp, /completionHandler\(\[\.banner, \.sound\]\)/);
+  assert.match(childApp, /result\.isSuccess \{ NSSound\.beep\(\) \}/);
+  assert.match(childApp, /\.badge\(model\.unreadMessageCount\)/);
+  assert.match(root, /UnreadChatBadge\(count: store\.unreadChatCount\)/);
   assert.match(chat, /markVisibleMessagesRead/);
   assert.doesNotMatch(controller, /message\.text/);
 });
@@ -216,8 +226,8 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–04 are merged; STAGE-05 `0\.5\.0-rc\.1` is ready/);
-  assert.match(readme, /0\.5\.0-rc\.1/);
+  assert.match(readme, /Stages 00–04 are merged; STAGE-05 `0\.5\.0-rc\.2`/);
+  assert.match(readme, /unread Chat badges/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });

@@ -150,6 +150,8 @@ public struct HubChatMessage: Codable, Equatable, Identifiable, Sendable {
   public let audience: ChatAudience
   public let isFromParent: Bool
 
+  public var isUnreadForParent: Bool { !isFromParent && state != .read }
+
   public init(
     id: UUID = UUID(), deviceID: String, threadID: UUID = UUID(), sentAt: Date = Date(),
     sender: String, text: String, state: ChatDeliveryState, audience: ChatAudience,

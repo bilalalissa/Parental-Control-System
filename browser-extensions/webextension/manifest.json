@@ -3,8 +3,8 @@
   "name": "Parental Control Browser Sharing",
   "short_name": "Browser Sharing",
   "description": "Visibly shares bounded tab titles and query-free origins with your paired parent controller when enabled.",
-  "version": "0.5.0.1",
-  "version_name": "0.5.0-rc.1",
+  "version": "0.5.0.2",
+  "version_name": "0.5.0-rc.2",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1MZ2Q8327FlY/mcKVZG/dU4zEBHQfm5H5AnUModuYZvTC+1kcQnSO9IyuWlOKIOeBHhMTdD9m1MPASHw7T1D9SPhuHqWITBR8TIrrDkKYZqJXa1/D5XzWWCB5aGzYh5cIl36MYFnjrNReFFsuJXNqZXmXoPgCy5UpSH/hKa1I0UKBQphYbJA3dcCmysuctkZqXHit9kjNJwfp8l5Nv48mX9xmN5YXYWjt6Byokkfw7sCVtpofZ11IBHhZbiTFVintIEdNbkU4VHCXzx9EvEQAvWCahUihHoMzCKF6HdaueLeOp8rT85LWSD8gdPBPf/+T5zGWvsI13mFtcPHnmqwyQIDAQAB",
   "permissions": ["tabs", "storage", "nativeMessaging", "alarms"],
   "background": {

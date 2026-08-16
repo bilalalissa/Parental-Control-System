@@ -1,15 +1,36 @@
+import AppKit
 import EndpointCore
 import SwiftUI
 import UserNotifications
 
 @main
 struct ParentalControlChildApp: App {
+  @NSApplicationDelegateAdaptor(ChildAppDelegate.self) private var appDelegate
   @StateObject private var model = ChildDashboardModel()
   var body: some Scene {
     WindowGroup("Parental Control") {
       ChildDashboard(model: model).frame(minWidth: 680, minHeight: 580)
     }
     .windowResizability(.contentMinSize)
+  }
+}
+
+final class ChildAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+  func applicationDidFinishLaunching(_ notification: Notification) {
+    let center = UNUserNotificationCenter.current()
+    center.delegate = self
+    Task {
+      _ = try? await center.requestAuthorization(options: [.alert, .sound])
+    }
+  }
+
+  nonisolated func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler:
+      @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    completionHandler([.banner, .sound])
   }
 }
 
@@ -22,6 +43,10 @@ final class ChildDashboardModel: ObservableObject {
   private let client = EndpointXPCClient()
   private var timer: Timer?
   private var chatVisible = false
+
+  var unreadMessageCount: Int {
+    messages.filter(\.isUnreadFromParent).count
+  }
 
   init() {
     Task {
@@ -77,6 +102,7 @@ final class ChildDashboardModel: ObservableObject {
       Task { @MainActor in
         self?.actionMessage =
           result.isSuccess ? "Message queued securely." : "Message could not be queued."
+        if result.isSuccess { NSSound.beep() }
         self?.refresh()
       }
     }
@@ -123,7 +149,10 @@ struct ChildDashboard: View {
       if let status = model.status {
         TabView(selection: $selectedTab) {
           statusView(status).tabItem { Label("Status", systemImage: "checkmark.shield") }.tag(0)
-          chatView.tabItem { Label("Chat", systemImage: "message") }.tag(1)
+          chatView
+            .tabItem { Label("Chat", systemImage: "message") }
+            .badge(model.unreadMessageCount)
+            .tag(1)
           requestView.tabItem { Label("Request Time", systemImage: "hourglass.badge.plus") }.tag(2)
           disclosureView(status).tabItem { Label("Privacy", systemImage: "hand.raised") }.tag(3)
         }
