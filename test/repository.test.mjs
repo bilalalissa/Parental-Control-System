@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/05-chromium-extension");
-  assert.equal(active[0].version, "0.5.0-rc.3");
+  assert.equal(active[0].version, "0.5.0-rc.4");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -108,6 +108,16 @@ test("Stage 04 presence refreshes without interaction and wake reconnect remains
   assert.match(daemon, /onEstablishedConnectionLoss/);
 });
 
+test("parent hub startup coalesces concurrent status and pairing requests", async () => {
+  const client = await read(
+    "apps/controller-macos/Sources/ParentalControlController/Services/HubClient.swift",
+  );
+  assert.match(client, /startupCoordinator\.run/);
+  assert.match(client, /runtime\.processID == process\.processIdentifier/);
+  assert.match(client, /if let startupTask[\s\S]*return try await startupTask\.value/);
+  assert.match(client, /if process\.isRunning \{ process\.terminate\(\) \}/);
+});
+
 test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minimal", async () => {
   const [manifest, nativeManifest, worker, popup, packager, postinstall, authorization] = await Promise.all([
     readJson("browser-extensions/webextension/manifest.json"),
@@ -131,7 +141,7 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /configuration\.browser \|\| browser/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.3\.zip/);
+  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.4\.zip/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
   assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);

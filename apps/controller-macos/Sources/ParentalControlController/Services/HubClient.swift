@@ -18,9 +18,29 @@ enum HubClientError: Error, CustomStringConvertible {
 final class HubClient {
   private var helperProcess: Process?
   private var ipcKey: Data?
+  private let startupCoordinator = HubStartupCoordinator()
 
   func ensureRunning() async throws {
-    if helperProcess?.isRunning == true, ipcKey != nil, (try? HubRuntime.read()) != nil { return }
+    if let process = helperProcess,
+      process.isRunning,
+      ipcKey != nil,
+      let runtime = try? HubRuntime.read(),
+      runtime.processID == process.processIdentifier
+    {
+      return
+    }
+    try await startupCoordinator.run { [weak self] in
+      guard let self else { throw AuthenticatedIPCError.timeout }
+      try await self.launchHelper()
+    }
+  }
+
+  private func launchHelper() async throws {
+    if let existing = helperProcess {
+      if existing.isRunning { existing.terminate() }
+      helperProcess = nil
+      ipcKey = nil
+    }
     let candidates = [
       Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/ParentalControlHub"),
       Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent(
@@ -52,8 +72,19 @@ final class HubClient {
     helperProcess = process
     ipcKey = bytes
     for _ in 0..<30 {
-      if (try? HubRuntime.read()) != nil { return }
+      if let runtime = try? HubRuntime.read(), runtime.processID == process.processIdentifier {
+        return
+      }
+      if !process.isRunning { break }
       try await Task.sleep(for: .milliseconds(100))
+    }
+    if process.isRunning { process.terminate() }
+    if let runtime = try? HubRuntime.read(), runtime.processID == process.processIdentifier {
+      try? FileManager.default.removeItem(at: HubRuntime.defaultURL())
+    }
+    if helperProcess === process {
+      helperProcess = nil
+      ipcKey = nil
     }
     throw AuthenticatedIPCError.timeout
   }
@@ -144,5 +175,27 @@ final class HubClient {
         command: command, deviceID: deviceID, payload: payload,
         port: runtime.ipcPort, key: key)
     }.value
+  }
+}
+
+@MainActor
+final class HubStartupCoordinator {
+  private var startupTask: Task<Void, Error>?
+
+  func run(
+    _ operation: @escaping @MainActor @Sendable () async throws -> Void
+  ) async throws {
+    if let startupTask {
+      return try await startupTask.value
+    }
+    let task = Task { @MainActor in try await operation() }
+    startupTask = task
+    do {
+      try await task.value
+      startupTask = nil
+    } catch {
+      startupTask = nil
+      throw error
+    }
   }
 }
