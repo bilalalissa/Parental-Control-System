@@ -320,6 +320,46 @@ public final class LocalHub: @unchecked Sendable {
     }
   }
 
+  public func editParentChatMessage(id: UUID, text: String, now: Date = Date()) throws {
+    let trimmed = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(2_000))
+    guard !trimmed.isEmpty else { throw LocalHubError.unexpectedMessage }
+    try mutateParentChatMessage(id: id, action: "edit", text: trimmed, now: now)
+  }
+
+  public func deleteParentChatMessage(id: UUID, now: Date = Date()) throws {
+    try mutateParentChatMessage(id: id, action: "delete", text: "", now: now)
+  }
+
+  private func mutateParentChatMessage(
+    id: UUID, action: String, text: String, now: Date
+  ) throws {
+    guard
+      let message = try database.chatMessages(limit: 2_000).first(where: { $0.id == id }),
+      message.isFromParent, message.deletedAt == nil,
+      let device = try database.device(id: message.deviceID), !device.isRevoked
+    else { throw LocalHubError.unexpectedMessage }
+    let isDelete = action == "delete"
+    try database.mutateParentChatMessage(
+      id: id, text: isDelete ? "" : text, editedAt: isDelete ? message.editedAt : now,
+      deletedAt: isDelete ? now : nil)
+    var payload: [String: JSONValue] = [
+      "targetDeviceId": .string(message.deviceID),
+      "originalMessageId": .string(id.uuidString),
+      "action": .string(action),
+      "mutatedAt": .string(ISO8601DateFormatter().string(from: now)),
+    ]
+    if !isDelete { payload["text"] = .string(text) }
+    let envelope = try controllerIdentity.sign(
+      deviceID: "controller", sequence: nextControllerSequence(), type: .chatMutation,
+      payload: payload, now: now, lifetime: 30 * 86_400)
+    try sendOrQueue(envelope, deviceID: message.deviceID, lifetime: 30 * 86_400)
+    try database.appendAudit(
+      HubAuditRecord(
+        event: isDelete ? "chat.deleted" : "chat.edited", deviceID: message.deviceID,
+        detail: "Parent message metadata changed; content omitted"))
+    publishStatus()
+  }
+
   public func revoke(deviceID: String) throws {
     try database.revoke(deviceID: deviceID)
     lock.lock()
@@ -490,6 +530,8 @@ public final class LocalHub: @unchecked Sendable {
       try database.updateSeen(
         deviceID: device.id, sequence: envelope.sequence,
         snapshotVersion: device.snapshotVersion)
+    case .chatMutation:
+      throw LocalHubError.unexpectedMessage
     case .requestMoreTime:
       let minutes = Int(envelope.payload["minutes"]?.integerValue ?? 15)
       let note = envelope.payload["note"]?.stringValue ?? ""

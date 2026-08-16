@@ -193,23 +193,28 @@ public struct EndpointChatMessage: Codable, Equatable, Identifiable, Sendable {
   public let threadID: UUID
   public let sentAt: Date
   public let sender: String
-  public let text: String
+  public var text: String
+  public var editedAt: Date?
+  public var deletedAt: Date?
   public let audience: ChatAudience
   public var state: ChatDeliveryState
   public let isFromParent: Bool
 
   public var isUnreadFromParent: Bool { isFromParent && state != .read }
+  public var displayText: String { deletedAt == nil ? text : "Message deleted" }
 
   public init(
     id: UUID = UUID(), threadID: UUID = UUID(), sentAt: Date = Date(), sender: String,
     text: String, audience: ChatAudience = .direct, state: ChatDeliveryState = .queued,
-    isFromParent: Bool
+    isFromParent: Bool, editedAt: Date? = nil, deletedAt: Date? = nil
   ) {
     self.id = id
     self.threadID = threadID
     self.sentAt = sentAt
     self.sender = String(sender.prefix(80))
     self.text = String(text.prefix(2_000))
+    self.editedAt = editedAt
+    self.deletedAt = deletedAt
     self.audience = audience
     self.state = state
     self.isFromParent = isFromParent

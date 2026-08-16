@@ -121,7 +121,9 @@ public final class HubDatabase: @unchecked Sendable {
           body TEXT NOT NULL,
           delivery_state TEXT NOT NULL,
           audience TEXT NOT NULL,
-          is_from_parent INTEGER NOT NULL CHECK(is_from_parent IN (0, 1))
+          is_from_parent INTEGER NOT NULL CHECK(is_from_parent IN (0, 1)),
+          edited_at REAL,
+          deleted_at REAL
       );
       CREATE INDEX IF NOT EXISTS hub_chat_device_time_idx
           ON hub_chat_messages(device_id, sent_at ASC);
@@ -170,6 +172,13 @@ public final class HubDatabase: @unchecked Sendable {
       INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at)
           VALUES(3, strftime('%s','now'));
       """)
+    // These two nullable columns upgrade databases created by Stage 04/earlier Stage 05 RCs.
+    // Duplicate-column errors are expected when migrate() is called again.
+    try? execute("ALTER TABLE hub_chat_messages ADD COLUMN edited_at REAL;")
+    try? execute("ALTER TABLE hub_chat_messages ADD COLUMN deleted_at REAL;")
+    try execute(
+      "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(4, strftime('%s','now'));"
+    )
   }
 
   public func upsertDevice(_ device: HubDeviceRecord) throws {
@@ -398,15 +407,21 @@ public final class HubDatabase: @unchecked Sendable {
       """
       INSERT INTO hub_chat_messages(
           id, device_id, thread_id, sent_at, sender, body,
-          delivery_state, audience, is_from_parent
-      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET delivery_state=excluded.delivery_state;
+          delivery_state, audience, is_from_parent, edited_at, deleted_at
+      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+          delivery_state=excluded.delivery_state,
+          body=excluded.body,
+          edited_at=excluded.edited_at,
+          deleted_at=excluded.deleted_at;
       """,
       [
         .text(message.id.uuidString), .text(message.deviceID), .text(message.threadID.uuidString),
         .integer(Int64(message.sentAt.timeIntervalSince1970)), .text(message.sender),
         .text(message.text), .text(message.state.rawValue), .text(message.audience.rawValue),
         .integer(message.isFromParent ? 1 : 0),
+        message.editedAt.map { .integer(Int64($0.timeIntervalSince1970)) } ?? .null,
+        message.deletedAt.map { .integer(Int64($0.timeIntervalSince1970)) } ?? .null,
       ])
     try run(
       """
@@ -434,6 +449,23 @@ public final class HubDatabase: @unchecked Sendable {
       [.text(next.rawValue), .text(id.uuidString)])
   }
 
+  public func mutateParentChatMessage(
+    id: UUID, text: String, editedAt: Date?, deletedAt: Date?
+  ) throws {
+    try run(
+      """
+      UPDATE hub_chat_messages
+      SET body = ?, edited_at = ?, deleted_at = ?
+      WHERE id = ? AND is_from_parent = 1;
+      """,
+      [
+        .text(String(text.prefix(2_000))),
+        editedAt.map { .integer(Int64($0.timeIntervalSince1970)) } ?? .null,
+        deletedAt.map { .integer(Int64($0.timeIntervalSince1970)) } ?? .null,
+        .text(id.uuidString),
+      ])
+  }
+
   public func chatMessages(limit: Int = 500) throws -> [HubChatMessage] {
     lock.lock()
     defer { lock.unlock() }
@@ -441,7 +473,7 @@ public final class HubDatabase: @unchecked Sendable {
     try prepare(
       """
       SELECT id, device_id, thread_id, sent_at, sender, body,
-             delivery_state, audience, is_from_parent
+             delivery_state, audience, is_from_parent, edited_at, deleted_at
       FROM hub_chat_messages ORDER BY sent_at ASC, rowid ASC LIMIT ?;
       """, &statement)
     defer { sqlite3_finalize(statement) }
@@ -458,7 +490,11 @@ public final class HubDatabase: @unchecked Sendable {
           id: id, deviceID: text(statement, 1), threadID: threadID,
           sentAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 3)),
           sender: text(statement, 4), text: text(statement, 5), state: state,
-          audience: audience, isFromParent: sqlite3_column_int(statement, 8) == 1))
+          audience: audience, isFromParent: sqlite3_column_int(statement, 8) == 1,
+          editedAt: sqlite3_column_type(statement, 9) == SQLITE_NULL
+            ? nil : Date(timeIntervalSince1970: sqlite3_column_double(statement, 9)),
+          deletedAt: sqlite3_column_type(statement, 10) == SQLITE_NULL
+            ? nil : Date(timeIntervalSince1970: sqlite3_column_double(statement, 10))))
     }
     return result
   }

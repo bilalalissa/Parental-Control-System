@@ -65,6 +65,17 @@ enum ParentalControlHubMain {
         try hub.sendChat(
           deviceID: try requiredDeviceID(request), text: text, audience: audience,
           threadID: threadID)
+      case .editChat:
+        guard let messageText = request.payload["messageId"]?.stringValue,
+          let messageID = UUID(uuidString: messageText),
+          let text = request.payload["text"]?.stringValue
+        else { throw AuthenticatedIPCError.remote("Chat edit payload is incomplete") }
+        try hub.editParentChatMessage(id: messageID, text: text)
+      case .deleteChat:
+        guard let messageText = request.payload["messageId"]?.stringValue,
+          let messageID = UUID(uuidString: messageText)
+        else { throw AuthenticatedIPCError.remote("Chat delete payload is incomplete") }
+        try hub.deleteParentChatMessage(id: messageID)
       case .configureActivity:
         guard let enabled = request.payload["enabled"]?.boolValue else {
           throw AuthenticatedIPCError.remote("Activity configuration is incomplete")

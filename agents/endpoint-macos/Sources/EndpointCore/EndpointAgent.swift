@@ -169,6 +169,8 @@ public final class EndpointAgent: @unchecked Sendable {
         scheduleHeartbeat(active: true)
       case .chatMessage:
         try receiveChat(envelope)
+      case .chatMutation:
+        try receiveChatMutation(envelope)
       case .activityConfiguration:
         try receiveActivityConfiguration(envelope)
       case .browserConfiguration:
@@ -294,6 +296,26 @@ public final class EndpointAgent: @unchecked Sendable {
     try sendReceipt(for: envelope.id, state: .delivered)
     try flushOutbound()
     log.write(event: "chat.received", detail: "Message metadata received; content omitted")
+  }
+
+  private func receiveChatMutation(_ envelope: ProtocolEnvelope) throws {
+    let configuration = try store.load()
+    guard envelope.payload["targetDeviceId"]?.stringValue == configuration.deviceID,
+      let originalText = envelope.payload["originalMessageId"]?.stringValue,
+      let originalID = UUID(uuidString: originalText),
+      let action = envelope.payload["action"]?.stringValue,
+      let mutatedText = envelope.payload["mutatedAt"]?.stringValue,
+      let mutatedAt = ISO8601DateFormatter().date(from: mutatedText),
+      repository.applyParentChatMutation(
+        id: originalID, action: action, text: envelope.payload["text"]?.stringValue,
+        mutatedAt: mutatedAt)
+    else { throw EndpointAgentError.invalidMessage }
+    DistributedNotificationCenter.default().postNotificationName(
+      Notification.Name("com.bilalalissa.ParentalControlAgent.chat-changed"), object: nil,
+      userInfo: nil, deliverImmediately: true)
+    try sendReceipt(for: envelope.id, state: .delivered)
+    try flushOutbound()
+    log.write(event: "chat.mutated", detail: "Message metadata changed; content omitted")
   }
 
   private func receiveActivityConfiguration(_ envelope: ProtocolEnvelope) throws {

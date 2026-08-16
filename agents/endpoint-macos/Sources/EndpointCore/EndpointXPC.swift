@@ -264,6 +264,32 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     persistLocked()
   }
 
+  @discardableResult
+  public func applyParentChatMutation(
+    id: UUID, action: String, text: String?, mutatedAt: Date
+  ) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    guard let index = messages.firstIndex(where: { $0.id == id && $0.isFromParent }),
+      messages[index].deletedAt == nil
+    else { return false }
+    switch action {
+    case "edit":
+      guard let text else { return false }
+      let trimmed = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(2_000))
+      guard !trimmed.isEmpty else { return false }
+      messages[index].text = trimmed
+      messages[index].editedAt = mutatedAt
+    case "delete":
+      messages[index].text = ""
+      messages[index].deletedAt = mutatedAt
+    default:
+      return false
+    }
+    persistLocked()
+    return true
+  }
+
   public func dashboard(markRead: Bool = false) -> EndpointDashboardSnapshot {
     lock.lock()
     defer { lock.unlock() }

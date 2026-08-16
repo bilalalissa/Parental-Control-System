@@ -6,6 +6,8 @@ struct ChatShellView: View {
   @State private var audience = ChatAudienceMode.direct
   @State private var selectedDeviceID: String?
   @State private var draft = ""
+  @State private var editingMessage: HubChatMessage?
+  @State private var deletingMessage: HubChatMessage?
 
   private var devices: [HubDeviceRecord] { store.pairedDevices }
   private var recipients: [HubDeviceRecord] {
@@ -33,8 +35,7 @@ struct ChatShellView: View {
     }
     .navigationTitle("Chat")
     .accessibilityIdentifier(AccessibilityID.chat.rawValue)
-    .onAppear { if selectedDeviceID == nil { selectedDeviceID = devices.first?.id } }
-    .onAppear(perform: markVisibleMessagesRead)
+    .onAppear(perform: selectUnreadConversationAndMark)
     .onChange(of: devices.map(\.id)) { _, ids in
       if selectedDeviceID == nil || !ids.contains(selectedDeviceID ?? "") {
         selectedDeviceID = ids.first
@@ -42,7 +43,28 @@ struct ChatShellView: View {
     }
     .onChange(of: selectedDeviceID) { _, _ in markVisibleMessagesRead() }
     .onChange(of: audience) { _, _ in markVisibleMessagesRead() }
-    .onChange(of: messages.map(\.id)) { _, _ in markVisibleMessagesRead() }
+    .onChange(of: messages.map { "\($0.id.uuidString):\($0.state.rawValue)" }) { _, _ in
+      markVisibleMessagesRead()
+    }
+    .sheet(item: $editingMessage) { message in
+      EditParentMessageSheet(initialText: message.text) { text in
+        store.editParentChatMessage(id: message.id, text: text)
+      }
+    }
+    .alert(
+      "Delete this message?",
+      isPresented: Binding(
+        get: { deletingMessage != nil },
+        set: { if !$0 { deletingMessage = nil } })
+    ) {
+      Button("Delete", role: .destructive) {
+        if let message = deletingMessage { store.deleteParentChatMessage(id: message.id) }
+        deletingMessage = nil
+      }
+      Button("Cancel", role: .cancel) { deletingMessage = nil }
+    } message: {
+      Text("The message will become a deletion notice on the parent and child devices.")
+    }
   }
 
   private var header: some View {
@@ -56,13 +78,18 @@ struct ChatShellView: View {
         Spacer()
         if audience == .direct {
           Picker("Device", selection: $selectedDeviceID) {
-            ForEach(devices) { device in Text(device.name).tag(Optional(device.id)) }
+            ForEach(devices) { device in
+              let count = unreadCount(for: .direct, deviceID: device.id)
+              Text(count > 0 ? "\(device.name) (\(count))" : device.name).tag(Optional(device.id))
+            }
           }.frame(width: 220)
         }
       }
       Picker("Audience", selection: $audience) {
         ForEach(ChatAudienceMode.allCases) { mode in
-          Label(mode.title, systemImage: mode.systemImage).tag(mode)
+          let count = unreadCount(for: mode)
+          Label(count > 0 ? "\(mode.title) (\(count))" : mode.title, systemImage: mode.systemImage)
+            .tag(mode)
         }
       }
       .pickerStyle(.segmented)
@@ -93,7 +120,9 @@ struct ChatShellView: View {
           .padding(.top, 60)
         }
         ForEach(messages) { message in
-          HubMessageBubble(message: message, deviceName: deviceName(message.deviceID))
+          HubMessageBubble(
+            message: message, deviceName: deviceName(message.deviceID),
+            onEdit: { editingMessage = message }, onDelete: { deletingMessage = message })
         }
       }.padding(24)
     }
@@ -130,7 +159,8 @@ struct ChatShellView: View {
       return recipients.first.map { "Private conversation with \($0.name)." }
         ?? "Select a child device."
     case .familyGroup: return "One family thread sent to every paired child device."
-    case .announcement: return "Parent announcement sent to every paired child device."
+    case .announcement:
+      return "Sent to every child and spoken there using local system speech."
     }
   }
 
@@ -149,11 +179,42 @@ struct ChatShellView: View {
     let deviceIDs = Set(messages.filter { !$0.isFromParent }.map(\.deviceID))
     store.markChatRead(deviceIDs: Array(deviceIDs), audience: audience.hubAudience)
   }
+
+  private func unreadCount(for mode: ChatAudienceMode, deviceID: String? = nil) -> Int {
+    let unread = store.hubStatus?.chatMessages.filter(\.isUnreadForParent) ?? []
+    switch mode {
+    case .direct:
+      return unread.filter {
+        $0.audience == .direct && (deviceID == nil || $0.deviceID == deviceID)
+      }.count
+    case .familyGroup: return unread.filter { $0.audience == .familyGroup }.count
+    case .announcement: return unread.filter { $0.audience == .announcement }.count
+    }
+  }
+
+  private func selectUnreadConversationAndMark() {
+    if let unread = store.hubStatus?.chatMessages.first(where: \.isUnreadForParent) {
+      selectedDeviceID = unread.deviceID
+      switch unread.audience {
+      case .direct: audience = .direct
+      case .familyGroup: audience = .familyGroup
+      case .announcement: audience = .announcement
+      }
+    } else if selectedDeviceID == nil {
+      selectedDeviceID = devices.first?.id
+    }
+    Task { @MainActor in
+      await Task.yield()
+      markVisibleMessagesRead()
+    }
+  }
 }
 
 private struct HubMessageBubble: View {
   let message: HubChatMessage
   let deviceName: String
+  let onEdit: () -> Void
+  let onDelete: () -> Void
 
   var body: some View {
     HStack {
@@ -164,10 +225,28 @@ private struct HubMessageBubble: View {
           Text("· \(deviceName)").font(.caption).foregroundStyle(.secondary)
           Spacer()
           Text(message.sentAt, style: .time).font(.caption2).foregroundStyle(.secondary)
+          if message.isFromParent, message.deletedAt == nil {
+            Menu {
+              Button("Edit", systemImage: "pencil", action: onEdit)
+              Button("Delete", systemImage: "trash", role: .destructive, action: onDelete)
+            } label: {
+              Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.borderlessButton)
+            .help("Edit or delete this parent message")
+          }
         }
-        Text(message.text).textSelection(.enabled)
-        Label(message.state.rawValue.capitalized, systemImage: stateIcon)
-          .font(.caption2).foregroundStyle(message.state == .failed ? .red : .secondary)
+        Text(message.displayText)
+          .italic(message.deletedAt != nil)
+          .foregroundStyle(message.deletedAt == nil ? .primary : .secondary)
+          .textSelection(.enabled)
+        HStack(spacing: 12) {
+          Label(message.state.rawValue.capitalized, systemImage: stateIcon)
+          if message.editedAt != nil, message.deletedAt == nil {
+            Label("Edited", systemImage: "pencil")
+          }
+        }
+        .font(.caption2).foregroundStyle(message.state == .failed ? .red : .secondary)
       }
       .padding(12)
       .frame(maxWidth: 520, alignment: .leading)
@@ -187,5 +266,35 @@ private struct HubMessageBubble: View {
     case .read: "checkmark.circle.fill"
     case .failed: "exclamationmark.triangle"
     }
+  }
+}
+
+private struct EditParentMessageSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  @State private var text: String
+  let onSave: (String) -> Void
+
+  init(initialText: String, onSave: @escaping (String) -> Void) {
+    _text = State(initialValue: initialText)
+    self.onSave = onSave
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Text("Edit message").font(.title2.bold())
+      TextEditor(text: $text).frame(minHeight: 100).border(.separator)
+      HStack {
+        Spacer()
+        Button("Cancel", role: .cancel) { dismiss() }
+        Button("Save") {
+          onSave(text)
+          dismiss()
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      }
+    }
+    .padding(20)
+    .frame(width: 440)
   }
 }

@@ -141,6 +141,16 @@ struct PairingAndPersistenceTests {
     #expect(try database.chatMessages().count == 2)
     #expect(try database.chatMessages().allSatisfy { $0.state == .queued })
     #expect(try database.chatMessages().allSatisfy { $0.threadID == thread })
+    let mutable = try #require(try database.chatMessages().first)
+    let editedAt = Date()
+    try database.mutateParentChatMessage(
+      id: mutable.id, text: "Corrected family check-in", editedAt: editedAt, deletedAt: nil)
+    #expect(try database.chatMessages().first { $0.id == mutable.id }?.editedAt != nil)
+    try database.mutateParentChatMessage(
+      id: mutable.id, text: "", editedAt: editedAt, deletedAt: Date())
+    let deleted = try #require(try database.chatMessages().first { $0.id == mutable.id })
+    #expect(deleted.displayText == "Message deleted")
+    #expect(deleted.text.isEmpty)
 
     try database.saveActivityConfiguration(
       ActivityConfiguration(deviceID: "child-one", enabled: true, retentionDays: 1))

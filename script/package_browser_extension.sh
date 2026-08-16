@@ -8,7 +8,7 @@ STAGING="$ROOT_DIR/.artifacts/package-staging/stage-05-extension"
 PACKAGE_ROOT="$STAGING/ParentalControlBrowserSharing"
 RENDER_ROOT="$STAGING/icon-render"
 RC_DIR="$ROOT_DIR/.artifacts/release-candidate"
-ZIP="$RC_DIR/ParentalControlBrowserSharing-0.5.0-rc.2.zip"
+ZIP="$RC_DIR/ParentalControlBrowserSharing-0.5.0-rc.3.zip"
 CHECKSUM="$ZIP.sha256"
 PACKAGE_LIST="$STAGING/package-files.txt"
 

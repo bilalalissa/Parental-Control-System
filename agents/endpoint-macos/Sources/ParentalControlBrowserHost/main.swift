@@ -32,11 +32,13 @@ private struct BrowserParentInspector {
       SecCodeCopySigningInformation(
         staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
       let executablePath = (path as URL?)?.path,
-      let identifier = (information as? [CFString: Any])?[kSecCodeInfoIdentifier] as? String
+      let signing = information as? [CFString: Any],
+      let identifier = signing[kSecCodeInfoIdentifier] as? String,
+      let teamIdentifier = signing[kSecCodeInfoTeamIdentifier] as? String
     else { return nil }
     return BrowserCallerAuthorization.expectedBrowser(
       origin: origin, executablePath: executablePath, signingIdentifier: identifier,
-      signatureValid: valid)
+      teamIdentifier: teamIdentifier, signatureValid: valid)
   }
 }
 
@@ -107,11 +109,13 @@ private func run() throws {
       let configuration = try awaitResult { client.fetchBrowserConfiguration(completion: $0) }
       if request.type == "configuration.query" {
         try writeMessage(
-          BrowserNativeResponse(accepted: true, enabled: configuration.enabled))
+          BrowserNativeResponse(
+            accepted: true, enabled: configuration.enabled, browser: browser))
         continue
       }
       guard configuration.enabled else {
-        try writeMessage(BrowserNativeResponse(accepted: false, enabled: false))
+        try writeMessage(
+          BrowserNativeResponse(accepted: false, enabled: false, browser: browser))
         continue
       }
       guard let update = request.validatedUpdate(expectedBrowser: browser) else {
@@ -119,7 +123,8 @@ private func run() throws {
       }
       try awaitResult { client.updateBrowser(update, completion: $0) }
       try writeMessage(
-        BrowserNativeResponse(accepted: true, enabled: true, acceptedTabs: update.tabs.count))
+        BrowserNativeResponse(
+          accepted: true, enabled: true, acceptedTabs: update.tabs.count, browser: browser))
     } catch {
       try writeMessage(
         BrowserNativeResponse(

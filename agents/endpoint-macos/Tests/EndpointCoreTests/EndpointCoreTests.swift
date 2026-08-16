@@ -68,7 +68,7 @@ struct EndpointCoreTests {
     let familyThread = UUID()
     repository.queueChat(text: "Child reply", audience: .familyGroup, threadID: familyThread)
     repository.queueMoreTime(minutes: 20, note: "Finish homework")
-    try hub.sendChat(
+    let parentMessageID = try hub.sendChat(
       deviceID: configuration.deviceID, text: "Family announcement", audience: .familyGroup,
       threadID: familyThread)
     let chatDeadline = Date().addingTimeInterval(5)
@@ -89,6 +89,28 @@ struct EndpointCoreTests {
       })
     #expect(try database.chatMessages().contains { !$0.isFromParent && $0.text == "Child reply" })
     #expect(try database.moreTimeRequests().first?.requestedMinutes == 20)
+    try hub.editParentChatMessage(id: parentMessageID, text: "Corrected family announcement")
+    let editDeadline = Date().addingTimeInterval(3)
+    while Date() < editDeadline,
+      repository.dashboard(markRead: false).messages.first(where: { $0.id == parentMessageID })?
+        .text != "Corrected family announcement"
+    {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(
+      repository.dashboard(markRead: false).messages.first { $0.id == parentMessageID }?.editedAt
+        != nil)
+    try hub.deleteParentChatMessage(id: parentMessageID)
+    let deleteDeadline = Date().addingTimeInterval(3)
+    while Date() < deleteDeadline,
+      repository.dashboard(markRead: false).messages.first(where: { $0.id == parentMessageID })?
+        .deletedAt == nil
+    {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(
+      repository.dashboard(markRead: false).messages.first { $0.id == parentMessageID }?.displayText
+        == "Message deleted")
     let deviceBeforeRestart = try database.device(id: configuration.deviceID)
     let sequenceBeforeRestart = try #require(deviceBeforeRestart).lastSequence
     agent.stop()
@@ -341,16 +363,29 @@ struct EndpointCoreTests {
       BrowserCallerAuthorization.expectedBrowser(
         origin: BrowserNativeMessaging.allowedOrigin,
         executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        signingIdentifier: "com.google.Chrome", signatureValid: true) == "chrome")
+        signingIdentifier: "com.google.Chrome", teamIdentifier: "EQHXZ8M8AV",
+        signatureValid: true) == "chrome")
     #expect(
       BrowserCallerAuthorization.expectedBrowser(
         origin: "chrome-extension://untrusted/",
         executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        signingIdentifier: "com.google.Chrome", signatureValid: true) == nil)
+        signingIdentifier: "com.google.Chrome", teamIdentifier: "EQHXZ8M8AV",
+        signatureValid: true) == nil)
     #expect(
       BrowserCallerAuthorization.expectedBrowser(
         origin: BrowserNativeMessaging.allowedOrigin,
         executablePath: "/tmp/Google Chrome", signingIdentifier: "com.google.Chrome",
+        teamIdentifier: "EQHXZ8M8AV", signatureValid: true) == nil)
+    #expect(
+      BrowserCallerAuthorization.expectedBrowser(
+        origin: BrowserNativeMessaging.allowedOrigin, executablePath: "/Applications/Arc.app",
+        signingIdentifier: "company.thebrowser.Browser", teamIdentifier: "S6N382Y83G",
+        signatureValid: true) == "arc")
+    #expect(
+      BrowserCallerAuthorization.expectedBrowser(
+        origin: BrowserNativeMessaging.allowedOrigin,
+        executablePath: "/Applications/Arc.app/Contents/Frameworks/Arc Helper.app",
+        signingIdentifier: "company.thebrowser.Browser.helper", teamIdentifier: "UNTRUSTED",
         signatureValid: true) == nil)
     #expect(
       XPCAuthorization.allows(
@@ -384,5 +419,16 @@ struct EndpointCoreTests {
     repository.updateMessageState(message.id, state: .delivered)
     #expect(repository.dashboard(markRead: false).messages.first?.state == .read)
     #expect(repository.markParentMessagesRead() == 0)
+
+    #expect(
+      repository.applyParentChatMutation(
+        id: message.id, action: "edit", text: "Corrected", mutatedAt: Date()))
+    #expect(repository.dashboard(markRead: false).messages.first?.text == "Corrected")
+    #expect(repository.dashboard(markRead: false).messages.first?.editedAt != nil)
+    #expect(
+      repository.applyParentChatMutation(
+        id: message.id, action: "delete", text: nil, mutatedAt: Date()))
+    #expect(repository.dashboard(markRead: false).messages.first?.displayText == "Message deleted")
+    #expect(repository.dashboard(markRead: false).messages.first?.text.isEmpty == true)
   }
 }

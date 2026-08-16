@@ -32,7 +32,10 @@ let package = Package(
     .executableTarget(name: "ParentalControlAgentDaemon", dependencies: ["EndpointCore"]),
     .executableTarget(
       name: "ParentalControlAgentUser", dependencies: ["EndpointCore"],
-      linkerSettings: [.linkedFramework("UserNotifications")]),
+      linkerSettings: [
+        .linkedFramework("AVFoundation"),
+        .linkedFramework("UserNotifications"),
+      ]),
     .executableTarget(name: "ParentalControlAgentCtl", dependencies: ["EndpointCore"]),
     .executableTarget(name: "ParentalControlBrowserHost", dependencies: ["EndpointCore"]),
     .testTarget(

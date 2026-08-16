@@ -14,7 +14,7 @@ This matrix is the truthful Stage 05 capability contract and forward plan.
 | Boot time / reliable uptime | Local Mac only | Stage 03+ | Planned | **Not available** | Device information only where supported |
 | Login/logout/lock state | Local Mac only | Stage 03+ session state | Planned | **Not available** | Not desktop session semantics |
 | Foreground/running applications | Controller process only | Stage 04 candidate; names/bundle IDs only | Metadata planned | **Not available** | **Not available** |
-| Browser-tab metadata | Controller browser is out of scope | Stage 05 visible Chrome/Edge extension; title/origin only | Visible Chrome/Edge extension planned | **Not available** | **Not available** |
+| Browser-tab metadata | Controller browser is out of scope | Stage 05 visible Chrome/Edge/Arc extension; title/origin only | Visible Chrome/Edge extension planned | **Not available** | **Not available** |
 | Hardware MAC metadata | Local interfaces | Optional display metadata | Optional display metadata | **Not available** | Only if a supported command returns it; never identity |
 | Text chat | Stage 05 direct/group/announcement with system-controlled sound and explicit read state | Stage 05 direct/group/announcement with system-controlled sound and explicit read state | Planned | While active; notifications best effort | Through visible child app only |
 | Request more time | Stage 04 request display; decision/enforcement later | Stage 04 candidate | Planned | Planned with Family Controls flow | Through visible child app only |

@@ -55,34 +55,53 @@ public struct BrowserNativeResponse: Codable, Equatable, Sendable {
   public let enabled: Bool
   public let acceptedTabs: Int
   public let error: String?
+  public let browser: String?
 
-  public init(accepted: Bool, enabled: Bool, acceptedTabs: Int = 0, error: String? = nil) {
+  public init(
+    accepted: Bool, enabled: Bool, acceptedTabs: Int = 0, error: String? = nil,
+    browser: String? = nil
+  ) {
     self.accepted = accepted
     self.enabled = enabled
     self.acceptedTabs = acceptedTabs
     self.error = error.map { String($0.prefix(160)) }
+    self.browser = browser.map { String($0.lowercased().prefix(40)) }
   }
 }
 
 public enum BrowserCallerAuthorization {
   public static func expectedBrowser(
-    origin: String, executablePath: String, signingIdentifier: String?, signatureValid: Bool
+    origin: String, executablePath: String, signingIdentifier: String?, teamIdentifier: String?,
+    signatureValid: Bool
   ) -> String? {
     guard origin == BrowserNativeMessaging.allowedOrigin, signatureValid,
-      let signingIdentifier
+      let signingIdentifier, let teamIdentifier
     else { return nil }
     let resolved = URL(fileURLWithPath: executablePath).resolvingSymlinksInPath().path
-    if resolved.hasPrefix("/Applications/Google Chrome.app/"),
+    if isInsideApp(resolved, bundlePath: "/Applications/Google Chrome.app"),
+      teamIdentifier == "EQHXZ8M8AV",
       signingIdentifier == "com.google.Chrome" || signingIdentifier.hasPrefix("com.google.Chrome.")
     {
       return "chrome"
     }
-    if resolved.hasPrefix("/Applications/Microsoft Edge.app/"),
+    if isInsideApp(resolved, bundlePath: "/Applications/Microsoft Edge.app"),
+      teamIdentifier == "UBF8T346G9",
       signingIdentifier == "com.microsoft.edgemac"
         || signingIdentifier.hasPrefix("com.microsoft.edgemac.")
     {
       return "edge"
     }
+    if isInsideApp(resolved, bundlePath: "/Applications/Arc.app"),
+      teamIdentifier == "S6N382Y83G",
+      signingIdentifier == "company.thebrowser.Browser"
+        || signingIdentifier.hasPrefix("company.thebrowser.Browser.")
+    {
+      return "arc"
+    }
     return nil
+  }
+
+  private static func isInsideApp(_ path: String, bundlePath: String) -> Bool {
+    path == bundlePath || path.hasPrefix(bundlePath + "/")
   }
 }

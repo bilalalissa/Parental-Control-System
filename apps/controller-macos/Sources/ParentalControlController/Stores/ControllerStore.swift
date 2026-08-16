@@ -166,6 +166,30 @@ final class ControllerStore {
     }
   }
 
+  func editParentChatMessage(id: UUID, text: String) {
+    let trimmed = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(2_000))
+    guard !trimmed.isEmpty else { return }
+    Task {
+      do {
+        applyHubStatus(try await hubClient.editChat(messageID: id, text: trimmed))
+        chatStatusMessage = "Message edited securely."
+      } catch {
+        chatStatusMessage = "Message could not be edited: \(error)"
+      }
+    }
+  }
+
+  func deleteParentChatMessage(id: UUID) {
+    Task {
+      do {
+        applyHubStatus(try await hubClient.deleteChat(messageID: id))
+        chatStatusMessage = "Message deleted from the family conversation."
+      } catch {
+        chatStatusMessage = "Message could not be deleted: \(error)"
+      }
+    }
+  }
+
   func configureActivity(deviceID: String, enabled: Bool, retentionDays: Int) {
     Task {
       do {

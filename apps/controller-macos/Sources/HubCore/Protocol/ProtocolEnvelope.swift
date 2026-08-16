@@ -10,6 +10,7 @@ public enum ProtocolMessageType: String, Codable, CaseIterable, Sendable {
   case browserUpdate = "browser.update"
   case browserConfiguration = "browser.configuration"
   case chatMessage = "chat.message"
+  case chatMutation = "chat.mutation"
   case requestMoreTime = "time.request"
   case receipt
 }

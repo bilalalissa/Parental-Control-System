@@ -50,6 +50,7 @@
         "policy.apply",
         "policy.query",
         "chat.message",
+        "chat.mutation",
         "time.request",
         "action.lock",
         "action.unlock-temporary",

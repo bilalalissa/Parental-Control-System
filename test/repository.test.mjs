@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/05-chromium-extension");
-  assert.equal(active[0].version, "0.5.0-rc.2");
+  assert.equal(active[0].version, "0.5.0-rc.3");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -109,12 +109,14 @@ test("Stage 04 presence refreshes without interaction and wake reconnect remains
 });
 
 test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minimal", async () => {
-  const [manifest, nativeManifest, worker, popup, packager] = await Promise.all([
+  const [manifest, nativeManifest, worker, popup, packager, postinstall, authorization] = await Promise.all([
     readJson("browser-extensions/webextension/manifest.json"),
     readJson("browser-extensions/webextension/native-host-manifest.json"),
     read("browser-extensions/webextension/service-worker.js"),
     read("browser-extensions/webextension/popup.html"),
     read("script/package_browser_extension.sh"),
+    read("agents/endpoint-macos/Installer/postinstall"),
+    read("agents/endpoint-macos/Sources/EndpointCore/BrowserNativeMessaging.swift"),
   ]);
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions.sort(), ["alarms", "nativeMessaging", "storage", "tabs"]);
@@ -126,12 +128,16 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /return url\.origin/);
   assert.match(worker, /\.slice\(0, MAX_TABS\)/);
   assert.match(worker, /configuration\.query/);
+  assert.match(worker, /configuration\.browser \|\| browser/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.2\.zip/);
+  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.3\.zip/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
   assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
+  assert.match(postinstall, /Arc\/User Data\/NativeMessagingHosts/);
+  assert.match(authorization, /company\.thebrowser\.Browser/);
+  assert.match(authorization, /S6N382Y83G/);
 });
 
 test("Stage 05 chat feedback uses system-controlled audio, unread badges, and explicit read visibility", async () => {
@@ -147,12 +153,18 @@ test("Stage 05 chat feedback uses system-controlled audio, unread badges, and ex
   assert.match(childHelper, /content\.sound = \.default/);
   assert.match(childHelper, /UNUserNotificationCenterDelegate/);
   assert.match(childHelper, /completionHandler\(\[\.banner, \.sound\]\)/);
+  assert.match(childHelper, /NSSound\.beep\(\)/);
+  assert.match(childHelper, /AVSpeechSynthesizer/);
+  assert.match(childHelper, /message\.audience == \.announcement/);
   assert.match(childApp, /ChildAppDelegate/);
   assert.match(childApp, /completionHandler\(\[\.banner, \.sound\]\)/);
   assert.match(childApp, /result\.isSuccess \{ NSSound\.beep\(\) \}/);
-  assert.match(childApp, /\.badge\(model\.unreadMessageCount\)/);
+  assert.match(childApp, /badge: model\.unreadMessageCount/);
+  assert.match(childApp, /ChildTabButton/);
   assert.match(root, /UnreadChatBadge\(count: store\.unreadChatCount\)/);
   assert.match(chat, /markVisibleMessagesRead/);
+  assert.match(chat, /editParentChatMessage/);
+  assert.match(chat, /deleteParentChatMessage/);
   assert.doesNotMatch(controller, /message\.text/);
 });
 

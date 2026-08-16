@@ -85,14 +85,14 @@ jobs:
       - name: Verify selectable package choices
         if: steps.scope.outputs.build == 'true'
         run: |
-          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.2.pkg" -target / | /usr/bin/plutil -lint -
-          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.2.pkg" || true
-          /usr/bin/unzip -t ".artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.2.zip"
+          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.3.pkg" -target / | /usr/bin/plutil -lint -
+          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.3.pkg" || true
+          /usr/bin/unzip -t ".artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.3.zip"
       - name: Install default parent choice
         if: steps.scope.outputs.build == 'true'
         run: |
           sudo /usr/sbin/installer \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.2.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.3.pkg" \
             -target /
           test -x "/Applications/Parental Control.app/Contents/MacOS/ParentalControlController"
           test ! -e "/Applications/Parental Control Child.app"
@@ -104,7 +104,7 @@ jobs:
         run: |
           sudo /usr/sbin/installer \
             -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.2.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.3.pkg" \
             -target /
           status_ok=false
           for attempt in 1 2 3; do
@@ -164,12 +164,12 @@ jobs:
         if: steps.scope.outputs.build == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ParentalControlSystem-0.5.0-rc.2
+          name: ParentalControlSystem-0.5.0-rc.3
           path: |
-            .artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.2.pkg
-            .artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.2.pkg.sha256
-            .artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.2.zip
-            .artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.2.zip.sha256
+            .artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.3.pkg
+            .artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.3.pkg.sha256
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.3.zip
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.3.zip.sha256
           if-no-files-found: error
           retention-days: 7
       - name: Clean project-owned generated output

@@ -158,7 +158,7 @@ private struct PairedDeviceControlRow: View {
           Divider()
           HStack {
             Toggle(
-              "Share Chrome/Edge tab titles and origins",
+              "Share Chrome/Edge/Arc tab titles and origins",
               isOn: Binding(
                 get: { browserConfiguration.enabled },
                 set: {

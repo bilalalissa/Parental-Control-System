@@ -5,8 +5,8 @@ let debounceTimer;
 async function nativeMessage(message) {
   try {
     return await chrome.runtime.sendNativeMessage(HOST, message);
-  } catch {
-    return { accepted: false, enabled: false };
+  } catch (error) {
+    return { accepted: false, enabled: false, error: String(error?.message || error) };
   }
 }
 
@@ -41,13 +41,15 @@ async function sharingEnabled(browser, profile) {
     profile,
     tabs: []
   });
-  return response?.enabled === true;
+  return response;
 }
 
 async function publishTabs() {
   const browser = browserName();
   const profile = await profileID();
-  if (!(await sharingEnabled(browser, profile))) return;
+  const configuration = await sharingEnabled(browser, profile);
+  if (configuration?.enabled !== true) return;
+  const authorizedBrowser = configuration.browser || browser;
 
   const observedAt = Date.now();
   const tabs = (await chrome.tabs.query({}))
@@ -66,7 +68,7 @@ async function publishTabs() {
     .sort((left, right) => Number(right.active) - Number(left.active))
     .slice(0, MAX_TABS);
 
-  await nativeMessage({ type: "tabs.update", browser, profile, tabs });
+  await nativeMessage({ type: "tabs.update", browser: authorizedBrowser, profile, tabs });
 }
 
 function schedulePublish() {

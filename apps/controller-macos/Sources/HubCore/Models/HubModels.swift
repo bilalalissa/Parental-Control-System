@@ -146,16 +146,19 @@ public struct HubChatMessage: Codable, Equatable, Identifiable, Sendable {
   public let sentAt: Date
   public let sender: String
   public let text: String
+  public let editedAt: Date?
+  public let deletedAt: Date?
   public let state: ChatDeliveryState
   public let audience: ChatAudience
   public let isFromParent: Bool
 
   public var isUnreadForParent: Bool { !isFromParent && state != .read }
+  public var displayText: String { deletedAt == nil ? text : "Message deleted" }
 
   public init(
     id: UUID = UUID(), deviceID: String, threadID: UUID = UUID(), sentAt: Date = Date(),
     sender: String, text: String, state: ChatDeliveryState, audience: ChatAudience,
-    isFromParent: Bool
+    isFromParent: Bool, editedAt: Date? = nil, deletedAt: Date? = nil
   ) {
     self.id = id
     self.deviceID = deviceID
@@ -163,6 +166,8 @@ public struct HubChatMessage: Codable, Equatable, Identifiable, Sendable {
     self.sentAt = sentAt
     self.sender = String(sender.prefix(80))
     self.text = String(text.prefix(2_000))
+    self.editedAt = editedAt
+    self.deletedAt = deletedAt
     self.state = state
     self.audience = audience
     self.isFromParent = isFromParent

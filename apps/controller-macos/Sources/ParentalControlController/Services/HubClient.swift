@@ -85,6 +85,17 @@ final class HubClient {
       ])
   }
 
+  func editChat(messageID: UUID, text: String) async throws -> LocalHubStatus? {
+    try await request(
+      .editChat,
+      payload: ["messageId": .string(messageID.uuidString), "text": .string(text)])
+  }
+
+  func deleteChat(messageID: UUID) async throws -> LocalHubStatus? {
+    try await request(
+      .deleteChat, payload: ["messageId": .string(messageID.uuidString)])
+  }
+
   func configureActivity(
     deviceID: String, enabled: Bool, retentionDays: Int
   ) async throws -> LocalHubStatus? {

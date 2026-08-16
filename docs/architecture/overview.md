@@ -20,7 +20,7 @@ A standard iPadOS app uses FamilyControls, DeviceActivity, ManagedSettings, and 
 2. **Controller storage:** policy and operational data are local; private keys and credentials are held in Keychain.
 3. **LAN transport:** pairing and later sessions mutually authenticate controller and endpoint. TLS protects confidentiality and integrity; message IDs, expiry, sequence, and signatures provide replay protection and auditability.
 4. **Desktop privileged boundary:** future narrow privileged services accept only authenticated, typed IPC operations from their visible user component. They do not expose shell execution.
-5. **Browser extension boundary:** a separately installed visible Chrome/Edge extension sends bounded tab titles and query-free HTTP(S) origins through a fixed-origin native host. The host validates the signed parent browser and installed endpoint XPC validates the signed/root-protected host. Private tabs, page content, paths, queries, fragments, forms, cookies, passwords, and network traffic are excluded.
+5. **Browser extension boundary:** a separately installed visible Chrome/Edge/Arc extension sends bounded tab titles and query-free HTTP(S) origins through a fixed-origin native host. The host validates the exact signed parent browser path, signing identifier, and vendor Team ID; installed endpoint XPC separately validates the signed/root-protected host. Private tabs, page content, paths, queries, fragments, forms, cookies, passwords, and network traffic are excluded.
 6. **Apple Family Controls boundary:** iPad capability is constrained to supported public APIs and entitlement approval.
 
 ## Canonical contracts

@@ -35,7 +35,7 @@ final class ChildAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
 }
 
 @MainActor
-final class ChildDashboardModel: ObservableObject {
+final class ChildDashboardModel: NSObject, ObservableObject {
   @Published var status: EndpointStatus?
   @Published var messages: [EndpointChatMessage] = []
   @Published var error = "Connecting to the protected endpoint service…"
@@ -48,7 +48,15 @@ final class ChildDashboardModel: ObservableObject {
     messages.filter(\.isUnreadFromParent).count
   }
 
-  init() {
+  override init() {
+    super.init()
+    let center = DistributedNotificationCenter.default()
+    center.addObserver(
+      self, selector: #selector(chatChanged),
+      name: Notification.Name("com.bilalalissa.ParentalControlAgent.chat-received"), object: nil)
+    center.addObserver(
+      self, selector: #selector(chatChanged),
+      name: Notification.Name("com.bilalalissa.ParentalControlAgent.chat-changed"), object: nil)
     Task {
       _ = try? await UNUserNotificationCenter.current().requestAuthorization(
         options: [.alert, .sound])
@@ -58,6 +66,10 @@ final class ChildDashboardModel: ObservableObject {
       Task { @MainActor in self?.refresh() }
     }
   }
+
+  deinit { DistributedNotificationCenter.default().removeObserver(self) }
+
+  @objc private func chatChanged() { refresh() }
 
   func refresh() {
     client.fetchDashboard { [weak self] result in
@@ -147,14 +159,32 @@ struct ChildDashboard: View {
       }
       Divider()
       if let status = model.status {
-        TabView(selection: $selectedTab) {
-          statusView(status).tabItem { Label("Status", systemImage: "checkmark.shield") }.tag(0)
-          chatView
-            .tabItem { Label("Chat", systemImage: "message") }
-            .badge(model.unreadMessageCount)
-            .tag(1)
-          requestView.tabItem { Label("Request Time", systemImage: "hourglass.badge.plus") }.tag(2)
-          disclosureView(status).tabItem { Label("Privacy", systemImage: "hand.raised") }.tag(3)
+        VStack(spacing: 12) {
+          HStack(spacing: 0) {
+            ChildTabButton(
+              title: "Status", systemImage: "checkmark.shield", tag: 0,
+              selection: $selectedTab)
+            ChildTabButton(
+              title: "Chat", systemImage: "message", badge: model.unreadMessageCount, tag: 1,
+              selection: $selectedTab)
+            ChildTabButton(
+              title: "Request Time", systemImage: "hourglass.badge.plus", tag: 2,
+              selection: $selectedTab)
+            ChildTabButton(
+              title: "Privacy", systemImage: "hand.raised", tag: 3,
+              selection: $selectedTab)
+          }
+          .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+
+          Group {
+            switch selectedTab {
+            case 1: chatView
+            case 2: requestView
+            case 3: disclosureView(status)
+            default: statusView(status)
+            }
+          }
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onChange(of: selectedTab) { _, value in model.setChatVisible(value == 1) }
       } else {
@@ -206,11 +236,18 @@ struct ChildDashboard: View {
               if message.isFromParent { Spacer(minLength: 80) }
               VStack(alignment: .leading, spacing: 4) {
                 Text(message.sender).font(.caption.bold())
-                Text(message.text).textSelection(.enabled)
-                Label(
-                  message.state.rawValue.capitalized,
-                  systemImage: stateIcon(message.state.rawValue)
-                )
+                Text(message.displayText)
+                  .italic(message.deletedAt != nil)
+                  .foregroundStyle(message.deletedAt == nil ? .primary : .secondary)
+                  .textSelection(.enabled)
+                HStack(spacing: 12) {
+                  Label(
+                    message.state.rawValue.capitalized,
+                    systemImage: stateIcon(message.state.rawValue))
+                  if message.editedAt != nil, message.deletedAt == nil {
+                    Label("Edited", systemImage: "pencil")
+                  }
+                }
                 .font(.caption2).foregroundStyle(.secondary)
               }
               .padding(10)
@@ -252,7 +289,7 @@ struct ChildDashboard: View {
       VStack(alignment: .leading, spacing: 14) {
         GroupBox("Information shared") {
           Text(
-            "Device and system details, uptime, login/session state, network interface metadata, health, and—when enabled—running application names plus bounded Chrome/Edge tab titles and website origins. Chat text is shared only within the paired family connection."
+            "Device and system details, uptime, login/session state, network interface metadata, health, and—when enabled—running application names plus bounded Chrome, Edge, or Arc tab titles and website origins. Chat text is shared only within the paired family connection. Parent announcements are spoken locally using macOS system speech."
           ).frame(maxWidth: .infinity, alignment: .leading).padding(6)
         }
         GroupBox("Never collected") {
@@ -291,5 +328,40 @@ struct ChildDashboard: View {
     case "failed": "exclamationmark.triangle"
     default: "questionmark.circle"
     }
+  }
+}
+
+private struct ChildTabButton: View {
+  let title: String
+  let systemImage: String
+  var badge = 0
+  let tag: Int
+  @Binding var selection: Int
+
+  var body: some View {
+    Button {
+      selection = tag
+    } label: {
+      HStack(spacing: 6) {
+        Label(title, systemImage: systemImage)
+        if badge > 0 {
+          Text(badge > 99 ? "99+" : "\(badge)")
+            .font(.caption2.bold())
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.red, in: Capsule())
+            .accessibilityLabel("Unread messages")
+            .accessibilityValue("\(badge)")
+        }
+      }
+      .frame(maxWidth: .infinity)
+      .padding(.vertical, 8)
+      .background(
+        selection == tag ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(.clear),
+        in: RoundedRectangle(cornerRadius: 7))
+    }
+    .buttonStyle(.plain)
+    .accessibilityAddTraits(selection == tag ? .isSelected : [])
   }
 }
