@@ -27,27 +27,28 @@ Excluded: Safari, browser history, page/document contents, full URLs or paths, q
 
 | Check | Result |
 | --- | --- |
-| Repository tests | 32 passed; one Windows-only cleanup test skipped on macOS (33 total). |
+| Repository tests | 34 passed; one Windows-only cleanup test skipped on macOS (35 total), including regression assertions for the SDK-compatible parent notification delegate signature and fresh default-parent CI installation order. |
 | Controller/hub suite | 28 tests in 9 suites passed, including browser migration/bounds/pruning and monotonic receipt transitions. |
-| Endpoint suite | 10 non-live-pairing tests passed, including browser opt-in/sanitization/host identity and explicit-read behavior. The unchanged live-pairing test was excluded locally because the developer Mac's preserved installed parent hub owns stable port `49171`; the draft PR runs the full suite on an isolated macOS runner. |
-| Formatting/static checks | `swift format lint`, `git diff --check`, JSON parsing, JavaScript syntax, and shell syntax passed. |
+| Endpoint suite | All 11 tests passed locally, including real TLS pairing, restart/reconnect, heartbeat progression, revocation, browser opt-in/sanitization/host identity, and explicit-read behavior. The integration test uses an injected ephemeral reconnect port while a separate assertion proves production still defaults to stable port `49171`. |
+| Formatting/static checks | `swift format lint`, `git diff --check`, JSON parsing, JavaScript syntax, shell syntax, and extension packaging without optional `rg` passed. |
 | Privacy/security checks | Extension permission allowlist, private-tab filtering, query/fragment stripping, 128-record bounds, native caller identity, installed-host XPC identity, no private-key/API-token diff patterns, and no production npm dependencies passed. |
 | Extension package | ZIP integrity, eight required files, no key/certificate file extensions, and SHA-256 passed. Chrome/Edge physical loading remains a developer check. |
-| Bundle/package | Strict nested ad-hoc app signatures, selectable choices XML, package payload/native manifests, embedded `0.5.0-rc.1` build `5001`, source commit `cb1997e516d9`, and SHA-256 passed. |
+| Bundle/package | Strict nested ad-hoc app signatures, selectable choices XML, package payload/native manifests, embedded `0.5.0-rc.1` build `5001`, source commit `903315d6939b`, and SHA-256 passed. |
 | Universal binaries | Child app, daemon, login helper, typed control tool, and browser host each report `x86_64 arm64`. |
+| GitHub Actions | macOS 15 verification passed repository tests, formatting, controller/endpoint suites, packaging, universal-slice checks, fresh default-parent installation, child installation/status/launch/uninstallation, artifact upload, and scoped cleanup. Supporting cleanup and secret-scanning checks also passed. |
 
-The final package was not installed over the developer Mac's existing approved parent installation. The draft PR performs disposable child/default-parent install checks. No claim is made for Intel execution or physical Chrome/Edge behavior until developer/CI evidence is available.
+The final package was not installed over the developer Mac's existing approved parent installation. The draft PR passed disposable default-parent and child install/uninstall checks on a fresh macOS 15 CI runner. No claim is made for Intel execution or physical Chrome/Edge behavior until developer evidence is available.
 
 ## Release candidates
 
 - `.artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.1.pkg`
   - Purpose: selectable Parent Controller or universal visible macOS Child Endpoint, including the native host and Chrome/Edge native-host manifests
-  - SHA-256: `6a86efd643ef3308acb04bd05e24de82eb8a50772d9b5b08c75101d183a739f0`
+  - SHA-256: `88792809f4dfe37c417d2053e3dc4867af7982ccdd9cf0ce04d52d07a6580319`
   - Apps/helpers: ad-hoc signed, no Team ID or restricted entitlements
   - Installer: unsigned and not notarized; no Developer ID Installer identity is available
 - `.artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.1.zip`
   - Purpose: one shared unpacked-extension package for Chrome and Microsoft Edge
-  - SHA-256: `ab0f7f396722fb07c95a29cf1459a6986d5c894619f05272003db6479d720465`
+  - SHA-256: `9ded60570872d93c1df159e7a9324aacb419657b029f9d1a51f9475ba9d883a9`
   - ZIP/extension: unsigned and not store-published; contains only the public extension key, not private signing material
 
 ## Installation outline
@@ -87,9 +88,9 @@ Run `sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall
 
 - Free disk before Stage 05: 7.5 GiB; repository: 15 MiB; retained prior RC output: 9.3 MiB.
 - Builds used two workers, one checkout, one project-owned Stage 05 build tree, sequential endpoint architectures, no simulator, VM, container, worktree, browser driver, or dev server.
-- Peak project-owned generated output was approximately 508 MiB (482 MiB under `.artifacts` plus 26 MiB `dist`); lowest observed free space was 6.7 GiB, above the 5 GiB floor.
-- Final scoped cleanup removed `dist`, `.artifacts/derived-data`, and `.artifacts/package-staging`. It retained only the 11 MiB current PKG/ZIP and checksum files; the superseded Stage 04 local RC was removed only after both Stage 05 candidates verified.
-- Final free disk after cleanup: 7.2 GiB. The pre-existing installed Parent Controller and Hub processes (PIDs 56430 and 56444 at final measurement) were not started by Stage 05 and were deliberately preserved. No Stage 05 process remains. No simulator/emulator was used.
+- Peak project-owned generated output was approximately 508 MiB (482 MiB under `.artifacts` plus 26 MiB `dist`); lowest observed free space was 6.4 GiB, above the 5 GiB floor.
+- Final scoped cleanup removed `dist`, `.artifacts/derived-data`, and `.artifacts/package-staging`. It retained only the 11 MiB current CI-built PKG/ZIP and checksum files; no duplicate candidate copy remains.
+- Final free disk after cleanup: 6.4 GiB. The pre-existing installed Parent Controller and Hub processes (PIDs 56430 and 56444 at final measurement) were not started by Stage 05 and were deliberately preserved. No Stage 05 process remains. No simulator/emulator was used.
 
 ## Failure evidence to collect
 
