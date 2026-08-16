@@ -54,7 +54,7 @@ Excluded: command lines, executable paths, window/document titles or contents, b
 | Formatting/static checks | `swift format lint` and `git diff --check` passed. |
 | Protocol contract | Canonical schema accepts the new allowlisted activity/configuration/chat/time-request types; invalid fixtures continue to fail closed. |
 | Universal verification | Child app, daemon, login helper, and typed control tool each report `x86_64 arm64`. |
-| Bundle/package verification | rc.4 replacement build pending isolated CI. |
+| Bundle/package verification | CI and local inspection verified embedded `0.4.0-rc.4`/build `4004`, source commit `efd155eed297`, strict nested ad-hoc signatures, universal slices, selectable choices XML, both component payloads, installed-child launch survival, and SHA-256. |
 | Resource spot sample | Unpaired daemon: 14,467,072-byte maximum RSS and effectively zero CPU over five seconds. Login helper: 33,200 KiB RSS and 0.0% CPU after five seconds. Combined about 46.2 MiB. |
 
 The resource run is a short local idle spot sample, not the five-minute production target measurement. It remains well below the 200 MiB combined endpoint target. The final installer was not installed locally because the development Mac has an existing approved controller installation and data; the draft PR CI is configured to perform disposable child install/status/uninstall and default-parent install checks. Those checks must be reported separately and not treated as local physical-hardware evidence.
@@ -63,8 +63,8 @@ The resource run is a short local idle spot sample, not the five-minute producti
 
 - Artifact: `.artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.4.pkg`
 - Purpose: selectable Parent Controller or universal visible macOS Child Endpoint
-- SHA-256: pending replacement build
-- Embedded head source commit: pending replacement build
+- SHA-256: `7b7889bf2232b8cfb7015156c48f33b421136a179ec61a7f49c85d5c0234e428`
+- Embedded head source commit: `efd155eed297`
 - App/executable signing: local ad-hoc signatures; no Team ID or restricted entitlements
 - Installer signing/notarization: unsigned and not notarized because no Developer ID Installer identity is available
 
@@ -125,6 +125,7 @@ This intentionally removes the child app, launchd jobs, helper/tool, protected e
 - The rc.2 feedback run began with 8.7 GiB free and 9.3 MiB of retained project output. Generated output peaked near 506 MiB (450 MiB derived data, 20 MiB `dist`, 27 MiB expanded inspection, and the 9.3 MiB RC); the lowest observed free space was 7.8 GiB.
 - Final rc.2 cleanup restored 8.3 GiB free and retains only the 9.3 MiB package plus checksum. One explicit administrator ownership repair was required for stale repository-owned `dist/ParentalControlController.app` output from the earlier package run; the generated tree was then rebuilt and removed normally.
 - The rc.3 diagnosis began with 8.2 GiB free and 9.3 MiB retained output. Local targeted test output peaked at 188 MiB; free space measured 5.6 GiB, so the release build moved to the isolated CI runner rather than risking the 5 GiB floor. After project cleanup and local package inspection, 5.6 GiB is free and only the 9.2 MiB rc.3 package/checksum remain. No simulator, VM, container, or project-started process remains.
+- The rc.4 crash correction began with 5.5 GiB free and the single 9.2 MiB rc.3 candidate. No native build ran locally; source/static checks created no retained build tree, and temporary package download/expansion peaked near 45 MiB before removal. The universal Release build and installed-app launch smoke ran in isolated CI. Final cleanup leaves 5.7 GiB free and only the 9.2 MiB rc.4 package/checksum; no simulator or project-started process remains.
 
 ## Failure evidence to collect
 
