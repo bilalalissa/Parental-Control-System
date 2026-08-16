@@ -88,6 +88,17 @@ jobs:
           /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.1.pkg" -target / | /usr/bin/plutil -lint -
           /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.1.pkg" || true
           /usr/bin/unzip -t ".artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.1.zip"
+      - name: Install default parent choice
+        if: steps.scope.outputs.build == 'true'
+        run: |
+          sudo /usr/sbin/installer \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.1.pkg" \
+            -target /
+          test -x "/Applications/Parental Control.app/Contents/MacOS/ParentalControlController"
+          test ! -e "/Applications/Parental Control Child.app"
+          /usr/bin/codesign --verify --deep --strict "/Applications/Parental Control.app"
+          sudo /bin/rm -rf -- "/Applications/Parental Control.app"
+          sudo /usr/sbin/pkgutil --forget com.bilalalissa.ParentalControlController.component >/dev/null
       - name: Install, diagnose, and uninstall child choice
         if: steps.scope.outputs.build == 'true'
         run: |
@@ -149,15 +160,6 @@ jobs:
           test ! -e /Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json
           test ! -e /Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json
           exit "$status_exit"
-      - name: Install default parent choice
-        if: steps.scope.outputs.build == 'true'
-        run: |
-          sudo /usr/sbin/installer \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.1.pkg" \
-            -target /
-          test -x "/Applications/Parental Control.app/Contents/MacOS/ParentalControlController"
-          test ! -e "/Applications/Parental Control Child.app"
-          /usr/bin/codesign --verify --deep --strict "/Applications/Parental Control.app"
       - name: Upload release candidate
         if: steps.scope.outputs.build == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -178,4 +180,9 @@ jobs:
           fi
           sudo /bin/rm -rf -- "/Applications/Parental Control.app"
           sudo /usr/sbin/pkgutil --forget com.bilalalissa.ParentalControlController.component >/dev/null 2>&1 || true
+          test "$PWD" = "$GITHUB_WORKSPACE"
+          sudo /bin/rm -rf -- \
+            "$PWD/dist" \
+            "$PWD/.artifacts/derived-data" \
+            "$PWD/.artifacts/package-staging"
           ./tools/cleanup.sh --apply

@@ -181,6 +181,24 @@ test("CI is least-privilege, cancellable, pinned, and short-retention", async ()
   assert.doesNotMatch(workflow, /pull_request_target/);
 });
 
+test("Stage 05 CI verifies the fresh default install before child customization", async () => {
+  const workflow = await read(".github/workflows/stage-03-macos.yml");
+  const parentInstall = workflow.indexOf("- name: Install default parent choice");
+  const childInstall = workflow.indexOf("- name: Install, diagnose, and uninstall child choice");
+  assert.ok(parentInstall >= 0);
+  assert.ok(childInstall > parentInstall);
+  assert.match(
+    workflow,
+    /Install default parent choice[\s\S]*?codesign --verify --deep --strict[\s\S]*?pkgutil --forget com\.bilalalissa\.ParentalControlController\.component/,
+  );
+  assert.match(workflow, /test "\$PWD" = "\$GITHUB_WORKSPACE"/);
+  assert.match(
+    workflow,
+    /sudo \/bin\/rm -rf --[\s\S]*?"\$PWD\/dist"[\s\S]*?"\$PWD\/\.artifacts\/derived-data"[\s\S]*?"\$PWD\/\.artifacts\/package-staging"/,
+  );
+  assert.doesNotMatch(workflow, /sudo \.\/tools\/cleanup\.sh/);
+});
+
 test("macOS packaging retries transient disk-image failures without skipping verification", async () => {
   const packaging = await read("script/package_release.sh");
   assert.match(packaging, /HDIUTIL_ATTEMPTS=3/);
