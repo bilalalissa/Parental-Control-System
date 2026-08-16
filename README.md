@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stage 04 `0.4.0-rc.5` is approved and awaiting the separate merge command; Stages 00–03 are merged.** The approved selectable macOS package refreshes time-based parent presence without requiring a click and reconnects promptly after child sleep/wake while preserving bounded retries. It also retains the prior child crash, authenticated XPC, parent-restart, helper-recovery, activity-control, app-name-only activity, direct/family/announcement chat, notification, and request-more-time corrections. Browser tabs and policy enforcement are not included. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–04 are merged; STAGE-05 has not started.** The merged `0.4.0-rc.5` selectable macOS package refreshes time-based parent presence without requiring a click and reconnects promptly after child sleep/wake while preserving bounded retries. It also retains the prior child crash, authenticated XPC, parent-restart, helper-recovery, activity-control, app-name-only activity, direct/family/announcement chat, notification, and request-more-time corrections. Browser tabs and policy enforcement are not included. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 

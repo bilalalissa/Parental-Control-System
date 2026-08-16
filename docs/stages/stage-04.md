@@ -2,7 +2,7 @@
 
 - Version: `0.4.0-rc.5`
 - Branch: `stage/04-macos-activity-chat`
-- Status: `APPROVED`
+- Status: `MERGED`
 - Platform: Parent Controller on Apple silicon; Child Endpoint universal `arm64`/`x86_64`; macOS 14 or newer
 
 ## Objective and scope
@@ -137,7 +137,7 @@ This intentionally removes the child app, launchd jobs, helper/tool, protected e
 
 ## Developer approval
 
-The developer approved this release candidate with the exact command `APPROVED: STAGE-04 0.4.0-rc.5` on 2026-08-16. The approved artifact, scope, known limitations, signing status, and verification evidence remain unchanged. The stage is approved but unmerged and unreleased; merging still requires the separate exact command `MERGE`.
+The developer approved this release candidate with the exact command `APPROVED: STAGE-04 0.4.0-rc.5` and separately authorized its merge with the exact command `MERGE` on 2026-08-16. The approved artifact, scope, known limitations, signing status, and verification evidence remain unchanged. The stage is merged but unreleased. STAGE-05 must not begin without a subsequent exact `PROCEED` command.
 
 ## Failure evidence to collect
 

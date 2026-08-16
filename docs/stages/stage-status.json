@@ -38,7 +38,7 @@
       "id": "STAGE-04",
       "name": "macOS app activity and chat",
       "version": "0.4.0-rc.5",
-      "status": "APPROVED",
+      "status": "MERGED",
       "branch": "stage/04-macos-activity-chat",
       "document": "stage-04.md"
     }
