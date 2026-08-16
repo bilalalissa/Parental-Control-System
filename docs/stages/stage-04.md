@@ -118,7 +118,7 @@ This intentionally removes the child app, launchd jobs, helper/tool, protected e
 - The resource daemon and helper processes were stopped. The pre-existing installed Parent Controller/Hub processes were not started by Stage 04 and were deliberately preserved.
 - The rc.2 feedback run began with 8.7 GiB free and 9.3 MiB of retained project output. Generated output peaked near 506 MiB (450 MiB derived data, 20 MiB `dist`, 27 MiB expanded inspection, and the 9.3 MiB RC); the lowest observed free space was 7.8 GiB.
 - Final rc.2 cleanup restored 8.3 GiB free and retains only the 9.3 MiB package plus checksum. One explicit administrator ownership repair was required for stale repository-owned `dist/ParentalControlController.app` output from the earlier package run; the generated tree was then rebuilt and removed normally.
-- The rc.3 diagnosis began with 8.2 GiB free and 9.3 MiB retained output. Local targeted test output peaked at 188 MiB; free space briefly measured 5.6 GiB, so the release build moved to the isolated CI runner rather than risking the 5 GiB floor. After project cleanup and local package inspection, 5.8 GiB is free and only the 9.2 MiB rc.3 package/checksum remain. No simulator, VM, container, or project-started process remains.
+- The rc.3 diagnosis began with 8.2 GiB free and 9.3 MiB retained output. Local targeted test output peaked at 188 MiB; free space measured 5.6 GiB, so the release build moved to the isolated CI runner rather than risking the 5 GiB floor. After project cleanup and local package inspection, 5.6 GiB is free and only the 9.2 MiB rc.3 package/checksum remain. No simulator, VM, container, or project-started process remains.
 
 ## Failure evidence to collect
 
