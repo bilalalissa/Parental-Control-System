@@ -130,6 +130,8 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
   assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.1\.zip/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
+  assert.match(packager, /\/usr\/bin\/grep/);
+  assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
 });
 
 test("Stage 05 chat feedback uses system-controlled audio and explicit read visibility", async () => {

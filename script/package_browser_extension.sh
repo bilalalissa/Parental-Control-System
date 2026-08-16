@@ -10,6 +10,7 @@ RENDER_ROOT="$STAGING/icon-render"
 RC_DIR="$ROOT_DIR/.artifacts/release-candidate"
 ZIP="$RC_DIR/ParentalControlBrowserSharing-0.5.0-rc.1.zip"
 CHECKSUM="$ZIP.sha256"
+PACKAGE_LIST="$STAGING/package-files.txt"
 
 rm -rf -- "$STAGING"
 rm -f -- "$ZIP" "$CHECKSUM"
@@ -35,8 +36,9 @@ node --check "$PACKAGE_ROOT/popup.js"
   /usr/bin/zip -X -q -r "$ZIP" "$(basename "$PACKAGE_ROOT")"
 )
 /usr/bin/unzip -t "$ZIP" >/dev/null
-test "$(/usr/bin/unzip -Z1 "$ZIP" | rg -c 'manifest.json|service-worker.js|popup.html|popup.js|icons/icon(16|32|48|128).png')" -eq 8
-if /usr/bin/unzip -Z1 "$ZIP" | rg -q '\.(pem|key|p12|pfx)$'; then
+/usr/bin/unzip -Z1 "$ZIP" > "$PACKAGE_LIST"
+test "$(/usr/bin/grep -E -c '^ParentalControlBrowserSharing/(manifest.json|service-worker.js|popup.html|popup.js|icons/icon(16|32|48|128)\.png)$' "$PACKAGE_LIST")" -eq 8
+if /usr/bin/grep -E -i '\.(pem|key|p12|pfx)$' "$PACKAGE_LIST" >/dev/null; then
   echo "Refusing an extension package containing signing secrets." >&2
   exit 1
 fi
