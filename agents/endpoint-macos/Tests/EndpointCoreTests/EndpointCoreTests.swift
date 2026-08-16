@@ -202,6 +202,10 @@ struct EndpointCoreTests {
     #expect(!XPCAuthorization.allows(uid: 501, signingIdentifier: "untrusted", operation: "status"))
     #expect(
       XPCAuthorization.isExpectedInstalledPath(
+        "/Applications/Parental Control Child.app",
+        identifier: EndpointMachService.childIdentifier))
+    #expect(
+      XPCAuthorization.isExpectedInstalledPath(
         "/Applications/Parental Control Child.app/Contents/MacOS/ParentalControlChild",
         identifier: EndpointMachService.childIdentifier))
     #expect(

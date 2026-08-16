@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/04-macos-activity-chat");
-  assert.equal(active[0].version, "0.4.0-rc.2");
+  assert.equal(active[0].version, "0.4.0-rc.3");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {

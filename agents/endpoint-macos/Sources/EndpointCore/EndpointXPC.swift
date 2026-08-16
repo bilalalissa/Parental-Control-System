@@ -109,19 +109,23 @@ public enum XPCAuthorization {
   }
 
   public static func isExpectedInstalledPath(_ path: String, identifier: String) -> Bool {
-    let expected: String?
+    let expected: [String]
     switch identifier {
     case EndpointMachService.childIdentifier:
-      expected = "/Applications/Parental Control Child.app/Contents/MacOS/ParentalControlChild"
+      expected = [
+        "/Applications/Parental Control Child.app",
+        "/Applications/Parental Control Child.app/Contents/MacOS/ParentalControlChild",
+      ]
     case EndpointMachService.helperIdentifier:
-      expected =
+      expected = [
         "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlAgentUser"
+      ]
     case EndpointMachService.controlIdentifier:
-      expected = "/usr/local/bin/parental-control-agentctl"
-    default: expected = nil
+      expected = ["/usr/local/bin/parental-control-agentctl"]
+    default: expected = []
     }
-    guard let expected else { return false }
-    return URL(fileURLWithPath: path).resolvingSymlinksInPath().path == expected
+    let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+    return expected.contains(resolved)
   }
 
   private static func isRootProtected(_ path: String) -> Bool {

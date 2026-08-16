@@ -1,6 +1,6 @@
 # STAGE-04 — macOS app activity and chat
 
-- Version: `0.4.0-rc.2`
+- Version: `0.4.0-rc.3`
 - Branch: `stage/04-macos-activity-chat`
 - Status: `READY_FOR_RETEST`
 - Platform: Parent Controller on Apple silicon; Child Endpoint universal `arm64`/`x86_64`; macOS 14 or newer
@@ -32,13 +32,19 @@ Excluded: command lines, executable paths, window/document titles or contents, b
 - The paired-device row now uses a dedicated labeled expansion button, separate Revoke/Unpair actions, and a labeled activity toggle. This removes the nested interactive `DisclosureGroup` label that remained collapsed under both pointer and accessibility activation.
 - No activity fields were broadened. The child status and parent database continue to accept only application name, bundle identifier, foreground state, and observation timestamp.
 
+## rc.3 feedback correction
+
+- Physical Intel-device logs proved the signed visible child app was rejected only because macOS reported its canonical signed bundle path (`/Applications/Parental Control Child.app`) while the daemon expected only the inner executable path. Signature validity, signing identifier, root ownership, and protected permissions all passed.
+- XPC authorization now narrowly accepts either canonical installed representation for the child identifier: the root-protected application bundle or its inner main executable. It still requires a valid signature, the exact child signing identifier, a non-root caller, and protected ownership/permissions; arbitrary paths remain rejected.
+- Regression coverage exercises both accepted child paths and rejection outside `/Applications`.
+
 ## Verification evidence
 
 | Check | Result |
 | --- | --- |
 | Repository tests | 28 passed; one Windows-only cleanup test skipped on macOS (29 total). |
 | Controller/hub suite | 26 tests in 9 suites passed. |
-| Endpoint suite | 8 tests passed, including live pinned-TLS pairing, full hub stop/restart reconnection without a new token, parent→child group message, child→parent reply, request-time delivery, queue persistence, bounds, disable, and pruning. |
+| Endpoint suite | rc.2 baseline: 8 tests passed. rc.3 affected XPC authorization test passes locally; the unchanged live-pairing test cannot bind port `49171` while the developer Mac's installed hub is running and remains pending isolated CI. |
 | Formatting/static checks | `swift format lint` and `git diff --check` passed. |
 | Protocol contract | Canonical schema accepts the new allowlisted activity/configuration/chat/time-request types; invalid fixtures continue to fail closed. |
 | Universal verification | Child app, daemon, login helper, and typed control tool each report `x86_64 arm64`. |
@@ -49,14 +55,14 @@ The resource run is a short local idle spot sample, not the five-minute producti
 
 ## Release candidate
 
-- Artifact: `.artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.2.pkg`
+- Artifact: `.artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.3.pkg`
 - Purpose: selectable Parent Controller or universal visible macOS Child Endpoint
-- SHA-256: `2f16833d59ad7d8fc1f065e524ed468311494dc39cee75fac2b0ebdbaf6ee92c`
-- Embedded source commit: `44f2e991ae39`
+- SHA-256: pending replacement build
+- Embedded source commit: pending replacement build
 - App/executable signing: local ad-hoc signatures; no Team ID or restricted entitlements
 - Installer signing/notarization: unsigned and not notarized because no Developer ID Installer identity is available
 
-This single package replaces the rejected Stage 04 rc.1 candidate. No duplicate `.app`, `.pkg`, `.dmg`, archive, or extracted package is retained after cleanup.
+This single package replaces the rejected Stage 04 rc.2 candidate. No duplicate `.app`, `.pkg`, `.dmg`, archive, or extracted package is retained after cleanup.
 
 ## Installation
 
@@ -78,7 +84,7 @@ This intentionally removes the child app, launchd jobs, helper/tool, protected e
 
 ## Manual developer checklist
 
-1. Install the default parent role and customized child role; confirm both visible apps report `0.4.0-rc.2`.
+1. Install the default parent role and customized child role; confirm both visible apps report `0.4.0-rc.3`.
 2. Confirm existing Stage 03 pairing survives an in-place upgrade, or pair with a fresh one-time token.
 3. Open several normal applications on the child. In Parent Controller → Devices, expand the child and confirm only names, bundle IDs, foreground state, and timestamps appear—never command lines, paths, window titles, or contents.
 4. Disable **Share application names**. Confirm the child Privacy tab says sharing is disabled and retained activity disappears from the parent. Re-enable and test retention values from one to thirty days.

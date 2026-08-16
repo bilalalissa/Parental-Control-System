@@ -2,6 +2,13 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.4.0-rc.3 — 2026-08-15
+
+Status: **STAGE-04 ready for developer retest**
+
+- Corrected the installed child app's authenticated XPC path validation to accept the root-protected signed application bundle path returned by macOS as well as its canonical inner executable path.
+- Added regression coverage for both valid child code paths while continuing to reject paths outside the installed application.
+
 ## 0.4.0-rc.2 — 2026-08-15
 
 Status: **STAGE-04 ready for developer retest**
