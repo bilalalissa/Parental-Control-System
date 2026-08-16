@@ -2,6 +2,13 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.4.0-rc.4 — 2026-08-15
+
+Status: **STAGE-04 ready for developer retest**
+
+- Replaced the visible child app's actor-isolated UserNotifications completion handler with the concurrency-safe async authorization API, preventing the confirmed Intel launch crash.
+- Added source regression coverage and an installed-app CI launch-survival smoke test.
+
 ## 0.4.0-rc.3 — 2026-08-15
 
 Status: **STAGE-04 ready for developer retest**

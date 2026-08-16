@@ -23,7 +23,10 @@ final class ChildDashboardModel: ObservableObject {
   private var timer: Timer?
 
   init() {
-    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    Task {
+      _ = try? await UNUserNotificationCenter.current().requestAuthorization(
+        options: [.alert, .sound])
+    }
     refresh()
     timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
       Task { @MainActor in self?.refresh() }

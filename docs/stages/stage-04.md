@@ -1,6 +1,6 @@
 # STAGE-04 — macOS app activity and chat
 
-- Version: `0.4.0-rc.3`
+- Version: `0.4.0-rc.4`
 - Branch: `stage/04-macos-activity-chat`
 - Status: `READY_FOR_RETEST`
 - Platform: Parent Controller on Apple silicon; Child Endpoint universal `arm64`/`x86_64`; macOS 14 or newer
@@ -38,6 +38,12 @@ Excluded: command lines, executable paths, window/document titles or contents, b
 - XPC authorization now narrowly accepts either canonical installed representation for the child identifier: the root-protected application bundle or its inner main executable. It still requires a valid signature, the exact child signing identifier, a non-root caller, and protected ownership/permissions; arbitrary paths remain rejected.
 - Regression coverage exercises both accepted child paths and rejection outside `/Applications`.
 
+## rc.4 feedback correction
+
+- The physical Intel crash report proved an `EXC_BAD_INSTRUCTION` actor-isolation trap on the UserNotifications callback queue in `closure #1 in ChildDashboardModel.init()`. The callback inherited `@MainActor`, but the framework invoked it off the main executor.
+- Notification authorization now uses the async UserNotifications API from a Swift task, eliminating the mismatched completion-handler executor without weakening notification disclosure or prompting in the background helper.
+- Repository regression coverage rejects reintroduction of the callback form, and CI now launches the installed visible child app and verifies that it remains alive through the authorization callback window.
+
 ## Verification evidence
 
 | Check | Result |
@@ -48,21 +54,21 @@ Excluded: command lines, executable paths, window/document titles or contents, b
 | Formatting/static checks | `swift format lint` and `git diff --check` passed. |
 | Protocol contract | Canonical schema accepts the new allowlisted activity/configuration/chat/time-request types; invalid fixtures continue to fail closed. |
 | Universal verification | Child app, daemon, login helper, and typed control tool each report `x86_64 arm64`. |
-| Bundle/package verification | CI and local inspection verified embedded `0.4.0-rc.3`/build `4003`, the tested PR merge commit, strict nested ad-hoc signatures, universal slices, selectable choices XML, both component payloads, and SHA-256. |
+| Bundle/package verification | rc.4 replacement build pending isolated CI. |
 | Resource spot sample | Unpaired daemon: 14,467,072-byte maximum RSS and effectively zero CPU over five seconds. Login helper: 33,200 KiB RSS and 0.0% CPU after five seconds. Combined about 46.2 MiB. |
 
 The resource run is a short local idle spot sample, not the five-minute production target measurement. It remains well below the 200 MiB combined endpoint target. The final installer was not installed locally because the development Mac has an existing approved controller installation and data; the draft PR CI is configured to perform disposable child install/status/uninstall and default-parent install checks. Those checks must be reported separately and not treated as local physical-hardware evidence.
 
 ## Release candidate
 
-- Artifact: `.artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.3.pkg`
+- Artifact: `.artifacts/release-candidate/ParentalControlSystem-0.4.0-rc.4.pkg`
 - Purpose: selectable Parent Controller or universal visible macOS Child Endpoint
-- SHA-256: `f4b4c3924114cbff7c1dc00ff13c5f788ccbe32a84d7b07e724e6d56bd4fee37`
-- Embedded head source commit: `26df6922fb22`
+- SHA-256: pending replacement build
+- Embedded head source commit: pending replacement build
 - App/executable signing: local ad-hoc signatures; no Team ID or restricted entitlements
 - Installer signing/notarization: unsigned and not notarized because no Developer ID Installer identity is available
 
-This single package replaces the rejected Stage 04 rc.2 candidate. No duplicate `.app`, `.pkg`, `.dmg`, archive, or extracted package is retained after cleanup.
+This single package replaces the rejected Stage 04 rc.3 candidate. No duplicate `.app`, `.pkg`, `.dmg`, archive, or extracted package is retained after cleanup.
 
 ## Installation
 
@@ -84,7 +90,7 @@ This intentionally removes the child app, launchd jobs, helper/tool, protected e
 
 ## Manual developer checklist
 
-1. Install the default parent role and customized child role; confirm both visible apps report `0.4.0-rc.3`.
+1. Install the default parent role and customized child role; confirm both visible apps report `0.4.0-rc.4`.
 2. Confirm existing Stage 03 pairing survives an in-place upgrade, or pair with a fresh one-time token.
 3. Open several normal applications on the child. In Parent Controller → Devices, expand the child and confirm only names, bundle IDs, foreground state, and timestamps appear—never command lines, paths, window titles, or contents.
 4. Disable **Share application names**. Confirm the child Privacy tab says sharing is disabled and retained activity disappears from the parent. Re-enable and test retention values from one to thirty days.

@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/04-macos-activity-chat");
-  assert.equal(active[0].version, "0.4.0-rc.3");
+  assert.equal(active[0].version, "0.4.0-rc.4");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -70,6 +70,17 @@ test("Stage 04 activity controls use an explicit accessible expansion button", a
   assert.match(devices, /devices\.paired-disclosure|pairedDeviceDisclosure/);
   assert.match(devices, /devices\.activity-sharing|activitySharingToggle/);
   assert.doesNotMatch(devices, /DisclosureGroup/);
+});
+
+test("child notification authorization avoids actor-isolated completion callbacks", async () => {
+  const child = await read(
+    "agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift",
+  );
+  assert.match(
+    child,
+    /Task\s*\{[\s\S]*try\?\s+await\s+UNUserNotificationCenter\.current\(\)\.requestAuthorization/,
+  );
+  assert.doesNotMatch(child, /requestAuthorization\([^)]*\)\s*\{\s*_,\s*_\s+in/);
 });
 
 test("local Markdown links resolve inside the repository", async () => {
