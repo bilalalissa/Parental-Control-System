@@ -8,6 +8,7 @@ public final class EndpointAgent: @unchecked Sendable {
   private let repository: EndpointStatusRepository
   private let log: BoundedLog
   private let identity: Ed25519Identity
+  private let pairedControllerPort: UInt16
   private let onEstablishedConnectionLoss: @Sendable () -> Void
   private var replay = ReplayProtector()
   private let delta = DeltaSnapshotTracker()
@@ -25,11 +26,13 @@ public final class EndpointAgent: @unchecked Sendable {
     store: ProtectedConfigurationStore, repository: EndpointStatusRepository, log: BoundedLog,
     keychain: KeychainStore = KeychainStore(service: "com.bilalalissa.ParentalControlAgent.device"),
     suppliedIdentity: Ed25519Identity? = nil,
+    pairedControllerPort: UInt16 = SecureWebSocketServer.parentControlPort,
     onEstablishedConnectionLoss: @escaping @Sendable () -> Void = {}
   ) throws {
     self.store = store
     self.repository = repository
     self.log = log
+    self.pairedControllerPort = pairedControllerPort
     self.onEstablishedConnectionLoss = onEstablishedConnectionLoss
     let configuration = try store.load()
     repository.configureActivity(
@@ -61,7 +64,9 @@ public final class EndpointAgent: @unchecked Sendable {
     // Stage 03/04-rc.1 invitations stored an ephemeral hub port. Once paired, migrate
     // transparently to the controller's stable authenticated port so a parent restart does not
     // require unpairing. Active one-time invitations still use the exact advertised port.
-    let port = Self.connectionPort(for: configuration) ?? target.port
+    let port =
+      Self.connectionPort(for: configuration, pairedControllerPort: pairedControllerPort)
+      ?? target.port
     let connection = try SecureWebSocketClient.connect(
       host: target.host, port: port, certificateFingerprint: target.certificateFingerprint)
     peer = connection
@@ -73,9 +78,12 @@ public final class EndpointAgent: @unchecked Sendable {
     connection.start()
   }
 
-  static func connectionPort(for configuration: EndpointConfiguration) -> UInt16? {
+  static func connectionPort(
+    for configuration: EndpointConfiguration,
+    pairedControllerPort: UInt16 = SecureWebSocketServer.parentControlPort
+  ) -> UInt16? {
     if let invitation = configuration.invitation { return invitation.port }
-    if configuration.pairedController != nil { return SecureWebSocketServer.parentControlPort }
+    if configuration.pairedController != nil { return pairedControllerPort }
     return nil
   }
 

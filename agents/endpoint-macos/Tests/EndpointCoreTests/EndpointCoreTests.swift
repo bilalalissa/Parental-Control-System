@@ -97,18 +97,22 @@ struct EndpointCoreTests {
 
     let restartedHub = try LocalHub(
       database: database, tlsIdentity: tls, controllerIdentity: controllerIdentity,
-      heartbeat: AdaptiveHeartbeat(activeInterval: 1, idleInterval: 2, offlineAfter: 4))
+      heartbeat: AdaptiveHeartbeat(activeInterval: 1, idleInterval: 2, offlineAfter: 4),
+      listeningPort: 0)
     defer { restartedHub.stop() }
     let restartedReady = DispatchSemaphore(value: 0)
     restartedHub.onStatusChange = { status in
-      if status.port == SecureWebSocketServer.parentControlPort { restartedReady.signal() }
+      if status.port != 0 { restartedReady.signal() }
     }
     try restartedHub.start(advertiseBonjour: false)
     #expect(restartedReady.wait(timeout: .now() + 5) == .success)
+    let restartedPort = try restartedHub.status().port
+    #expect(restartedPort > 0)
 
     let restartedAgent = try EndpointAgent(
       store: store, repository: repository,
-      log: BoundedLog(directory: logDirectory), suppliedIdentity: deviceIdentity)
+      log: BoundedLog(directory: logDirectory), suppliedIdentity: deviceIdentity,
+      pairedControllerPort: restartedPort)
     defer { restartedAgent.stop() }
     try restartedAgent.start()
     let reconnectDeadline = Date().addingTimeInterval(5)
@@ -132,6 +136,7 @@ struct EndpointCoreTests {
     let paired = EndpointConfiguration(pairedController: legacy)
     #expect(
       EndpointAgent.connectionPort(for: paired) == SecureWebSocketServer.parentControlPort)
+    #expect(EndpointAgent.connectionPort(for: paired, pairedControllerPort: 61_235) == 61_235)
 
     let active = EndpointConfiguration(invitation: legacy)
     #expect(EndpointAgent.connectionPort(for: active) == 61_234)
