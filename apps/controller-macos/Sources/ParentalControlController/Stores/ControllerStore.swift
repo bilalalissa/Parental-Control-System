@@ -113,6 +113,8 @@ final class ControllerStore {
   }
 
   func createPairingInvitation() {
+    pairingStatusMessage =
+      "Starting the local hub. Approve one macOS Keychain request if it appears…"
     Task {
       do {
         applyHubStatus(try await hubClient.createPairing())

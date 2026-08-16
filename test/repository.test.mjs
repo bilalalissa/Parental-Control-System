@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/05-chromium-extension");
-  assert.equal(active[0].version, "0.5.0-rc.5");
+  assert.equal(active[0].version, "0.5.0-rc.6");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -118,6 +118,8 @@ test("parent hub startup coalesces concurrent status and pairing requests", asyn
   assert.match(client, /if let startupTask[\s\S]*return try await startupTask\.value/);
   assert.match(client, /if process\.isRunning \{ process\.terminate\(\) \}/);
   assert.match(client, /func statusIfRunning\(\)/);
+  assert.match(client, /helperStartupPollCount = 900/);
+  assert.match(client, /helperStartupPollMilliseconds = 100/);
   assert.match(store, /hubClient\.statusIfRunning\(\)/);
   assert.doesNotMatch(store, /while !Task\.isCancelled[\s\S]*hubClient\.status\(\)/);
 });
@@ -156,7 +158,7 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /configuration\.browser \|\| browser/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.5\.zip/);
+  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.6\.zip/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
   assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
@@ -266,7 +268,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–04 are merged; STAGE-05 `0\.5\.0-rc\.5`/);
+  assert.match(readme, /Stages 00–04 are merged; STAGE-05 `0\.5\.0-rc\.6`/);
   assert.match(readme, /unread Chat counters/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);

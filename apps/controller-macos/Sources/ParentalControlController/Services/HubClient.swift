@@ -18,6 +18,12 @@ enum HubClientError: Error, CustomStringConvertible {
 
 @MainActor
 final class HubClient {
+  // A first launch after a signing change can block in SecurityAgent while the adult reads and
+  // answers a Keychain prompt. Keep the UI asynchronous, but do not kill that helper on the old
+  // three-second machine-only readiness deadline.
+  static let helperStartupPollMilliseconds = 100
+  static let helperStartupPollCount = 900
+
   private var helperProcess: Process?
   private var ipcKey: Data?
   private let startupCoordinator = HubStartupCoordinator()
@@ -73,12 +79,12 @@ final class HubClient {
     try input.fileHandleForWriting.close()
     helperProcess = process
     ipcKey = bytes
-    for _ in 0..<30 {
+    for _ in 0..<Self.helperStartupPollCount {
       if let runtime = try? HubRuntime.read(), runtime.processID == process.processIdentifier {
         return
       }
       if !process.isRunning { break }
-      try await Task.sleep(for: .milliseconds(100))
+      try await Task.sleep(for: .milliseconds(Self.helperStartupPollMilliseconds))
     }
     if process.isRunning { process.terminate() }
     if let runtime = try? HubRuntime.read(), runtime.processID == process.processIdentifier {

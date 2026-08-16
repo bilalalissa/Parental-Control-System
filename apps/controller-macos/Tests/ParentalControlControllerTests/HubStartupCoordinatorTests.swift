@@ -6,6 +6,14 @@ import Testing
 @Suite("Local hub startup coordinator")
 @MainActor
 struct HubStartupCoordinatorTests {
+  @Test("helper startup allows time for a human Keychain decision")
+  func keychainAuthorizationGrace() {
+    let graceMilliseconds =
+      HubClient.helperStartupPollCount * HubClient.helperStartupPollMilliseconds
+    #expect(graceMilliseconds >= 60_000)
+    #expect(graceMilliseconds <= 120_000)
+  }
+
   @Test("concurrent hub requests share one helper launch")
   func coalescesConcurrentStartup() async throws {
     let coordinator = HubStartupCoordinator()
