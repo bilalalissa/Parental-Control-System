@@ -196,7 +196,7 @@ private struct PairedDeviceControlRow: View {
           if browserTabs.isEmpty {
             Text(
               browserConfiguration.enabled
-                ? "No browser metadata received. Install and enable the extension in Chrome or Edge."
+                ? "No browser metadata received. Install and enable the extension in Chrome, Edge, or Arc."
                 : "Browser sharing is disabled."
             )
             .font(.caption).foregroundStyle(.secondary)

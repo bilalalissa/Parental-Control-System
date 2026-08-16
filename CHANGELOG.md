@@ -2,6 +2,17 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.5.0-rc.3 — 2026-08-16
+
+Status: **STAGE-05 ready for developer retest**
+
+- Replaces the child segmented-tab badge with an explicit accessible red unread counter and refreshes the visible child immediately when chat changes.
+- Adds a macOS sound-effects fallback for child arrivals and speaks typed parent announcements once through local system speech without recording or creating audio files.
+- Makes parent unread clearing conversation-specific and discoverable with per-audience/per-device counts plus automatic selection of an unread conversation.
+- Adds authenticated, signed, replay-protected, parent-only edit/delete mutations with durable `Edited` and `Message deleted` state; logs and audits omit message content.
+- Fixes exact app-bundle-path authorization, adds vendor Team ID validation, installs Arc's per-user native-host manifest, and uses the host-authenticated browser name for Chrome, Edge, or Arc.
+- Preserves the developer-confirmed automatic online/offline detection and bounded reconnect behavior.
+
 ## 0.5.0-rc.2 — 2026-08-16
 
 Status: **STAGE-05 ready for developer retest**

@@ -106,6 +106,8 @@ jobs:
             -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
             -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.3.pkg" \
             -target /
+          console_user="$(/usr/bin/stat -f '%Su' /dev/console)"
+          console_user_home="$(/usr/bin/dscl . -read "/Users/$console_user" NFSHomeDirectory | /usr/bin/awk '{print $2}')"
           status_ok=false
           for attempt in 1 2 3; do
             if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status.json; then
@@ -121,6 +123,7 @@ jobs:
             test -x "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost"
             test -f "/Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json"
             test -f "/Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json"
+            test -f "$console_user_home/Library/Application Support/Arc/User Data/NativeMessagingHosts/com.bilalalissa.parental_control.json"
           else
             status_exit=1
             sudo /bin/launchctl print system/com.bilalalissa.ParentalControlAgent.daemon || true
@@ -159,6 +162,7 @@ jobs:
           test ! -e /usr/local/bin/parental-control-agentctl
           test ! -e /Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json
           test ! -e /Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json
+          test ! -e "$console_user_home/Library/Application Support/Arc/User Data/NativeMessagingHosts/com.bilalalissa.parental_control.json"
           exit "$status_exit"
       - name: Upload release candidate
         if: steps.scope.outputs.build == 'true'
