@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.5.0-rc.6 — 2026-08-16
 
-Status: **STAGE-05 changes requested**
+Status: **STAGE-05 ready for developer retest**
 
 - Fixes the physical rc.5 failure where the controller's three-second helper-readiness deadline expired and terminated the helper while macOS was still displaying the first-use Keychain authorization dialog.
 - Gives the one in-flight helper launch a bounded 90-second, asynchronous human-response grace period while retaining immediate failure when the helper actually exits.
