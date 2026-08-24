@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.5.0-rc.7 — 2026-08-23
 
-Status: **STAGE-05 changes requested**
+Status: **STAGE-05 ready for developer retest**
 
 - Removes unsupported `UNUserNotificationCenter` access from the raw logged-in LaunchAgent, fixing the physically confirmed ten-second crash loop while retaining system sound and automatic local speech for typed announcements.
 - Adds an installed-helper survival check to CI so packaging cannot pass while session/application collection is unavailable.

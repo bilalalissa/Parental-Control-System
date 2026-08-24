@@ -46,7 +46,7 @@
       "id": "STAGE-05",
       "name": "Shared Chromium extension and macOS integration",
       "version": "0.5.0-rc.7",
-      "status": "CHANGES_REQUESTED",
+      "status": "READY_FOR_RETEST",
       "branch": "stage/05-chromium-extension",
       "document": "stage-05.md"
     }
