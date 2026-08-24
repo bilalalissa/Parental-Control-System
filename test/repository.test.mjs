@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/05-chromium-extension");
-  assert.equal(active[0].version, "0.5.0-rc.6");
+  assert.equal(active[0].version, "0.5.0-rc.7");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -158,7 +158,7 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /configuration\.browser \|\| browser/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.6\.zip/);
+  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.7\.zip/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
   assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
@@ -177,9 +177,11 @@ test("Stage 05 chat feedback uses system-controlled audio, unread badges, and ex
   ]);
   assert.match(controller, /content\.sound = \.default/);
   assert.match(controller, /accepted > 0 \{ NSSound\.beep\(\) \}/);
-  assert.match(childHelper, /content\.sound = \.default/);
-  assert.match(childHelper, /UNUserNotificationCenterDelegate/);
-  assert.match(childHelper, /completionHandler\(\[\.banner, \.sound\]\)/);
+  assert.doesNotMatch(
+    childHelper,
+    /^\s*(?:let\s+\w+\s*=\s*)?UNUserNotificationCenter\.current\(\)/m,
+  );
+  assert.doesNotMatch(childHelper, /import UserNotifications/);
   assert.match(childHelper, /NSSound\.beep\(\)/);
   assert.match(childHelper, /AVSpeechSynthesizer/);
   assert.match(childHelper, /message\.audience == \.announcement/);
@@ -193,6 +195,19 @@ test("Stage 05 chat feedback uses system-controlled audio, unread badges, and ex
   assert.match(chat, /editParentChatMessage/);
   assert.match(chat, /deleteParentChatMessage/);
   assert.doesNotMatch(controller, /message\.text/);
+});
+
+test("Stage 05 retains only bounded, content-minimal open-tab observations", async () => {
+  const [database, devices] = await Promise.all([
+    read("apps/controller-macos/Sources/HubCore/Persistence/HubDatabase.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/DevicesView.swift"),
+  ]);
+  assert.match(database, /maximumBrowserObservationRecordsPerDevice = 512/);
+  assert.match(database, /saveBrowserObservations/);
+  assert.match(database, /DELETE FROM browser_tabs[\s\S]*browser = \?[\s\S]*profile_id = \?[\s\S]*title = \?[\s\S]*origin = \?/);
+  assert.match(devices, /Recently observed open tabs are retained/);
+  assert.match(devices, /Active when observed/);
+  assert.doesNotMatch(database, /chrome_history|browser_history|full_url|page_content/);
 });
 
 test("local Markdown links resolve inside the repository", async () => {
@@ -268,7 +283,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–04 are merged; STAGE-05 `0\.5\.0-rc\.6`/);
+  assert.match(readme, /Stages 00–04 are merged; STAGE-05 `0\.5\.0-rc\.7`/);
   assert.match(readme, /unread Chat counters/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);

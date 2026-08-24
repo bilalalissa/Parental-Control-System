@@ -2,6 +2,15 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.5.0-rc.7 — 2026-08-23
+
+Status: **STAGE-05 changes requested**
+
+- Removes unsupported `UNUserNotificationCenter` access from the raw logged-in LaunchAgent, fixing the physically confirmed ten-second crash loop while retaining system sound and automatic local speech for typed announcements.
+- Adds an installed-helper survival check to CI so packaging cannot pass while session/application collection is unavailable.
+- Retains a bounded, deduplicated list of recently observed open-tab title/origin pairs with configurable one-to-thirty-day retention; this does not import browser history or collect full URLs/content.
+- Adds explicit YouTube and ordinary HTTPS game-origin coverage and labels active state honestly as active when observed.
+
 ## 0.5.0-rc.6 — 2026-08-16
 
 Status: **STAGE-05 ready for developer retest**

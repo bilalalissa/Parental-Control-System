@@ -2,9 +2,8 @@ import AVFoundation
 import AppKit
 import EndpointCore
 import Foundation
-import UserNotifications
 
-final class SessionReporter: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
+final class SessionReporter: NSObject, @unchecked Sendable {
   private let client = EndpointXPCClient()
   private var timer: Timer?
   private var currentState: EndpointSessionState = .active
@@ -12,11 +11,6 @@ final class SessionReporter: NSObject, UNUserNotificationCenterDelegate, @unchec
   private var knownParentMessageIDs: Set<UUID> = []
   private var messagesPrimed = false
   func start() {
-    let notificationCenter = UNUserNotificationCenter.current()
-    notificationCenter.delegate = self
-    Task {
-      _ = try? await notificationCenter.requestAuthorization(options: [.alert, .sound])
-    }
     let center = NSWorkspace.shared.notificationCenter
     center.addObserver(
       self, selector: #selector(active), name: NSWorkspace.sessionDidBecomeActiveNotification,
@@ -53,23 +47,11 @@ final class SessionReporter: NSObject, UNUserNotificationCenterDelegate, @unchec
     report(currentState)
   }
   @objc private func applicationsChanged() { reportApplications() }
-  nonisolated func userNotificationCenter(
-    _ center: UNUserNotificationCenter,
-    willPresent notification: UNNotification,
-    withCompletionHandler completionHandler:
-      @escaping (UNNotificationPresentationOptions) -> Void
-  ) {
-    completionHandler([.banner, .sound])
-  }
   @objc private func chatReceived() {
-    // This direct sound-effects fallback is still subordinate to the Mac's output volume/mute.
+    // A raw LaunchAgent has no application bundle registration for UserNotifications. Calling
+    // UNUserNotificationCenter.current() here asserts on macOS and makes launchd crash-loop the
+    // helper. Use the ordinary sound-effects path; the visible child app owns notification UI.
     NSSound.beep()
-    let content = UNMutableNotificationContent()
-    content.title = "Message from your parent"
-    content.body = "Open Parental Control to read it."
-    content.sound = .default
-    UNUserNotificationCenter.current().add(
-      UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     speakNewAnnouncements()
   }
   private func primeMessages() {

@@ -501,7 +501,7 @@ public final class LocalHub: @unchecked Sendable {
             deviceID: device.id, browser: browser, profileID: profile, title: title,
             origin: origin, isActive: active, observedAt: observed)
         }
-        try database.replaceBrowserTabs(records, for: device.id)
+        try database.saveBrowserObservations(records, for: device.id)
       }
       try database.updateSeen(
         deviceID: device.id, sequence: envelope.sequence,

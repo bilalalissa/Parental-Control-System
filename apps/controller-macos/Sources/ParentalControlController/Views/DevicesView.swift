@@ -178,7 +178,7 @@ private struct PairedDeviceControlRow: View {
             }
           }
           Text(
-            "Requires the visible extension. Shares titles and website origins only; private tabs, query strings, fragments, page content, forms, cookies, and traffic are excluded."
+            "Recently observed open tabs are retained for the selected period. Shares titles and website origins only; private tabs, full paths, query strings, fragments, page content, forms, cookies, and traffic are excluded."
           )
           .font(.caption).foregroundStyle(.secondary)
           ForEach(Array(browserTabs.prefix(8).enumerated()), id: \.offset) { _, tab in
@@ -186,11 +186,15 @@ private struct PairedDeviceControlRow: View {
               Image(systemName: tab.isActive ? "globe.badge.chevron.backward" : "globe")
               VStack(alignment: .leading, spacing: 2) {
                 Text(tab.title)
-                Text("\(tab.browser.capitalized) · \(tab.origin)")
-                  .font(.caption).foregroundStyle(.secondary)
+                Text(
+                  "\(tab.browser.capitalized) · \(tab.origin) · Observed \(tab.observedAt.formatted(date: .omitted, time: .shortened))"
+                )
+                .font(.caption).foregroundStyle(.secondary)
               }
               Spacer()
-              if tab.isActive { Text("Active").font(.caption).foregroundStyle(.green) }
+              if tab.isActive {
+                Text("Active when observed").font(.caption).foregroundStyle(.green)
+              }
             }
           }
           if browserTabs.isEmpty {

@@ -355,6 +355,13 @@ struct EndpointCoreTests {
     #expect(update.tabs[0].origin == "https://example.com:8443")
     #expect(update.tabs.allSatisfy { !$0.origin.contains("?") && !$0.origin.contains("#") })
     #expect(
+      EndpointBrowserTab.sanitizedOrigin(
+        "https://www.youtube.com/watch?v=private-video-id") == "https://www.youtube.com")
+    #expect(
+      EndpointBrowserTab.sanitizedOrigin(
+        "https://games.example.test/play/session?token=secret")
+        == "https://games.example.test")
+    #expect(
       BrowserNativeRequest(
         type: "tabs.update", browser: "edge", profile: "profile", tabs: tabs
       ).validatedUpdate(expectedBrowser: "chrome") == nil)

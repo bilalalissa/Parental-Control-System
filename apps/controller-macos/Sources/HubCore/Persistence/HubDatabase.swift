@@ -26,6 +26,7 @@ public final class HubDatabase: @unchecked Sendable {
   public static let maximumChatMessagesPerDevice = 500
   public static let maximumActivityRecordsPerDevice = 1_000
   public static let maximumBrowserTabsPerDevice = 128
+  public static let maximumBrowserObservationRecordsPerDevice = 512
   public static let maximumTimeRequests = 100
 
   private let handle: OpaquePointer
@@ -581,9 +582,19 @@ public final class HubDatabase: @unchecked Sendable {
     return result
   }
 
-  public func replaceBrowserTabs(_ records: [HubBrowserTab], for deviceID: String) throws {
-    try run("DELETE FROM browser_tabs WHERE device_id = ?;", [.text(deviceID)])
+  public func saveBrowserObservations(_ records: [HubBrowserTab], for deviceID: String) throws {
     for record in records.prefix(Self.maximumBrowserTabsPerDevice) {
+      // Retain one most-recent observation for a disclosed title/origin combination. This keeps a
+      // bounded recently-observed-open-tab list without querying or importing browser history.
+      try run(
+        """
+        DELETE FROM browser_tabs
+        WHERE device_id = ? AND browser = ? AND profile_id = ? AND title = ? AND origin = ?;
+        """,
+        [
+          .text(deviceID), .text(record.browser), .text(record.profileID), .text(record.title),
+          .text(record.origin),
+        ])
       try run(
         """
         INSERT INTO browser_tabs(
@@ -596,6 +607,13 @@ public final class HubDatabase: @unchecked Sendable {
           .integer(Int64(record.observedAt.timeIntervalSince1970)),
         ])
     }
+    try run(
+      """
+      DELETE FROM browser_tabs WHERE device_id = ? AND rowid NOT IN(
+          SELECT rowid FROM browser_tabs WHERE device_id = ?
+          ORDER BY observed_at DESC LIMIT \(Self.maximumBrowserObservationRecordsPerDevice)
+      );
+      """, [.text(deviceID), .text(deviceID)])
   }
 
   public func browserTabs(limit: Int = 512) throws -> [HubBrowserTab] {
