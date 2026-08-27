@@ -34,8 +34,8 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   const active = tracker.stages.filter((stage) => stage.id === tracker.activeStage);
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
-  assert.equal(active[0].branch, "stage/04-macos-activity-chat");
-  assert.equal(active[0].version, "0.4.0-rc.5");
+  assert.equal(active[0].branch, "stage/05-chromium-extension");
+  assert.equal(active[0].version, "0.5.0-rc.9");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -78,9 +78,23 @@ test("child notification authorization avoids actor-isolated completion callback
   );
   assert.match(
     child,
-    /Task\s*\{[\s\S]*try\?\s+await\s+UNUserNotificationCenter\.current\(\)\.requestAuthorization/,
+    /let center = UNUserNotificationCenter\.current\(\)[\s\S]*Task\s*\{[\s\S]*try\?\s+await\s+center\.requestAuthorization/,
   );
   assert.doesNotMatch(child, /requestAuthorization\([^)]*\)\s*\{\s*_,\s*_\s+in/);
+});
+
+test("parent foreground notification delegate matches the macOS SDK signature", async () => {
+  const controllerApp = await read(
+    "apps/controller-macos/Sources/ParentalControlController/App/ParentalControlControllerApp.swift",
+  );
+  assert.match(
+    controllerApp,
+    /nonisolated func userNotificationCenter\([\s\S]*?willPresent[\s\S]*?withCompletionHandler completionHandler:\s*@escaping \(UNNotificationPresentationOptions\) -> Void\s*\)\s*\{/,
+  );
+  assert.doesNotMatch(
+    controllerApp,
+    /withCompletionHandler completionHandler:\s*@escaping @Sendable/,
+  );
 });
 
 test("Stage 04 presence refreshes without interaction and wake reconnect remains bounded", async () => {
@@ -92,6 +106,154 @@ test("Stage 04 presence refreshes without interaction and wake reconnect remains
   assert.doesNotMatch(store, /if status != hubStatus \{ hubStatus = status \}/);
   assert.match(daemon, /EndpointReconnectPolicy/);
   assert.match(daemon, /onEstablishedConnectionLoss/);
+});
+
+test("parent hub startup coalesces concurrent status and pairing requests", async () => {
+  const [client, store] = await Promise.all([
+    read("apps/controller-macos/Sources/ParentalControlController/Services/HubClient.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Stores/ControllerStore.swift"),
+  ]);
+  assert.match(client, /startupCoordinator\.run/);
+  assert.match(client, /runtime\.processID == process\.processIdentifier/);
+  assert.match(client, /if let startupTask[\s\S]*return try await startupTask\.value/);
+  assert.match(client, /if process\.isRunning \{ process\.terminate\(\) \}/);
+  assert.match(client, /func statusIfRunning\(\)/);
+  assert.match(client, /helperStartupPollCount = 900/);
+  assert.match(client, /helperStartupPollMilliseconds = 100/);
+  assert.match(store, /hubClient\.statusIfRunning\(\)/);
+  assert.doesNotMatch(store, /while !Task\.isCancelled[\s\S]*hubClient\.status\(\)/);
+});
+
+test("macOS packages can use one stable signing identity without requiring CI credentials", async () => {
+  const [controllerBuild, endpointBuild] = await Promise.all([
+    read("script/build_app.sh"),
+    read("script/build_endpoint_app.sh"),
+  ]);
+  for (const build of [controllerBuild, endpointBuild]) {
+    assert.match(build, /SIGN_IDENTITY="\$\{MACOS_SIGNING_IDENTITY:--\}"/);
+    assert.match(build, /codesign[\s\S]*--sign "\$SIGN_IDENTITY"/);
+  }
+});
+
+test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minimal", async () => {
+  const [manifest, nativeManifest, worker, popup, packager, postinstall, authorization] = await Promise.all([
+    readJson("browser-extensions/webextension/manifest.json"),
+    readJson("browser-extensions/webextension/native-host-manifest.json"),
+    read("browser-extensions/webextension/service-worker.js"),
+    read("browser-extensions/webextension/popup.html"),
+    read("script/package_browser_extension.sh"),
+    read("agents/endpoint-macos/Installer/postinstall"),
+    read("agents/endpoint-macos/Sources/EndpointCore/BrowserNativeMessaging.swift"),
+  ]);
+  assert.equal(manifest.manifest_version, 3);
+  assert.deepEqual(manifest.permissions.sort(), ["alarms", "nativeMessaging", "storage", "tabs"]);
+  for (const forbidden of ["history", "webRequest", "cookies", "downloads", "debugger"])
+    assert.ok(!manifest.permissions.includes(forbidden));
+  assert.equal(nativeManifest.allowed_origins.length, 1);
+  assert.match(nativeManifest.allowed_origins[0], /^chrome-extension:\/\/[a-p]{32}\/$/);
+  assert.match(worker, /tab\.incognito !== true/);
+  assert.match(worker, /return url\.origin/);
+  assert.match(worker, /\.slice\(0, MAX_TABS\)/);
+  assert.match(worker, /configuration\.query/);
+  assert.match(worker, /configuration\.browser \|\| browser/);
+  assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
+  assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
+  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.8\.zip/);
+  assert.match(packager, /Refusing an extension package containing signing secrets/);
+  assert.match(packager, /\/usr\/bin\/grep/);
+  assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
+  assert.match(postinstall, /Arc\/User Data\/NativeMessagingHosts/);
+  assert.match(authorization, /company\.thebrowser\.Browser/);
+  assert.match(authorization, /S6N382Y83G/);
+});
+
+test("Stage 05 chat feedback uses system-controlled audio, unread badges, and explicit read visibility", async () => {
+  const [controller, childHelper, childApp, chat, root] = await Promise.all([
+    read("apps/controller-macos/Sources/ParentalControlController/Stores/ControllerStore.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlAgentUser/main.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/ChatShellView.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/ControllerRootView.swift"),
+  ]);
+  assert.match(controller, /content\.sound = \.default/);
+  assert.match(controller, /accepted > 0 \{ NSSound\.beep\(\) \}/);
+  assert.doesNotMatch(
+    childHelper,
+    /^\s*(?:let\s+\w+\s*=\s*)?UNUserNotificationCenter\.current\(\)/m,
+  );
+  assert.doesNotMatch(childHelper, /import UserNotifications/);
+  assert.match(childHelper, /NSSound\.beep\(\)/);
+  assert.match(childHelper, /AVSpeechSynthesizer/);
+  assert.match(childHelper, /message\.audience == \.announcement/);
+  assert.match(childApp, /ChildAppDelegate/);
+  assert.match(childApp, /completionHandler\(\[\.banner, \.sound\]\)/);
+  assert.match(childApp, /IncomingMessageNotificationTracker/);
+  assert.match(childApp, /UNMutableNotificationContent/);
+  assert.match(childApp, /content\.sound = \.default/);
+  assert.match(childApp, /Open Parental Control to read/);
+  assert.match(childApp, /result\.isSuccess \{ NSSound\.beep\(\) \}/);
+  assert.match(childApp, /badge: model\.unreadMessageCount/);
+  assert.match(childApp, /ChildTabButton/);
+  assert.match(root, /UnreadChatBadge\(count: store\.unreadChatCount\)/);
+  assert.match(chat, /markVisibleMessagesRead/);
+  assert.match(chat, /editParentChatMessage/);
+  assert.match(chat, /deleteParentChatMessage/);
+  assert.doesNotMatch(controller, /message\.text/);
+});
+
+test("Stage 05 retains only bounded, content-minimal open-tab observations", async () => {
+  const [database, devices] = await Promise.all([
+    read("apps/controller-macos/Sources/HubCore/Persistence/HubDatabase.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/DevicesView.swift"),
+  ]);
+  assert.match(database, /maximumBrowserObservationRecordsPerDevice = 512/);
+  assert.match(database, /saveBrowserObservations/);
+  assert.match(database, /DELETE FROM browser_tabs[\s\S]*browser = \?[\s\S]*profile_id = \?[\s\S]*title = \?[\s\S]*origin = \?/);
+  assert.match(devices, /Recently observed open tabs are retained/);
+  assert.match(devices, /Active when observed/);
+  assert.match(devices, /ScrollView\(\.vertical\)/);
+  assert.match(devices, /scrollIndicators\(\.visible\)/);
+  assert.doesNotMatch(devices, /activity\.prefix\(8\)/);
+  assert.doesNotMatch(devices, /browserTabs\.prefix\(8\)/);
+  assert.doesNotMatch(database, /chrome_history|browser_history|full_url|page_content/);
+});
+
+test("Stage 05 activity alerts are classified narrowly and rate limited", async () => {
+  const [alerts, controller, devices] = await Promise.all([
+    read("apps/controller-macos/Sources/HubCore/Models/ActivityAlerts.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Stores/ControllerStore.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/DevicesView.swift"),
+  ]);
+  assert.match(alerts, /youtube\.com/);
+  assert.match(alerts, /possibleGame/);
+  assert.match(alerts, /30 \* 60/);
+  assert.match(alerts, /tab\.origin/);
+  assert.doesNotMatch(alerts, /pageContent|fullURL|privateTab/);
+  assert.match(controller, /YouTube activity detected/);
+  assert.match(controller, /Possible game activity detected/);
+  assert.match(devices, /Observed activity alerts/);
+});
+
+test("Stage 05 release UI uses one real paired-device list and the shared visual language", async () => {
+  const [devices, dashboard, store, theme, child, popup] = await Promise.all([
+    read("apps/controller-macos/Sources/ParentalControlController/Views/DevicesView.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/DashboardView.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Stores/ControllerStore.swift"),
+    read("apps/controller-macos/Sources/DesignSystem/ControlTheme.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift"),
+    read("browser-extensions/webextension/popup.html"),
+  ]);
+  assert.match(devices, /ForEach\(store\.pairedDevices\)/);
+  assert.match(devices, /selectedPairedDevice/);
+  assert.doesNotMatch(devices, /Paired macOS devices|store\.devices|safeAreaInset/);
+  assert.match(dashboard, /ForEach\(store\.pairedDevices\)/);
+  assert.doesNotMatch(dashboard, /synthetic shell data|Privacy-first preview|Mock token/);
+  assert.match(store, /removeLegacySyntheticPreviewData/);
+  assert.match(theme, /public enum ControlTheme/);
+  assert.match(theme, /displayTitle/);
+  assert.match(child, /\.controlTheme\(\)/);
+  assert.match(popup, /--accent: #ff5843/);
+  assert.match(popup, /ui-monospace/);
 });
 
 test("local Markdown links resolve inside the repository", async () => {
@@ -129,6 +291,27 @@ test("CI is least-privilege, cancellable, pinned, and short-retention", async ()
   assert.doesNotMatch(workflow, /pull_request_target/);
 });
 
+test("Stage 05 CI verifies the fresh default install before child customization", async () => {
+  const workflow = await read(".github/workflows/stage-03-macos.yml");
+  const parentInstall = workflow.indexOf("- name: Install default parent choice");
+  const childInstall = workflow.indexOf("- name: Install, diagnose, and uninstall child choice");
+  assert.ok(parentInstall >= 0);
+  assert.ok(childInstall > parentInstall);
+  assert.match(workflow, /BEFORE_SHA: \$\{\{ github\.event\.before \}\}/);
+  assert.match(workflow, /git diff --quiet "\$BASE_SHA" HEAD/);
+  assert.doesNotMatch(workflow, /git diff --quiet HEAD\^ HEAD/);
+  assert.match(
+    workflow,
+    /Install default parent choice[\s\S]*?codesign --verify --deep --strict[\s\S]*?pkgutil --forget com\.bilalalissa\.ParentalControlController\.component/,
+  );
+  assert.match(workflow, /test "\$PWD" = "\$GITHUB_WORKSPACE"/);
+  assert.match(
+    workflow,
+    /sudo \/bin\/rm -rf --[\s\S]*?"\$PWD\/dist"[\s\S]*?"\$PWD\/\.artifacts\/derived-data"[\s\S]*?"\$PWD\/\.artifacts\/package-staging"/,
+  );
+  assert.doesNotMatch(workflow, /sudo \.\/tools\/cleanup\.sh/);
+});
+
 test("macOS packaging retries transient disk-image failures without skipping verification", async () => {
   const packaging = await read("script/package_release.sh");
   assert.match(packaging, /HDIUTIL_ATTEMPTS=3/);
@@ -146,8 +329,8 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–04 are merged; STAGE-05 has not started/);
-  assert.match(readme, /0\.4\.0-rc\.5/);
+  assert.match(readme, /Stages 00–05 are merged; the approved STAGE-05 candidate is `0\.5\.0-rc\.9`/);
+  assert.match(readme, /unread counters/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });

@@ -1,3 +1,4 @@
+import DesignSystem
 import SwiftUI
 
 struct ControllerRootView: View {
@@ -17,9 +18,15 @@ struct ControllerRootView: View {
       List(selection: selection) {
         Section("Family") {
           ForEach(AppSection.allCases) { section in
-            Label(section.title, systemImage: section.systemImage)
-              .tag(section)
-              .accessibilityIdentifier("sidebar.\(section.rawValue)")
+            HStack(spacing: 8) {
+              Label(section.title, systemImage: section.systemImage)
+              Spacer(minLength: 4)
+              if section == .chat, store.unreadChatCount > 0 {
+                UnreadChatBadge(count: store.unreadChatCount)
+              }
+            }
+            .tag(section)
+            .accessibilityIdentifier("sidebar.\(section.rawValue)")
           }
         }
       }
@@ -44,6 +51,7 @@ struct ControllerRootView: View {
         }
         selectedView
       }
+      .background(ControlTheme.canvas)
       .toolbar {
         ToolbarItem(placement: .primaryAction) {
           SettingsLink {
@@ -84,6 +92,21 @@ struct ControllerRootView: View {
     case .storage:
       StorageView(store: store)
     }
+  }
+}
+
+private struct UnreadChatBadge: View {
+  let count: Int
+
+  var body: some View {
+    Text(count > 99 ? "99+" : "\(count)")
+      .font(.caption2.bold())
+      .foregroundStyle(.white)
+      .padding(.horizontal, 6)
+      .padding(.vertical, 2)
+      .background(ControlTheme.accent, in: Capsule())
+      .accessibilityLabel("Unread messages")
+      .accessibilityValue("\(count)")
   }
 }
 

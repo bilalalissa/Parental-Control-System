@@ -119,6 +119,18 @@ public enum ChatDeliveryState: String, Codable, Sendable {
   case delivered
   case read
   case failed
+
+  public func advanced(to candidate: ChatDeliveryState) -> ChatDeliveryState {
+    if self == .read { return self }
+    if candidate == .failed {
+      return self == .queued || self == .sent ? .failed : self
+    }
+    if self == .failed {
+      return candidate == .delivered || candidate == .read ? candidate : self
+    }
+    let progress: [ChatDeliveryState: Int] = [.queued: 0, .sent: 1, .delivered: 2, .read: 3]
+    return (progress[candidate] ?? -1) >= (progress[self] ?? -1) ? candidate : self
+  }
 }
 
 public enum ChatAudience: String, Codable, Sendable {
@@ -134,14 +146,19 @@ public struct HubChatMessage: Codable, Equatable, Identifiable, Sendable {
   public let sentAt: Date
   public let sender: String
   public let text: String
+  public let editedAt: Date?
+  public let deletedAt: Date?
   public let state: ChatDeliveryState
   public let audience: ChatAudience
   public let isFromParent: Bool
 
+  public var isUnreadForParent: Bool { !isFromParent && state != .read }
+  public var displayText: String { deletedAt == nil ? text : "Message deleted" }
+
   public init(
     id: UUID = UUID(), deviceID: String, threadID: UUID = UUID(), sentAt: Date = Date(),
     sender: String, text: String, state: ChatDeliveryState, audience: ChatAudience,
-    isFromParent: Bool
+    isFromParent: Bool, editedAt: Date? = nil, deletedAt: Date? = nil
   ) {
     self.id = id
     self.deviceID = deviceID
@@ -149,6 +166,8 @@ public struct HubChatMessage: Codable, Equatable, Identifiable, Sendable {
     self.sentAt = sentAt
     self.sender = String(sender.prefix(80))
     self.text = String(text.prefix(2_000))
+    self.editedAt = editedAt
+    self.deletedAt = deletedAt
     self.state = state
     self.audience = audience
     self.isFromParent = isFromParent
@@ -187,6 +206,42 @@ public struct ActivityConfiguration: Codable, Equatable, Sendable {
   }
 }
 
+public struct HubBrowserTab: Codable, Equatable, Identifiable, Sendable {
+  public var id: String { "\(deviceID)|\(browser)|\(profileID)|\(origin)|\(title)" }
+  public let deviceID: String
+  public let browser: String
+  public let profileID: String
+  public let title: String
+  public let origin: String
+  public let isActive: Bool
+  public let observedAt: Date
+
+  public init(
+    deviceID: String, browser: String, profileID: String, title: String, origin: String,
+    isActive: Bool, observedAt: Date = Date()
+  ) {
+    self.deviceID = deviceID
+    self.browser = String(browser.lowercased().prefix(40))
+    self.profileID = String(profileID.prefix(80))
+    self.title = String(title.prefix(300))
+    self.origin = String(origin.prefix(500))
+    self.isActive = isActive
+    self.observedAt = observedAt
+  }
+}
+
+public struct BrowserConfiguration: Codable, Equatable, Sendable {
+  public let deviceID: String
+  public let enabled: Bool
+  public let retentionDays: Int
+
+  public init(deviceID: String, enabled: Bool = false, retentionDays: Int = 7) {
+    self.deviceID = deviceID
+    self.enabled = enabled
+    self.retentionDays = max(1, min(retentionDays, 30))
+  }
+}
+
 public enum MoreTimeRequestState: String, Codable, Sendable {
   case pending
   case acknowledged
@@ -215,11 +270,16 @@ public struct MoreTimeRequestRecord: Codable, Equatable, Identifiable, Sendable 
 
 public struct HubStorageSummary: Codable, Equatable, Sendable {
   public let activityRecords: Int
+  public let browserTabRecords: Int
   public let chatMessages: Int
   public let queuedEnvelopes: Int
 
-  public init(activityRecords: Int, chatMessages: Int, queuedEnvelopes: Int) {
+  public init(
+    activityRecords: Int, browserTabRecords: Int = 0, chatMessages: Int,
+    queuedEnvelopes: Int
+  ) {
     self.activityRecords = activityRecords
+    self.browserTabRecords = browserTabRecords
     self.chatMessages = chatMessages
     self.queuedEnvelopes = queuedEnvelopes
   }

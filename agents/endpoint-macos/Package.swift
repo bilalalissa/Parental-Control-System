@@ -11,6 +11,7 @@ let package = Package(
     .executable(name: "ParentalControlAgentDaemon", targets: ["ParentalControlAgentDaemon"]),
     .executable(name: "ParentalControlAgentUser", targets: ["ParentalControlAgentUser"]),
     .executable(name: "ParentalControlAgentCtl", targets: ["ParentalControlAgentCtl"]),
+    .executable(name: "ParentalControlBrowserHost", targets: ["ParentalControlBrowserHost"]),
   ],
   dependencies: [.package(path: "../../apps/controller-macos")],
   targets: [
@@ -26,13 +27,20 @@ let package = Package(
         .linkedFramework("UserNotifications"),
       ]),
     .executableTarget(
-      name: "ParentalControlChild", dependencies: ["EndpointCore"],
+      name: "ParentalControlChild",
+      dependencies: [
+        "EndpointCore", .product(name: "DesignSystem", package: "controller-macos"),
+      ],
       linkerSettings: [.linkedFramework("UserNotifications")]),
     .executableTarget(name: "ParentalControlAgentDaemon", dependencies: ["EndpointCore"]),
     .executableTarget(
       name: "ParentalControlAgentUser", dependencies: ["EndpointCore"],
-      linkerSettings: [.linkedFramework("UserNotifications")]),
+      linkerSettings: [
+        .linkedFramework("AVFoundation"),
+        .linkedFramework("UserNotifications"),
+      ]),
     .executableTarget(name: "ParentalControlAgentCtl", dependencies: ["EndpointCore"]),
+    .executableTarget(name: "ParentalControlBrowserHost", dependencies: ["EndpointCore"]),
     .testTarget(
       name: "EndpointCoreTests",
       dependencies: ["EndpointCore", .product(name: "HubCore", package: "controller-macos")]),

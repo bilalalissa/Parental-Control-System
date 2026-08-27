@@ -8,6 +8,7 @@ public final class EndpointAgent: @unchecked Sendable {
   private let repository: EndpointStatusRepository
   private let log: BoundedLog
   private let identity: Ed25519Identity
+  private let pairedControllerPort: UInt16
   private let onEstablishedConnectionLoss: @Sendable () -> Void
   private var replay = ReplayProtector()
   private let delta = DeltaSnapshotTracker()
@@ -19,21 +20,27 @@ public final class EndpointAgent: @unchecked Sendable {
   private var idleInterval: TimeInterval = 120
   private var pendingPairingMessage: UUID?
   private var lastSentApplications: [EndpointApplicationActivity] = []
+  private var lastSentBrowserTabs: [EndpointBrowserTab] = []
 
   public init(
     store: ProtectedConfigurationStore, repository: EndpointStatusRepository, log: BoundedLog,
     keychain: KeychainStore = KeychainStore(service: "com.bilalalissa.ParentalControlAgent.device"),
     suppliedIdentity: Ed25519Identity? = nil,
+    pairedControllerPort: UInt16 = SecureWebSocketServer.parentControlPort,
     onEstablishedConnectionLoss: @escaping @Sendable () -> Void = {}
   ) throws {
     self.store = store
     self.repository = repository
     self.log = log
+    self.pairedControllerPort = pairedControllerPort
     self.onEstablishedConnectionLoss = onEstablishedConnectionLoss
     let configuration = try store.load()
     repository.configureActivity(
       enabled: configuration.activityCollectionEnabled,
       retentionDays: configuration.activityRetentionDays)
+    repository.configureBrowser(
+      enabled: configuration.browserCollectionEnabled,
+      retentionDays: configuration.browserRetentionDays)
     if let suppliedIdentity {
       identity = suppliedIdentity
     } else {
@@ -57,7 +64,9 @@ public final class EndpointAgent: @unchecked Sendable {
     // Stage 03/04-rc.1 invitations stored an ephemeral hub port. Once paired, migrate
     // transparently to the controller's stable authenticated port so a parent restart does not
     // require unpairing. Active one-time invitations still use the exact advertised port.
-    let port = Self.connectionPort(for: configuration) ?? target.port
+    let port =
+      Self.connectionPort(for: configuration, pairedControllerPort: pairedControllerPort)
+      ?? target.port
     let connection = try SecureWebSocketClient.connect(
       host: target.host, port: port, certificateFingerprint: target.certificateFingerprint)
     peer = connection
@@ -69,9 +78,12 @@ public final class EndpointAgent: @unchecked Sendable {
     connection.start()
   }
 
-  static func connectionPort(for configuration: EndpointConfiguration) -> UInt16? {
+  static func connectionPort(
+    for configuration: EndpointConfiguration,
+    pairedControllerPort: UInt16 = SecureWebSocketServer.parentControlPort
+  ) -> UInt16? {
     if let invitation = configuration.invitation { return invitation.port }
-    if configuration.pairedController != nil { return SecureWebSocketServer.parentControlPort }
+    if configuration.pairedController != nil { return pairedControllerPort }
     return nil
   }
 
@@ -101,7 +113,7 @@ public final class EndpointAgent: @unchecked Sendable {
         .string("presence"), .string("device-info"), .string("uptime"), .string("session-state"),
         .string("network-metadata"), .string("health"), .string("delta-snapshot"),
         .string("receipt"), .string("app-activity"), .string("chat"),
-        .string("request-more-time"), .string("notifications"),
+        .string("browser-tabs"), .string("request-more-time"), .string("notifications"),
       ]),
     ]
     if let code = configuration.invitation?.code, !code.isEmpty {
@@ -135,10 +147,13 @@ public final class EndpointAgent: @unchecked Sendable {
         }
         if let originalText = envelope.payload["originalMessageId"]?.stringValue,
           let original = UUID(uuidString: originalText),
-          let stateText = envelope.payload["state"]?.stringValue,
-          let state = ChatDeliveryState(rawValue: stateText)
+          let stateText = envelope.payload["state"]?.stringValue
         {
-          repository.updateMessageState(original, state: state)
+          if let state = ChatDeliveryState(rawValue: stateText) {
+            repository.updateMessageState(original, state: state)
+          } else if stateText == "accepted" {
+            repository.updateMessageState(original, state: .delivered)
+          }
         }
         repository.update {
           $0.connectionState = .online
@@ -154,9 +169,14 @@ public final class EndpointAgent: @unchecked Sendable {
         scheduleHeartbeat(active: true)
       case .chatMessage:
         try receiveChat(envelope)
+      case .chatMutation:
+        try receiveChatMutation(envelope)
       case .activityConfiguration:
         try receiveActivityConfiguration(envelope)
-      case .activityUpdate, .requestMoreTime, .capabilityAnnounce, .snapshotResponse:
+      case .browserConfiguration:
+        try receiveBrowserConfiguration(envelope)
+      case .activityUpdate, .browserUpdate, .requestMoreTime, .capabilityAnnounce,
+        .snapshotResponse:
         break
       }
     } catch { fail(error) }
@@ -174,6 +194,9 @@ public final class EndpointAgent: @unchecked Sendable {
     refreshed.activityCollectionEnabled = former.activityCollectionEnabled
     refreshed.activityRetentionDays = former.activityRetentionDays
     refreshed.applications = former.applications
+    refreshed.browserCollectionEnabled = former.browserCollectionEnabled
+    refreshed.browserRetentionDays = former.browserRetentionDays
+    refreshed.browserTabs = former.browserTabs
     repository.update { $0 = refreshed }
     let networks: [JSONValue] = refreshed.networks.map { network in
       .object([
@@ -203,7 +226,31 @@ public final class EndpointAgent: @unchecked Sendable {
       ])
     try send(envelope)
     try sendActivityIfChanged(configuration: configuration, status: refreshed)
+    try sendBrowserIfChanged(configuration: configuration, status: refreshed)
     try flushOutbound()
+  }
+
+  private func sendBrowserIfChanged(
+    configuration: EndpointConfiguration, status: EndpointStatus
+  ) throws {
+    let tabs = status.browserCollectionEnabled ? Array(status.browserTabs.prefix(128)) : []
+    lock.lock()
+    let changed = tabs != lastSentBrowserTabs
+    if changed { lastSentBrowserTabs = tabs }
+    lock.unlock()
+    guard changed else { return }
+    let values: [JSONValue] = tabs.map { tab in
+      .object([
+        "browser": .string(tab.browser), "profile": .string(tab.profileID),
+        "title": .string(tab.title), "origin": .string(tab.origin),
+        "isActive": .bool(tab.isActive),
+        "observedAt": .string(ISO8601DateFormatter().string(from: tab.observedAt)),
+      ])
+    }
+    let envelope = try identity.sign(
+      deviceID: configuration.deviceID, sequence: store.nextSequence(), type: .browserUpdate,
+      payload: ["tabs": .array(values)])
+    try send(envelope)
   }
 
   private func sendActivityIfChanged(
@@ -251,6 +298,26 @@ public final class EndpointAgent: @unchecked Sendable {
     log.write(event: "chat.received", detail: "Message metadata received; content omitted")
   }
 
+  private func receiveChatMutation(_ envelope: ProtocolEnvelope) throws {
+    let configuration = try store.load()
+    guard envelope.payload["targetDeviceId"]?.stringValue == configuration.deviceID,
+      let originalText = envelope.payload["originalMessageId"]?.stringValue,
+      let originalID = UUID(uuidString: originalText),
+      let action = envelope.payload["action"]?.stringValue,
+      let mutatedText = envelope.payload["mutatedAt"]?.stringValue,
+      let mutatedAt = ISO8601DateFormatter().date(from: mutatedText),
+      repository.applyParentChatMutation(
+        id: originalID, action: action, text: envelope.payload["text"]?.stringValue,
+        mutatedAt: mutatedAt)
+    else { throw EndpointAgentError.invalidMessage }
+    DistributedNotificationCenter.default().postNotificationName(
+      Notification.Name("com.bilalalissa.ParentalControlAgent.chat-changed"), object: nil,
+      userInfo: nil, deliverImmediately: true)
+    try sendReceipt(for: envelope.id, state: .delivered)
+    try flushOutbound()
+    log.write(event: "chat.mutated", detail: "Message metadata changed; content omitted")
+  }
+
   private func receiveActivityConfiguration(_ envelope: ProtocolEnvelope) throws {
     let configuration = try store.load()
     guard envelope.payload["targetDeviceId"]?.stringValue == configuration.deviceID,
@@ -265,6 +332,22 @@ public final class EndpointAgent: @unchecked Sendable {
       detail: enabled
         ? "Collection enabled with \(max(1, min(retention, 30))) day retention"
         : "Collection disabled")
+  }
+
+  private func receiveBrowserConfiguration(_ envelope: ProtocolEnvelope) throws {
+    let configuration = try store.load()
+    guard envelope.payload["targetDeviceId"]?.stringValue == configuration.deviceID,
+      let enabled = envelope.payload["enabled"]?.boolValue
+    else { throw EndpointAgentError.invalidMessage }
+    let retention = Int(envelope.payload["retentionDays"]?.integerValue ?? 7)
+    try store.setBrowserCollection(enabled: enabled, retentionDays: retention)
+    repository.configureBrowser(enabled: enabled, retentionDays: retention)
+    try sendReceipt(for: envelope.id, state: .delivered)
+    log.write(
+      event: "browser.configuration",
+      detail: enabled
+        ? "Browser metadata enabled with \(max(1, min(retention, 30))) day retention"
+        : "Browser metadata disabled and cleared")
   }
 
   private func sendReceipt(for originalID: UUID, state: ChatDeliveryState) throws {

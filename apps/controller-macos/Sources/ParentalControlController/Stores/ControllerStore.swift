@@ -1,12 +1,13 @@
+import AppKit
 import Foundation
 import HubCore
 import Observation
+import UserNotifications
 
 @MainActor
 @Observable
 final class ControllerStore {
-  var selectedDeviceID: ManagedDevice.ID?
-  var devices: [ManagedDevice]
+  var selectedDeviceID: String?
   var auditEvents: [AuditEvent]
   var chatMessages: [ChatMessage]
   var schedule: ScheduleDraft
@@ -19,21 +20,23 @@ final class ControllerStore {
   var pairingStatusMessage: String?
   var chatStatusMessage: String?
   var activityStatusMessage: String?
+  var browserStatusMessage: String?
 
   private let database: ControllerDatabase
   private let hubClient = HubClient()
   private var hubRefreshTask: Task<Void, Never>?
+  private var knownInboundMessageIDs: Set<UUID> = []
+  private var loadedInitialHubStatus = false
+  private var activityAlertTracker = HubActivityAlertTracker()
 
   init(database: ControllerDatabase) throws {
     self.database = database
     try database.migrate()
-    try database.seedSyntheticDataIfNeeded()
-    devices = try database.loadDevices()
+    try database.removeLegacySyntheticPreviewData()
     auditEvents = try database.loadAuditEvents()
     chatMessages = try database.loadChatMessages()
     schedule = try database.latestSchedule() ?? .standard
     storageSnapshot = try database.storageSnapshot()
-    selectedDeviceID = devices.first?.id
   }
 
   static func live() -> ControllerStore {
@@ -52,14 +55,17 @@ final class ControllerStore {
     }
   }
 
-  var selectedDevice: ManagedDevice? {
-    guard let selectedDeviceID else { return devices.first }
-    return devices.first { $0.id == selectedDeviceID }
+  var selectedPairedDevice: HubDeviceRecord? {
+    guard let selectedDeviceID else { return pairedDevices.first }
+    return pairedDevices.first { $0.id == selectedDeviceID }
   }
 
-  var onlineDeviceCount: Int { devices.filter(\.isOnline).count }
-  var offlineDeviceCount: Int { devices.filter { $0.connectionState == .offline }.count }
-  var approximateDeviceCount: Int { devices.filter { $0.connectionState == .approximate }.count }
+  var onlineDeviceCount: Int { pairedDevices.filter { $0.state() == .online }.count }
+  var offlineDeviceCount: Int { pairedDevices.filter { $0.state() == .offline }.count }
+
+  var unreadChatCount: Int {
+    hubStatus?.chatMessages.filter(\.isUnreadForParent).count ?? 0
+  }
 
   var pairedDevices: [HubDeviceRecord] {
     hubStatus?.devices.filter { !$0.isRevoked } ?? []
@@ -78,29 +84,39 @@ final class ControllerStore {
     hubRefreshTask = Task { [weak self] in
       guard let self else { return }
       do {
-        hubStatus = try await hubClient.status()
+        applyHubStatus(try await hubClient.status())
         hubStatusMessage = "Local hub ready · TLS 1.3 · Authenticated IPC"
       } catch {
         hubStatusMessage = "Local hub unavailable: \(error)"
+        hubRefreshTask = nil
+        return
       }
       while !Task.isCancelled {
         try? await Task.sleep(for: .seconds(5))
         guard !Task.isCancelled else { break }
-        if let status = try? await hubClient.status() {
+        do {
+          let status = try await hubClient.statusIfRunning()
           // Presence is derived from lastSeen plus the current time. Publish every sample even
           // when the stored payload is equal so Online can age into Offline without a click.
-          hubStatus = status
+          applyHubStatus(status)
           hubStatusMessage = "Local hub ready · TLS 1.3 · Authenticated IPC"
+        } catch {
+          hubStatusMessage = "Local hub unavailable: \(error)"
+          hubRefreshTask = nil
+          return
         }
       }
     }
   }
 
   func createPairingInvitation() {
+    pairingStatusMessage =
+      "Starting the local hub. Approve one macOS Keychain request if it appears…"
     Task {
       do {
-        hubStatus = try await hubClient.createPairing()
+        applyHubStatus(try await hubClient.createPairing())
         pairingStatusMessage = "One-time code created. It expires in five minutes."
+        if hubRefreshTask == nil { startHub() }
       } catch {
         pairingStatusMessage = "Could not create pairing code: \(error)"
       }
@@ -110,7 +126,7 @@ final class ControllerStore {
   func revokePairedDevice(_ id: String) {
     Task {
       do {
-        hubStatus = try await hubClient.revoke(deviceID: id)
+        applyHubStatus(try await hubClient.revoke(deviceID: id))
         pairingStatusMessage = "Device revoked. Its active connection was closed."
       } catch {
         pairingStatusMessage = "Could not revoke device: \(error)"
@@ -121,7 +137,7 @@ final class ControllerStore {
   func unpairDevice(_ id: String) {
     Task {
       do {
-        hubStatus = try await hubClient.unpair(deviceID: id)
+        applyHubStatus(try await hubClient.unpair(deviceID: id))
         pairingStatusMessage = "Device pairing record removed."
       } catch {
         pairingStatusMessage = "Could not unpair device: \(error)"
@@ -137,16 +153,19 @@ final class ControllerStore {
     Task {
       var latest = hubStatus
       var failures = 0
+      var accepted = 0
       for deviceID in deviceIDs {
         do {
           latest = try await hubClient.sendChat(
             deviceID: deviceID, text: trimmed, audience: audience.hubAudience,
             threadID: threadID)
+          accepted += 1
         } catch {
           failures += 1
         }
       }
-      if let latest { hubStatus = latest }
+      if let latest { applyHubStatus(latest) }
+      if accepted > 0 { NSSound.beep() }
       chatStatusMessage =
         failures == 0
         ? "Message secured locally for \(deviceIDs.count) device\(deviceIDs.count == 1 ? "" : "s")."
@@ -154,11 +173,37 @@ final class ControllerStore {
     }
   }
 
+  func editParentChatMessage(id: UUID, text: String) {
+    let trimmed = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(2_000))
+    guard !trimmed.isEmpty else { return }
+    Task {
+      do {
+        applyHubStatus(try await hubClient.editChat(messageID: id, text: trimmed))
+        chatStatusMessage = "Message edited securely."
+      } catch {
+        chatStatusMessage = "Message could not be edited: \(error)"
+      }
+    }
+  }
+
+  func deleteParentChatMessage(id: UUID) {
+    Task {
+      do {
+        applyHubStatus(try await hubClient.deleteChat(messageID: id))
+        chatStatusMessage = "Message deleted from the family conversation."
+      } catch {
+        chatStatusMessage = "Message could not be deleted: \(error)"
+      }
+    }
+  }
+
   func configureActivity(deviceID: String, enabled: Bool, retentionDays: Int) {
     Task {
       do {
-        hubStatus = try await hubClient.configureActivity(
-          deviceID: deviceID, enabled: enabled, retentionDays: retentionDays)
+        applyHubStatus(
+          try await hubClient.configureActivity(
+            deviceID: deviceID, enabled: enabled, retentionDays: retentionDays)
+        )
         activityStatusMessage =
           enabled
           ? "Application-name collection enabled with \(retentionDays)-day retention."
@@ -166,6 +211,69 @@ final class ControllerStore {
       } catch {
         activityStatusMessage = "Could not update activity collection: \(error)"
       }
+    }
+  }
+
+  func configureBrowser(deviceID: String, enabled: Bool, retentionDays: Int) {
+    Task {
+      do {
+        applyHubStatus(
+          try await hubClient.configureBrowser(
+            deviceID: deviceID, enabled: enabled, retentionDays: retentionDays))
+        browserStatusMessage =
+          enabled
+          ? "Browser title/origin sharing enabled with \(retentionDays)-day retention."
+          : "Browser sharing disabled; retained tab metadata was removed."
+      } catch {
+        browserStatusMessage = "Could not update browser sharing: \(error)"
+      }
+    }
+  }
+
+  func markChatRead(deviceIDs: [String], audience: ChatAudience) {
+    guard !deviceIDs.isEmpty else { return }
+    Task {
+      var latest = hubStatus
+      for deviceID in deviceIDs {
+        if let status = try? await hubClient.markChatRead(deviceID: deviceID, audience: audience) {
+          latest = status
+        }
+      }
+      if let latest { applyHubStatus(latest) }
+    }
+  }
+
+  private func applyHubStatus(_ status: LocalHubStatus?) {
+    guard let status else { return }
+    let inbound = status.chatMessages.filter { !$0.isFromParent }
+    let inboundIDs = Set(inbound.map(\.id))
+    if loadedInitialHubStatus {
+      for message in inbound where !knownInboundMessageIDs.contains(message.id) {
+        let content = UNMutableNotificationContent()
+        content.title = "Message from a child device"
+        content.body = "Open Parental Control to read it."
+        content.sound = .default
+        UNUserNotificationCenter.current().add(
+          UNNotificationRequest(identifier: message.id.uuidString, content: content, trigger: nil))
+      }
+    }
+    knownInboundMessageIDs = inboundIDs
+    loadedInitialHubStatus = true
+    for alert in activityAlertTracker.newlyAlertingObservations(
+      activity: status.activity, tabs: status.browserTabs)
+    {
+      let content = UNMutableNotificationContent()
+      content.title =
+        alert.kind == .youtube ? "YouTube activity detected" : "Possible game activity detected"
+      content.body = "Open Parental Control to review shared activity."
+      content.sound = .default
+      UNUserNotificationCenter.current().add(
+        UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    }
+    hubStatus = status
+    let availableIDs = Set(status.devices.filter { !$0.isRevoked }.map(\.id))
+    if selectedDeviceID == nil || !availableIDs.contains(selectedDeviceID ?? "") {
+      selectedDeviceID = status.devices.first { !$0.isRevoked }?.id
     }
   }
 

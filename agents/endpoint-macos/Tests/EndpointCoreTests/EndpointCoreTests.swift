@@ -19,7 +19,8 @@ struct EndpointCoreTests {
     let controllerIdentity = try Ed25519Identity(keyID: "controller-local-authority")
     let hub = try LocalHub(
       database: database, tlsIdentity: tls, controllerIdentity: controllerIdentity,
-      heartbeat: AdaptiveHeartbeat(activeInterval: 1, idleInterval: 2, offlineAfter: 4))
+      heartbeat: AdaptiveHeartbeat(activeInterval: 1, idleInterval: 2, offlineAfter: 4),
+      listeningPort: 0)
     defer { hub.stop() }
     let ready = DispatchSemaphore(value: 0)
     let paired = DispatchSemaphore(value: 0)
@@ -31,7 +32,7 @@ struct EndpointCoreTests {
     try hub.start(advertiseBonjour: false)
     #expect(ready.wait(timeout: .now() + 5) == .success)
     let issued = try hub.createPairingInvitation(code: "314159")
-    #expect(issued.port == SecureWebSocketServer.parentControlPort)
+    #expect(issued.port > 0)
     let invitation = PairingInvitation(
       code: issued.code, expiresAt: issued.expiresAt, host: "127.0.0.1", port: issued.port,
       certificateFingerprint: issued.certificateFingerprint,
@@ -67,7 +68,7 @@ struct EndpointCoreTests {
     let familyThread = UUID()
     repository.queueChat(text: "Child reply", audience: .familyGroup, threadID: familyThread)
     repository.queueMoreTime(minutes: 20, note: "Finish homework")
-    try hub.sendChat(
+    let parentMessageID = try hub.sendChat(
       deviceID: configuration.deviceID, text: "Family announcement", audience: .familyGroup,
       threadID: familyThread)
     let chatDeadline = Date().addingTimeInterval(5)
@@ -88,6 +89,28 @@ struct EndpointCoreTests {
       })
     #expect(try database.chatMessages().contains { !$0.isFromParent && $0.text == "Child reply" })
     #expect(try database.moreTimeRequests().first?.requestedMinutes == 20)
+    try hub.editParentChatMessage(id: parentMessageID, text: "Corrected family announcement")
+    let editDeadline = Date().addingTimeInterval(3)
+    while Date() < editDeadline,
+      repository.dashboard(markRead: false).messages.first(where: { $0.id == parentMessageID })?
+        .text != "Corrected family announcement"
+    {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(
+      repository.dashboard(markRead: false).messages.first { $0.id == parentMessageID }?.editedAt
+        != nil)
+    try hub.deleteParentChatMessage(id: parentMessageID)
+    let deleteDeadline = Date().addingTimeInterval(3)
+    while Date() < deleteDeadline,
+      repository.dashboard(markRead: false).messages.first(where: { $0.id == parentMessageID })?
+        .deletedAt == nil
+    {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(
+      repository.dashboard(markRead: false).messages.first { $0.id == parentMessageID }?.displayText
+        == "Message deleted")
     let deviceBeforeRestart = try database.device(id: configuration.deviceID)
     let sequenceBeforeRestart = try #require(deviceBeforeRestart).lastSequence
     agent.stop()
@@ -96,18 +119,22 @@ struct EndpointCoreTests {
 
     let restartedHub = try LocalHub(
       database: database, tlsIdentity: tls, controllerIdentity: controllerIdentity,
-      heartbeat: AdaptiveHeartbeat(activeInterval: 1, idleInterval: 2, offlineAfter: 4))
+      heartbeat: AdaptiveHeartbeat(activeInterval: 1, idleInterval: 2, offlineAfter: 4),
+      listeningPort: 0)
     defer { restartedHub.stop() }
     let restartedReady = DispatchSemaphore(value: 0)
     restartedHub.onStatusChange = { status in
-      if status.port == SecureWebSocketServer.parentControlPort { restartedReady.signal() }
+      if status.port != 0 { restartedReady.signal() }
     }
     try restartedHub.start(advertiseBonjour: false)
     #expect(restartedReady.wait(timeout: .now() + 5) == .success)
+    let restartedPort = try restartedHub.status().port
+    #expect(restartedPort > 0)
 
     let restartedAgent = try EndpointAgent(
       store: store, repository: repository,
-      log: BoundedLog(directory: logDirectory), suppliedIdentity: deviceIdentity)
+      log: BoundedLog(directory: logDirectory), suppliedIdentity: deviceIdentity,
+      pairedControllerPort: restartedPort)
     defer { restartedAgent.stop() }
     try restartedAgent.start()
     let reconnectDeadline = Date().addingTimeInterval(5)
@@ -131,6 +158,7 @@ struct EndpointCoreTests {
     let paired = EndpointConfiguration(pairedController: legacy)
     #expect(
       EndpointAgent.connectionPort(for: paired) == SecureWebSocketServer.parentControlPort)
+    #expect(EndpointAgent.connectionPort(for: paired, pairedControllerPort: 61_235) == 61_235)
 
     let active = EndpointConfiguration(invitation: legacy)
     #expect(EndpointAgent.connectionPort(for: active) == 61_234)
@@ -298,5 +326,116 @@ struct EndpointCoreTests {
     let request = repository.drainOutbound().last
     #expect(request?.payload["minutes"] == .integer(240))
     #expect(request?.payload["note"]?.stringValue?.count == 500)
+  }
+
+  @Test("browser metadata is opt-in, bounded, sanitized, and host-authenticated")
+  func stage05BrowserPrivacyBoundary() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+      UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = ProtectedConfigurationStore(root: root)
+    #expect(try store.load().browserCollectionEnabled == false)
+    try store.setBrowserCollection(enabled: true, retentionDays: 999)
+    #expect(try store.load().browserCollectionEnabled == true)
+    #expect(try store.load().browserRetentionDays == 30)
+
+    let tabs = (0..<150).map { index in
+      BrowserNativeTab(
+        title: String(repeating: "T", count: 400),
+        origin: index == 0
+          ? "https://Example.COM:8443/private/path?token=secret#fragment"
+          : "https://example(index).test/account?secret=value",
+        active: index == 0)
+    }
+    let update = try #require(
+      BrowserNativeRequest(type: "tabs.update", browser: "chrome", profile: "profile", tabs: tabs)
+        .validatedUpdate(expectedBrowser: "chrome"))
+    #expect(update.tabs.count == BrowserNativeMessaging.maximumTabs)
+    #expect(update.tabs[0].title.count == 300)
+    #expect(update.tabs[0].origin == "https://example.com:8443")
+    #expect(update.tabs.allSatisfy { !$0.origin.contains("?") && !$0.origin.contains("#") })
+    #expect(
+      EndpointBrowserTab.sanitizedOrigin(
+        "https://www.youtube.com/watch?v=private-video-id") == "https://www.youtube.com")
+    #expect(
+      EndpointBrowserTab.sanitizedOrigin(
+        "https://games.example.test/play/session?token=secret")
+        == "https://games.example.test")
+    #expect(
+      BrowserNativeRequest(
+        type: "tabs.update", browser: "edge", profile: "profile", tabs: tabs
+      ).validatedUpdate(expectedBrowser: "chrome") == nil)
+
+    #expect(
+      BrowserCallerAuthorization.expectedBrowser(
+        origin: BrowserNativeMessaging.allowedOrigin,
+        executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        signingIdentifier: "com.google.Chrome", teamIdentifier: "EQHXZ8M8AV",
+        signatureValid: true) == "chrome")
+    #expect(
+      BrowserCallerAuthorization.expectedBrowser(
+        origin: "chrome-extension://untrusted/",
+        executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        signingIdentifier: "com.google.Chrome", teamIdentifier: "EQHXZ8M8AV",
+        signatureValid: true) == nil)
+    #expect(
+      BrowserCallerAuthorization.expectedBrowser(
+        origin: BrowserNativeMessaging.allowedOrigin,
+        executablePath: "/tmp/Google Chrome", signingIdentifier: "com.google.Chrome",
+        teamIdentifier: "EQHXZ8M8AV", signatureValid: true) == nil)
+    #expect(
+      BrowserCallerAuthorization.expectedBrowser(
+        origin: BrowserNativeMessaging.allowedOrigin, executablePath: "/Applications/Arc.app",
+        signingIdentifier: "company.thebrowser.Browser", teamIdentifier: "S6N382Y83G",
+        signatureValid: true) == "arc")
+    #expect(
+      BrowserCallerAuthorization.expectedBrowser(
+        origin: BrowserNativeMessaging.allowedOrigin,
+        executablePath: "/Applications/Arc.app/Contents/Frameworks/Arc Helper.app",
+        signingIdentifier: "company.thebrowser.Browser.helper", teamIdentifier: "UNTRUSTED",
+        signatureValid: true) == nil)
+    #expect(
+      XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.browserHostIdentifier,
+        operation: "browser-update"))
+    #expect(
+      !XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.browserHostIdentifier,
+        operation: "send-chat"))
+  }
+
+  @Test("chat read receipts require explicit conversation visibility")
+  func stage05ExplicitReadReceipt() {
+    let repository = EndpointStatusRepository(
+      initial: DeviceSnapshotCollector.collect(deviceID: "synthetic-stage05"))
+    let message = EndpointChatMessage(
+      sender: "Parent", text: "Synthetic message", state: .delivered, isFromParent: true)
+    let outgoing = EndpointChatMessage(
+      sender: "Child", text: "Synthetic reply", state: .delivered, isFromParent: false)
+    #expect([message, outgoing].filter(\.isUnreadFromParent).count == 1)
+    repository.receiveChat(message)
+    #expect(repository.dashboard(markRead: false).messages.first?.state == .delivered)
+    #expect(repository.drainOutbound().isEmpty)
+    #expect(repository.markParentMessagesRead() == 1)
+    #expect(repository.dashboard(markRead: false).messages.first?.state == .read)
+    #expect(repository.dashboard(markRead: false).messages.filter(\.isUnreadFromParent).isEmpty)
+    let receipt = repository.drainOutbound().first
+    #expect(receipt?.kind == .receipt)
+    #expect(receipt?.payload["originalMessageId"] == .string(message.id.uuidString))
+    #expect(receipt?.payload["state"] == .string(ChatDeliveryState.read.rawValue))
+    repository.updateMessageState(message.id, state: .delivered)
+    #expect(repository.dashboard(markRead: false).messages.first?.state == .read)
+    #expect(repository.markParentMessagesRead() == 0)
+
+    #expect(
+      repository.applyParentChatMutation(
+        id: message.id, action: "edit", text: "Corrected", mutatedAt: Date()))
+    #expect(repository.dashboard(markRead: false).messages.first?.text == "Corrected")
+    #expect(repository.dashboard(markRead: false).messages.first?.editedAt != nil)
+    #expect(
+      repository.applyParentChatMutation(
+        id: message.id, action: "delete", text: nil, mutatedAt: Date()))
+    #expect(repository.dashboard(markRead: false).messages.first?.displayText == "Message deleted")
+    #expect(repository.dashboard(markRead: false).messages.first?.text.isEmpty == true)
   }
 }

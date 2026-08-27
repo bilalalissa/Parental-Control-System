@@ -1,12 +1,15 @@
+import AVFoundation
 import AppKit
 import EndpointCore
 import Foundation
-import UserNotifications
 
 final class SessionReporter: NSObject, @unchecked Sendable {
   private let client = EndpointXPCClient()
   private var timer: Timer?
   private var currentState: EndpointSessionState = .active
+  private let speechSynthesizer = AVSpeechSynthesizer()
+  private var knownParentMessageIDs: Set<UUID> = []
+  private var messagesPrimed = false
   func start() {
     let center = NSWorkspace.shared.notificationCenter
     center.addObserver(
@@ -29,6 +32,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       name: Notification.Name("com.bilalalissa.ParentalControlAgent.chat-received"), object: nil)
     report(.active)
     reportApplications()
+    primeMessages()
     timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
       guard let self else { return }
       report(currentState)
@@ -44,12 +48,38 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   }
   @objc private func applicationsChanged() { reportApplications() }
   @objc private func chatReceived() {
-    let content = UNMutableNotificationContent()
-    content.title = "Message from your parent"
-    content.body = "Open Parental Control to read it."
-    content.sound = .default
-    UNUserNotificationCenter.current().add(
-      UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    // A raw LaunchAgent has no application bundle registration for UserNotifications. Calling
+    // UNUserNotificationCenter.current() here asserts on macOS and makes launchd crash-loop the
+    // helper. Use the ordinary sound-effects path; the visible child app owns notification UI.
+    NSSound.beep()
+    speakNewAnnouncements()
+  }
+  private func primeMessages() {
+    client.fetchDashboard { [weak self] result in
+      guard let self, case .success(let dashboard) = result else { return }
+      knownParentMessageIDs = Set(dashboard.messages.filter(\.isFromParent).map(\.id))
+      messagesPrimed = true
+    }
+  }
+  private func speakNewAnnouncements() {
+    client.fetchDashboard { [weak self] result in
+      guard let self, case .success(let dashboard) = result else { return }
+      let parentMessages = dashboard.messages.filter { $0.isFromParent }
+      let candidates: [EndpointChatMessage]
+      if messagesPrimed {
+        candidates = parentMessages.filter { !knownParentMessageIDs.contains($0.id) }
+      } else {
+        candidates = parentMessages.filter { Date().timeIntervalSince($0.sentAt) < 30 }
+      }
+      knownParentMessageIDs.formUnion(parentMessages.map(\.id))
+      messagesPrimed = true
+      for message in candidates where message.audience == .announcement && message.deletedAt == nil
+      {
+        let utterance = AVSpeechUtterance(string: message.text)
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        speechSynthesizer.speak(utterance)
+      }
+    }
   }
   private func report(_ state: EndpointSessionState) {
     client.updateSession(

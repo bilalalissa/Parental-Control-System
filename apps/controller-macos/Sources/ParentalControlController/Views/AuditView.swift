@@ -8,7 +8,7 @@ struct AuditView: View {
       ScreenHeader(
         title: "Audit",
         subtitle:
-          "Bounded synthetic events. Message content and secrets never belong in audit metadata."
+          "Bounded local events. Message content and secrets never belong in audit metadata."
       )
       .padding(24)
 
@@ -35,6 +35,13 @@ struct AuditView: View {
         }
       }
       .listStyle(.inset)
+      .overlay {
+        if events.isEmpty {
+          ContentUnavailableView(
+            "No audit events", systemImage: "checkmark.shield",
+            description: Text("Authenticated controller events will appear here."))
+        }
+      }
     }
     .navigationTitle("Audit")
     .accessibilityIdentifier(AccessibilityID.audit.rawValue)

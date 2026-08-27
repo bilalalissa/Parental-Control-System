@@ -2,6 +2,89 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.5.0-rc.9 — 2026-08-26
+
+Status: **STAGE-05 merged after developer physical retest and approval**
+
+- Replaces the legacy synthetic-device sidebar plus separate bottom paired-device panel with one canonical real paired-device sidebar/detail workflow.
+- Removes only the exact fixed Stage-01 preview rows from upgraded controller databases; synthetic fixtures remain available to tests and explicit mock tooling.
+- Adds one native `DesignSystem` target shared by the Parent Controller and visible Child app, with near-black navy surfaces, warm coral emphasis, monospaced editorial headings, restrained borders, and preserved native accessibility behavior.
+- Applies the corresponding self-contained visual language to the visible Chromium extension popup without changing its permissions, collection, identity, or privacy behavior.
+- Developer physical retest passed and `0.5.0-rc.9` received exact Stage-05 approval.
+
+## 0.5.0-rc.8 — 2026-08-26
+
+Status: **STAGE-05 ready for developer retest**
+
+- Delivers incoming child-chat feedback through the visible child app's ordinary macOS notification banner and default system sound while silently priming existing history and leaving the stable raw LaunchAgent free of notification-center calls.
+- Gives application and retained browser-tab observations independent bounded vertical scrolling with visible indicators instead of truncating each list to eight rows.
+- Classifies observed YouTube origins and conservative game origins/app identities, displays truthful inline alert badges, and emits generic parent notifications with a per-device/per-kind thirty-minute cooldown.
+- Keeps notification content generic and continues to exclude message text, full URLs, page content, private tabs, logs, screenshots, and microphone capture.
+
+## 0.5.0-rc.7 — 2026-08-23
+
+Status: **STAGE-05 ready for developer retest**
+
+- Removes unsupported `UNUserNotificationCenter` access from the raw logged-in LaunchAgent, fixing the physically confirmed ten-second crash loop while retaining system sound and automatic local speech for typed announcements.
+- Adds an installed-helper survival check to CI so packaging cannot pass while session/application collection is unavailable.
+- Retains a bounded, deduplicated list of recently observed open-tab title/origin pairs with configurable one-to-thirty-day retention; this does not import browser history or collect full URLs/content.
+- Adds explicit YouTube and ordinary HTTPS game-origin coverage and labels active state honestly as active when observed.
+
+## 0.5.0-rc.6 — 2026-08-16
+
+Status: **STAGE-05 ready for developer retest**
+
+- Fixes the physical rc.5 failure where the controller's three-second helper-readiness deadline expired and terminated the helper while macOS was still displaying the first-use Keychain authorization dialog.
+- Gives the one in-flight helper launch a bounded 90-second, asynchronous human-response grace period while retaining immediate failure when the helper actually exits.
+- Keeps passive polling non-launching, preserves existing Keychain items and pairings, and shows an explicit waiting-for-Keychain status during pairing-code creation.
+
+## 0.5.0-rc.5 — 2026-08-16
+
+Status: **STAGE-05 ready for developer retest**
+
+- Stops the Parent Controller's passive five-second status refresh from relaunching a failed or authorization-denied hub, eliminating the reproduced unbounded Keychain password prompt loop.
+- Keeps one bounded hub start on app launch and permits a later retry only after an explicit parent action or app relaunch; cancelling an authorization request now leaves the hub unavailable without generating more prompts.
+- Supports one stable local Apple Development signing identity for physical-device candidates so approved Keychain access can survive subsequent rebuilt installers, while retaining credential-free ad-hoc signing as the CI fallback.
+- Preserves existing controller Keychain items, pairings, and local family data; this repair does not reset or delete credentials.
+
+## 0.5.0-rc.4 — 2026-08-16
+
+Status: **STAGE-05 ready for developer retest**
+
+- Fixes the physically reproduced Parent Controller race in which concurrent initial status and pairing-code requests could launch two hub helpers with different ephemeral IPC keys.
+- Coalesces concurrent hub startup requests into one launch, accepts a runtime file only when its process ID belongs to that launch, and terminates/clears a failed launch before a bounded retry.
+- Adds focused concurrency and retry regression tests while preserving the rc.3 browser, chat, speech, unread, mutation, and presence behavior.
+
+## 0.5.0-rc.3 — 2026-08-16
+
+Status: **STAGE-05 ready for developer retest**
+
+- Replaces the child segmented-tab badge with an explicit accessible red unread counter and refreshes the visible child immediately when chat changes.
+- Adds a macOS sound-effects fallback for child arrivals and speaks typed parent announcements once through local system speech without recording or creating audio files.
+- Makes parent unread clearing conversation-specific and discoverable with per-audience/per-device counts plus automatic selection of an unread conversation.
+- Adds authenticated, signed, replay-protected, parent-only edit/delete mutations with durable `Edited` and `Message deleted` state; logs and audits omit message content.
+- Fixes exact app-bundle-path authorization, adds vendor Team ID validation, installs Arc's per-user native-host manifest, and uses the host-authenticated browser name for Chrome, Edge, or Arc.
+- Preserves the developer-confirmed automatic online/offline detection and bounded reconnect behavior.
+
+## 0.5.0-rc.2 — 2026-08-16
+
+Status: **STAGE-05 ready for developer retest**
+
+- Adds a short system alert confirmation after the parent or child sender successfully queues a chat message.
+- Registers foreground notification delegates in both the visible child app and its logged-in helper so permitted arrival notifications can present their default sound while the app is open.
+- Adds a persistent red unread counter to the Parent Controller Chat sidebar item and the child Chat tab, derived only from incoming messages that have not reached the Read state.
+- Preserves the confirmed automatic child Online/Offline status behavior without changing presence or reconnect logic.
+
+## 0.5.0-rc.1 — 2026-08-16
+
+Status: **STAGE-05 ready for developer test**
+
+- Adds one shared visible Manifest V3 Chrome/Edge extension and one packaged ZIP with a stable extension identity and explicit minimal permissions.
+- Adds a universal macOS native-messaging host with exact extension-origin, browser signing/path, installed-host signing/path, and authenticated XPC checks.
+- Adds opt-in, bounded, short-retention tab-title and query-free-origin metadata; private tabs, page content, paths, queries, fragments, forms, cookies, passwords, and network traffic remain excluded.
+- Adds generic system-controlled arrival sound for both receiver directions and explicit conversation-visible Read receipts, while preserving content-free logs, audit rows, and notification diagnostics.
+- Adds controller/child disclosures and controls, local SQLite migration/pruning, protocol types, installer/uninstaller integration, and privacy/security regression coverage.
+
 ## 0.4.0-rc.5 — 2026-08-16
 
 Status: **STAGE-04 merged**

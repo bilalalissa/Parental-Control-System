@@ -4,11 +4,13 @@ import Security
 
 enum HubClientError: Error, CustomStringConvertible {
   case helperMissing
+  case helperNotRunning
   case keyUnavailable
 
   var description: String {
     switch self {
     case .helperMissing: "The local hub helper is not included in this build"
+    case .helperNotRunning: "The local hub stopped; use an explicit action to restart it"
     case .keyUnavailable: "The local hub IPC key is unavailable"
     }
   }
@@ -16,11 +18,37 @@ enum HubClientError: Error, CustomStringConvertible {
 
 @MainActor
 final class HubClient {
+  // A first launch after a signing change can block in SecurityAgent while the adult reads and
+  // answers a Keychain prompt. Keep the UI asynchronous, but do not kill that helper on the old
+  // three-second machine-only readiness deadline.
+  static let helperStartupPollMilliseconds = 100
+  static let helperStartupPollCount = 900
+
   private var helperProcess: Process?
   private var ipcKey: Data?
+  private let startupCoordinator = HubStartupCoordinator()
 
   func ensureRunning() async throws {
-    if helperProcess?.isRunning == true, ipcKey != nil, (try? HubRuntime.read()) != nil { return }
+    if let process = helperProcess,
+      process.isRunning,
+      ipcKey != nil,
+      let runtime = try? HubRuntime.read(),
+      runtime.processID == process.processIdentifier
+    {
+      return
+    }
+    try await startupCoordinator.run { [weak self] in
+      guard let self else { throw AuthenticatedIPCError.timeout }
+      try await self.launchHelper()
+    }
+  }
+
+  private func launchHelper() async throws {
+    if let existing = helperProcess {
+      if existing.isRunning { existing.terminate() }
+      helperProcess = nil
+      ipcKey = nil
+    }
     let candidates = [
       Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/ParentalControlHub"),
       Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent(
@@ -51,15 +79,31 @@ final class HubClient {
     try input.fileHandleForWriting.close()
     helperProcess = process
     ipcKey = bytes
-    for _ in 0..<30 {
-      if (try? HubRuntime.read()) != nil { return }
-      try await Task.sleep(for: .milliseconds(100))
+    for _ in 0..<Self.helperStartupPollCount {
+      if let runtime = try? HubRuntime.read(), runtime.processID == process.processIdentifier {
+        return
+      }
+      if !process.isRunning { break }
+      try await Task.sleep(for: .milliseconds(Self.helperStartupPollMilliseconds))
+    }
+    if process.isRunning { process.terminate() }
+    if let runtime = try? HubRuntime.read(), runtime.processID == process.processIdentifier {
+      try? FileManager.default.removeItem(at: HubRuntime.defaultURL())
+    }
+    if helperProcess === process {
+      helperProcess = nil
+      ipcKey = nil
     }
     throw AuthenticatedIPCError.timeout
   }
 
   func status() async throws -> LocalHubStatus? {
     try await request(.status)
+  }
+
+  func statusIfRunning() async throws -> LocalHubStatus? {
+    let (runtime, key) = try currentSession()
+    return try await send(.status, runtime: runtime, key: key)
   }
 
   func createPairing() async throws -> LocalHubStatus? {
@@ -85,6 +129,17 @@ final class HubClient {
       ])
   }
 
+  func editChat(messageID: UUID, text: String) async throws -> LocalHubStatus? {
+    try await request(
+      .editChat,
+      payload: ["messageId": .string(messageID.uuidString), "text": .string(text)])
+  }
+
+  func deleteChat(messageID: UUID) async throws -> LocalHubStatus? {
+    try await request(
+      .deleteChat, payload: ["messageId": .string(messageID.uuidString)])
+  }
+
   func configureActivity(
     deviceID: String, enabled: Bool, retentionDays: Int
   ) async throws -> LocalHubStatus? {
@@ -93,6 +148,22 @@ final class HubClient {
       payload: [
         "enabled": .bool(enabled), "retentionDays": .integer(Int64(retentionDays)),
       ])
+  }
+
+  func configureBrowser(
+    deviceID: String, enabled: Bool, retentionDays: Int
+  ) async throws -> LocalHubStatus? {
+    try await request(
+      .configureBrowser, deviceID: deviceID,
+      payload: [
+        "enabled": .bool(enabled), "retentionDays": .integer(Int64(retentionDays)),
+      ])
+  }
+
+  func markChatRead(deviceID: String, audience: ChatAudience) async throws -> LocalHubStatus? {
+    try await request(
+      .markChatRead, deviceID: deviceID,
+      payload: ["audience": .string(audience.rawValue)])
   }
 
   func stop() {
@@ -110,12 +181,53 @@ final class HubClient {
     -> LocalHubStatus?
   {
     try await ensureRunning()
-    let runtime = try HubRuntime.read()
+    let (runtime, key) = try currentSession()
+    return try await send(
+      command, deviceID: deviceID, payload: payload, runtime: runtime, key: key)
+  }
+
+  private func currentSession() throws -> (HubRuntimeInfo, Data) {
+    guard let process = helperProcess, process.isRunning,
+      let runtime = try? HubRuntime.read(),
+      runtime.processID == process.processIdentifier
+    else { throw HubClientError.helperNotRunning }
     guard let key = ipcKey else { throw HubClientError.keyUnavailable }
+    return (runtime, key)
+  }
+
+  private func send(
+    _ command: IPCCommand,
+    deviceID: String? = nil,
+    payload: [String: JSONValue] = [:],
+    runtime: HubRuntimeInfo,
+    key: Data
+  ) async throws -> LocalHubStatus? {
     return try await Task.detached {
       try AuthenticatedIPCClient.send(
         command: command, deviceID: deviceID, payload: payload,
         port: runtime.ipcPort, key: key)
     }.value
+  }
+}
+
+@MainActor
+final class HubStartupCoordinator {
+  private var startupTask: Task<Void, Error>?
+
+  func run(
+    _ operation: @escaping @MainActor @Sendable () async throws -> Void
+  ) async throws {
+    if let startupTask {
+      return try await startupTask.value
+    }
+    let task = Task { @MainActor in try await operation() }
+    startupTask = task
+    do {
+      try await task.value
+      startupTask = nil
+    } catch {
+      startupTask = nil
+      throw error
+    }
   }
 }

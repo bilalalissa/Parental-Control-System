@@ -141,6 +141,16 @@ struct PairingAndPersistenceTests {
     #expect(try database.chatMessages().count == 2)
     #expect(try database.chatMessages().allSatisfy { $0.state == .queued })
     #expect(try database.chatMessages().allSatisfy { $0.threadID == thread })
+    let mutable = try #require(try database.chatMessages().first)
+    let editedAt = Date()
+    try database.mutateParentChatMessage(
+      id: mutable.id, text: "Corrected family check-in", editedAt: editedAt, deletedAt: nil)
+    #expect(try database.chatMessages().first { $0.id == mutable.id }?.editedAt != nil)
+    try database.mutateParentChatMessage(
+      id: mutable.id, text: "", editedAt: editedAt, deletedAt: Date())
+    let deleted = try #require(try database.chatMessages().first { $0.id == mutable.id })
+    #expect(deleted.displayText == "Message deleted")
+    #expect(deleted.text.isEmpty)
 
     try database.saveActivityConfiguration(
       ActivityConfiguration(deviceID: "child-one", enabled: true, retentionDays: 1))
@@ -160,6 +170,89 @@ struct PairingAndPersistenceTests {
       ActivityConfiguration(deviceID: "child-one", enabled: false, retentionDays: 1))
     #expect(try database.activity().isEmpty)
     #expect(try database.storageSummary().queuedEnvelopes == 2)
+  }
+
+  @Test("recent open-tab observations are bounded, deduplicated, retained, and cleared")
+  func stage05BrowserPersistence() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let database = try HubDatabase(path: fixture.path)
+    try database.saveBrowserConfiguration(
+      BrowserConfiguration(deviceID: "child-browser", enabled: true, retentionDays: 1))
+    let records = (0..<150).map { index in
+      HubBrowserTab(
+        deviceID: "child-browser", browser: index.isMultiple(of: 2) ? "chrome" : "edge",
+        profileID: "synthetic-profile", title: "Tab \(index)",
+        origin: "https://example\(index).test", isActive: index == 0,
+        observedAt: index == 0 ? Date().addingTimeInterval(-2 * 86_400) : Date())
+    }
+    try database.saveBrowserObservations(records, for: "child-browser")
+    #expect(try database.browserTabs().count == HubDatabase.maximumBrowserTabsPerDevice)
+
+    let recentlyClosed = HubBrowserTab(
+      deviceID: "child-browser", browser: "arc", profileID: "synthetic-profile",
+      title: "Recently observed game", origin: "https://games.example.test", isActive: false)
+    try database.saveBrowserObservations([recentlyClosed], for: "child-browser")
+    #expect(try database.browserTabs().contains { $0.title == "Recently observed game" })
+    let updatedObservation = HubBrowserTab(
+      deviceID: "child-browser", browser: "arc", profileID: "synthetic-profile",
+      title: "Recently observed game", origin: "https://games.example.test", isActive: true,
+      observedAt: Date().addingTimeInterval(1))
+    try database.saveBrowserObservations([updatedObservation], for: "child-browser")
+    let gameRecords = try database.browserTabs().filter {
+      $0.title == "Recently observed game"
+    }
+    #expect(gameRecords.count == 1)
+    #expect(gameRecords[0].isActive)
+
+    try database.pruneActivity(now: Date())
+    #expect(try database.browserTabs().allSatisfy { $0.title != "Tab 0" })
+    #expect(try database.storageSummary().browserTabRecords == 128)
+
+    try database.saveBrowserConfiguration(
+      BrowserConfiguration(deviceID: "child-browser", enabled: false, retentionDays: 7))
+    #expect(try database.browserTabs().isEmpty)
+    let configuration = try #require(
+      database.browserConfigurations().first { $0.deviceID == "child-browser" })
+    #expect(configuration.enabled == false)
+    #expect(configuration.retentionDays == 7)
+  }
+
+  @Test("recent open-tab observation history has a hard per-device cap")
+  func stage05BrowserObservationCap() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let database = try HubDatabase(path: fixture.path)
+    try database.saveBrowserConfiguration(
+      BrowserConfiguration(deviceID: "child-browser", enabled: true, retentionDays: 7))
+    for batch in 0..<5 {
+      let records = (0..<HubDatabase.maximumBrowserTabsPerDevice).map { index in
+        HubBrowserTab(
+          deviceID: "child-browser", browser: "arc", profileID: "profile-\(batch)",
+          title: "Observed \(batch)-\(index)", origin: "https://game\(batch)-\(index).test",
+          isActive: index == 0, observedAt: Date().addingTimeInterval(TimeInterval(batch)))
+      }
+      try database.saveBrowserObservations(records, for: "child-browser")
+    }
+    #expect(
+      try database.browserTabs(limit: 2_000).count
+        == HubDatabase.maximumBrowserObservationRecordsPerDevice)
+  }
+
+  @Test("late delivery callbacks cannot regress read receipts")
+  func stage05MonotonicReceipts() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let database = try HubDatabase(path: fixture.path)
+    let message = HubChatMessage(
+      deviceID: "child-receipt", sender: "Parent", text: "Synthetic message", state: .sent,
+      audience: .direct, isFromParent: true)
+    try database.saveChatMessage(message)
+    try database.updateChatState(id: message.id, state: .delivered)
+    try database.updateChatState(id: message.id, state: .read)
+    try database.updateChatState(id: message.id, state: .failed)
+    try database.updateChatState(id: message.id, state: .delivered)
+    #expect(try database.chatMessages().first?.state == .read)
   }
 }
 

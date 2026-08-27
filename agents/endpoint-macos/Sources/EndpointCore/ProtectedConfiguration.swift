@@ -9,11 +9,14 @@ public struct EndpointConfiguration: Codable, Equatable, Sendable {
   public var sequence: UInt64
   public var activityCollectionEnabled: Bool
   public var activityRetentionDays: Int
+  public var browserCollectionEnabled: Bool
+  public var browserRetentionDays: Int
 
   public init(
     deviceID: String = UUID().uuidString.lowercased(), invitation: PairingInvitation? = nil,
     pairedController: PairingInvitation? = nil, sequence: UInt64 = 0,
-    activityCollectionEnabled: Bool = true, activityRetentionDays: Int = 7
+    activityCollectionEnabled: Bool = true, activityRetentionDays: Int = 7,
+    browserCollectionEnabled: Bool = false, browserRetentionDays: Int = 7
   ) {
     self.deviceID = deviceID
     self.invitation = invitation
@@ -21,11 +24,14 @@ public struct EndpointConfiguration: Codable, Equatable, Sendable {
     self.sequence = sequence
     self.activityCollectionEnabled = activityCollectionEnabled
     self.activityRetentionDays = max(1, min(activityRetentionDays, 30))
+    self.browserCollectionEnabled = browserCollectionEnabled
+    self.browserRetentionDays = max(1, min(browserRetentionDays, 30))
   }
 
   private enum CodingKeys: String, CodingKey {
     case deviceID, invitation, pairedController, sequence
     case activityCollectionEnabled, activityRetentionDays
+    case browserCollectionEnabled, browserRetentionDays
   }
 
   public init(from decoder: Decoder) throws {
@@ -38,6 +44,10 @@ public struct EndpointConfiguration: Codable, Equatable, Sendable {
       try values.decodeIfPresent(Bool.self, forKey: .activityCollectionEnabled) ?? true
     activityRetentionDays = max(
       1, min(try values.decodeIfPresent(Int.self, forKey: .activityRetentionDays) ?? 7, 30))
+    browserCollectionEnabled =
+      try values.decodeIfPresent(Bool.self, forKey: .browserCollectionEnabled) ?? false
+    browserRetentionDays = max(
+      1, min(try values.decodeIfPresent(Int.self, forKey: .browserRetentionDays) ?? 7, 30))
   }
 }
 
@@ -116,6 +126,13 @@ public final class ProtectedConfigurationStore: @unchecked Sendable {
     var value = try load()
     value.activityCollectionEnabled = enabled
     value.activityRetentionDays = max(1, min(retentionDays, 30))
+    try save(value)
+  }
+
+  public func setBrowserCollection(enabled: Bool, retentionDays: Int) throws {
+    var value = try load()
+    value.browserCollectionEnabled = enabled
+    value.browserRetentionDays = max(1, min(retentionDays, 30))
     try save(value)
   }
 

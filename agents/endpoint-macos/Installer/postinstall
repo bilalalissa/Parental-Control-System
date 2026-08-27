@@ -9,6 +9,9 @@ chmod 700 "$SUPPORT" "$SUPPORT/Logs"
 chmod 644 "$TARGET_VOLUME/Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist"
 chmod 644 "$TARGET_VOLUME/Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist"
 chmod 755 "$TARGET_VOLUME/Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon"
+chmod 644 \
+  "$TARGET_VOLUME/Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json" \
+  "$TARGET_VOLUME/Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json"
 
 if [[ "$TARGET_VOLUME" == "/" ]]; then
   /bin/launchctl bootout system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null 2>&1 || true
@@ -28,6 +31,20 @@ if [[ "$TARGET_VOLUME" == "/" ]]; then
 
   CONSOLE_UID="$(/usr/bin/stat -f '%u' /dev/console)"
   if [[ "$CONSOLE_UID" =~ ^[0-9]+$ ]] && (( CONSOLE_UID >= 500 )); then
+    CONSOLE_USER="$(/usr/bin/stat -f '%Su' /dev/console)"
+    CONSOLE_GID="$(/usr/bin/stat -f '%g' /dev/console)"
+    CONSOLE_HOME="$(/usr/bin/dscl . -read "/Users/$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | /usr/bin/awk '{print $2}')"
+    if [[ "$CONSOLE_HOME" == /Users/* ]]; then
+      ARC_HOST_DIRECTORY="$CONSOLE_HOME/Library/Application Support/Arc/User Data/NativeMessagingHosts"
+      /bin/mkdir -p "$ARC_HOST_DIRECTORY"
+      /bin/cp \
+        /Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json \
+        "$ARC_HOST_DIRECTORY/com.bilalalissa.parental_control.json"
+      /usr/sbin/chown "$CONSOLE_UID:$CONSOLE_GID" "$ARC_HOST_DIRECTORY" \
+        "$ARC_HOST_DIRECTORY/com.bilalalissa.parental_control.json"
+      /bin/chmod 755 "$ARC_HOST_DIRECTORY"
+      /bin/chmod 644 "$ARC_HOST_DIRECTORY/com.bilalalissa.parental_control.json"
+    fi
     USER_SERVICE="gui/$CONSOLE_UID/com.bilalalissa.ParentalControlAgent.user"
     /bin/launchctl bootout "$USER_SERVICE" >/dev/null 2>&1 || true
     helper_started=false

@@ -25,6 +25,8 @@ public final class HubDatabase: @unchecked Sendable {
   public static let maximumReceipts = 500
   public static let maximumChatMessagesPerDevice = 500
   public static let maximumActivityRecordsPerDevice = 1_000
+  public static let maximumBrowserTabsPerDevice = 128
+  public static let maximumBrowserObservationRecordsPerDevice = 512
   public static let maximumTimeRequests = 100
 
   private let handle: OpaquePointer
@@ -120,7 +122,9 @@ public final class HubDatabase: @unchecked Sendable {
           body TEXT NOT NULL,
           delivery_state TEXT NOT NULL,
           audience TEXT NOT NULL,
-          is_from_parent INTEGER NOT NULL CHECK(is_from_parent IN (0, 1))
+          is_from_parent INTEGER NOT NULL CHECK(is_from_parent IN (0, 1)),
+          edited_at REAL,
+          deleted_at REAL
       );
       CREATE INDEX IF NOT EXISTS hub_chat_device_time_idx
           ON hub_chat_messages(device_id, sent_at ASC);
@@ -150,7 +154,32 @@ public final class HubDatabase: @unchecked Sendable {
           ON more_time_requests(created_at DESC);
       INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at)
           VALUES(2, strftime('%s','now'));
+      CREATE TABLE IF NOT EXISTS browser_tabs(
+          device_id TEXT NOT NULL,
+          browser TEXT NOT NULL,
+          profile_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          origin TEXT NOT NULL,
+          is_active INTEGER NOT NULL CHECK(is_active IN (0, 1)),
+          observed_at REAL NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS browser_tabs_device_time_idx
+          ON browser_tabs(device_id, observed_at DESC);
+      CREATE TABLE IF NOT EXISTS browser_configuration(
+          device_id TEXT PRIMARY KEY,
+          enabled INTEGER NOT NULL CHECK(enabled IN (0, 1)),
+          retention_days INTEGER NOT NULL CHECK(retention_days BETWEEN 1 AND 30)
+      );
+      INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at)
+          VALUES(3, strftime('%s','now'));
       """)
+    // These two nullable columns upgrade databases created by Stage 04/earlier Stage 05 RCs.
+    // Duplicate-column errors are expected when migrate() is called again.
+    try? execute("ALTER TABLE hub_chat_messages ADD COLUMN edited_at REAL;")
+    try? execute("ALTER TABLE hub_chat_messages ADD COLUMN deleted_at REAL;")
+    try execute(
+      "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(4, strftime('%s','now'));"
+    )
   }
 
   public func upsertDevice(_ device: HubDeviceRecord) throws {
@@ -253,6 +282,8 @@ public final class HubDatabase: @unchecked Sendable {
   public func unpair(deviceID: String) throws {
     try run("DELETE FROM outbound_queue WHERE device_id = ?;", [.text(deviceID)])
     try run("DELETE FROM receipts WHERE device_id = ?;", [.text(deviceID)])
+    try run("DELETE FROM browser_tabs WHERE device_id = ?;", [.text(deviceID)])
+    try run("DELETE FROM browser_configuration WHERE device_id = ?;", [.text(deviceID)])
     try run("DELETE FROM paired_devices WHERE id = ?;", [.text(deviceID)])
   }
 
@@ -377,15 +408,21 @@ public final class HubDatabase: @unchecked Sendable {
       """
       INSERT INTO hub_chat_messages(
           id, device_id, thread_id, sent_at, sender, body,
-          delivery_state, audience, is_from_parent
-      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET delivery_state=excluded.delivery_state;
+          delivery_state, audience, is_from_parent, edited_at, deleted_at
+      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+          delivery_state=excluded.delivery_state,
+          body=excluded.body,
+          edited_at=excluded.edited_at,
+          deleted_at=excluded.deleted_at;
       """,
       [
         .text(message.id.uuidString), .text(message.deviceID), .text(message.threadID.uuidString),
         .integer(Int64(message.sentAt.timeIntervalSince1970)), .text(message.sender),
         .text(message.text), .text(message.state.rawValue), .text(message.audience.rawValue),
         .integer(message.isFromParent ? 1 : 0),
+        message.editedAt.map { .integer(Int64($0.timeIntervalSince1970)) } ?? .null,
+        message.deletedAt.map { .integer(Int64($0.timeIntervalSince1970)) } ?? .null,
       ])
     try run(
       """
@@ -397,9 +434,37 @@ public final class HubDatabase: @unchecked Sendable {
   }
 
   public func updateChatState(id: UUID, state: ChatDeliveryState) throws {
+    lock.lock()
+    defer { lock.unlock() }
+    var statement: OpaquePointer?
+    try prepare("SELECT delivery_state FROM hub_chat_messages WHERE id = ?;", &statement)
+    defer { sqlite3_finalize(statement) }
+    try bind(.text(id.uuidString), statement, 1)
+    guard sqlite3_step(statement) == SQLITE_ROW,
+      let current = ChatDeliveryState(rawValue: text(statement, 0))
+    else { return }
+    let next = current.advanced(to: state)
+    guard next != current else { return }
     try run(
       "UPDATE hub_chat_messages SET delivery_state = ? WHERE id = ?;",
-      [.text(state.rawValue), .text(id.uuidString)])
+      [.text(next.rawValue), .text(id.uuidString)])
+  }
+
+  public func mutateParentChatMessage(
+    id: UUID, text: String, editedAt: Date?, deletedAt: Date?
+  ) throws {
+    try run(
+      """
+      UPDATE hub_chat_messages
+      SET body = ?, edited_at = ?, deleted_at = ?
+      WHERE id = ? AND is_from_parent = 1;
+      """,
+      [
+        .text(String(text.prefix(2_000))),
+        editedAt.map { .integer(Int64($0.timeIntervalSince1970)) } ?? .null,
+        deletedAt.map { .integer(Int64($0.timeIntervalSince1970)) } ?? .null,
+        .text(id.uuidString),
+      ])
   }
 
   public func chatMessages(limit: Int = 500) throws -> [HubChatMessage] {
@@ -409,7 +474,7 @@ public final class HubDatabase: @unchecked Sendable {
     try prepare(
       """
       SELECT id, device_id, thread_id, sent_at, sender, body,
-             delivery_state, audience, is_from_parent
+             delivery_state, audience, is_from_parent, edited_at, deleted_at
       FROM hub_chat_messages ORDER BY sent_at ASC, rowid ASC LIMIT ?;
       """, &statement)
     defer { sqlite3_finalize(statement) }
@@ -426,7 +491,11 @@ public final class HubDatabase: @unchecked Sendable {
           id: id, deviceID: text(statement, 1), threadID: threadID,
           sentAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 3)),
           sender: text(statement, 4), text: text(statement, 5), state: state,
-          audience: audience, isFromParent: sqlite3_column_int(statement, 8) == 1))
+          audience: audience, isFromParent: sqlite3_column_int(statement, 8) == 1,
+          editedAt: sqlite3_column_type(statement, 9) == SQLITE_NULL
+            ? nil : Date(timeIntervalSince1970: sqlite3_column_double(statement, 9)),
+          deletedAt: sqlite3_column_type(statement, 10) == SQLITE_NULL
+            ? nil : Date(timeIntervalSince1970: sqlite3_column_double(statement, 10))))
     }
     return result
   }
@@ -513,6 +582,95 @@ public final class HubDatabase: @unchecked Sendable {
     return result
   }
 
+  public func saveBrowserObservations(_ records: [HubBrowserTab], for deviceID: String) throws {
+    for record in records.prefix(Self.maximumBrowserTabsPerDevice) {
+      // Retain one most-recent observation for a disclosed title/origin combination. This keeps a
+      // bounded recently-observed-open-tab list without querying or importing browser history.
+      try run(
+        """
+        DELETE FROM browser_tabs
+        WHERE device_id = ? AND browser = ? AND profile_id = ? AND title = ? AND origin = ?;
+        """,
+        [
+          .text(deviceID), .text(record.browser), .text(record.profileID), .text(record.title),
+          .text(record.origin),
+        ])
+      try run(
+        """
+        INSERT INTO browser_tabs(
+            device_id, browser, profile_id, title, origin, is_active, observed_at
+        ) VALUES(?, ?, ?, ?, ?, ?, ?);
+        """,
+        [
+          .text(deviceID), .text(record.browser), .text(record.profileID), .text(record.title),
+          .text(record.origin), .integer(record.isActive ? 1 : 0),
+          .integer(Int64(record.observedAt.timeIntervalSince1970)),
+        ])
+    }
+    try run(
+      """
+      DELETE FROM browser_tabs WHERE device_id = ? AND rowid NOT IN(
+          SELECT rowid FROM browser_tabs WHERE device_id = ?
+          ORDER BY observed_at DESC LIMIT \(Self.maximumBrowserObservationRecordsPerDevice)
+      );
+      """, [.text(deviceID), .text(deviceID)])
+  }
+
+  public func browserTabs(limit: Int = 512) throws -> [HubBrowserTab] {
+    lock.lock()
+    defer { lock.unlock() }
+    var statement: OpaquePointer?
+    try prepare(
+      """
+      SELECT device_id, browser, profile_id, title, origin, is_active, observed_at
+      FROM browser_tabs ORDER BY is_active DESC, observed_at DESC LIMIT ?;
+      """, &statement)
+    defer { sqlite3_finalize(statement) }
+    try bind(.integer(Int64(max(1, min(limit, 2_000)))), statement, 1)
+    var result: [HubBrowserTab] = []
+    while sqlite3_step(statement) == SQLITE_ROW {
+      result.append(
+        HubBrowserTab(
+          deviceID: text(statement, 0), browser: text(statement, 1),
+          profileID: text(statement, 2), title: text(statement, 3), origin: text(statement, 4),
+          isActive: sqlite3_column_int(statement, 5) == 1,
+          observedAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 6))))
+    }
+    return result
+  }
+
+  public func saveBrowserConfiguration(_ configuration: BrowserConfiguration) throws {
+    try run(
+      """
+      INSERT INTO browser_configuration(device_id, enabled, retention_days) VALUES(?, ?, ?)
+      ON CONFLICT(device_id) DO UPDATE SET
+          enabled=excluded.enabled, retention_days=excluded.retention_days;
+      """,
+      [
+        .text(configuration.deviceID), .integer(configuration.enabled ? 1 : 0),
+        .integer(Int64(configuration.retentionDays)),
+      ])
+    try pruneActivity(now: Date())
+  }
+
+  public func browserConfigurations() throws -> [BrowserConfiguration] {
+    lock.lock()
+    defer { lock.unlock() }
+    var statement: OpaquePointer?
+    try prepare(
+      "SELECT device_id, enabled, retention_days FROM browser_configuration ORDER BY device_id;",
+      &statement)
+    defer { sqlite3_finalize(statement) }
+    var result: [BrowserConfiguration] = []
+    while sqlite3_step(statement) == SQLITE_ROW {
+      result.append(
+        BrowserConfiguration(
+          deviceID: text(statement, 0), enabled: sqlite3_column_int(statement, 1) == 1,
+          retentionDays: Int(sqlite3_column_int(statement, 2))))
+    }
+    return result
+  }
+
   public func appendMoreTimeRequest(_ request: MoreTimeRequestRecord) throws {
     try run(
       """
@@ -571,6 +729,17 @@ public final class HubDatabase: @unchecked Sendable {
         try run("DELETE FROM app_activity WHERE device_id = ?;", [.text(configuration.deviceID)])
       }
     }
+    let browserConfigurations = try browserConfigurations()
+    for configuration in browserConfigurations {
+      if configuration.enabled {
+        let cutoff = now.addingTimeInterval(-TimeInterval(configuration.retentionDays * 86_400))
+        try run(
+          "DELETE FROM browser_tabs WHERE device_id = ? AND observed_at < ?;",
+          [.text(configuration.deviceID), .integer(Int64(cutoff.timeIntervalSince1970))])
+      } else {
+        try run("DELETE FROM browser_tabs WHERE device_id = ?;", [.text(configuration.deviceID)])
+      }
+    }
     let chatCutoff = now.addingTimeInterval(-30 * 86_400)
     try run(
       "DELETE FROM hub_chat_messages WHERE sent_at < ?;",
@@ -580,6 +749,7 @@ public final class HubDatabase: @unchecked Sendable {
   public func storageSummary() throws -> HubStorageSummary {
     HubStorageSummary(
       activityRecords: try scalar("SELECT COUNT(*) FROM app_activity;"),
+      browserTabRecords: try scalar("SELECT COUNT(*) FROM browser_tabs;"),
       chatMessages: try scalar("SELECT COUNT(*) FROM hub_chat_messages;"),
       queuedEnvelopes: try scalar("SELECT COUNT(*) FROM outbound_queue;"))
   }

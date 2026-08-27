@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–04 are merged; STAGE-05 has not started.** The merged `0.4.0-rc.5` selectable macOS package refreshes time-based parent presence without requiring a click and reconnects promptly after child sleep/wake while preserving bounded retries. It also retains the prior child crash, authenticated XPC, parent-restart, helper-recovery, activity-control, app-name-only activity, direct/family/announcement chat, notification, and request-more-time corrections. Browser tabs and policy enforcement are not included. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–05 are merged; the approved STAGE-05 candidate is `0.5.0-rc.9`.** It consolidates real paired devices into one controller list and applies one accessible dark editorial visual language to the Parent Controller, visible Child app, and browser extension. It retains the Stage-05 visible Chrome/Edge/Arc extension, bounded tab-title/origin sharing, activity alerts, chat notifications and unread counters, message receipts/mutations, local spoken announcements, reliable helper health, and bounded Keychain behavior. Policy enforcement remains excluded. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
@@ -18,7 +18,7 @@ The project is intentionally visible and bounded. It will not implement hidden i
 | Visible child UI | Stage 03 candidate | Planned | Planned |
 | Local policy enforcement | Planned | Planned | Planned through Family Controls APIs |
 | Foreground/running apps | Stage 04 candidate (names/bundle IDs only) | Planned | Not available |
-| Browser-tab metadata | Visible extension only | Visible extension only | Not available |
+| Browser-tab metadata | Stage 05 visible Chrome/Edge/Arc extension | Visible extension planned | Not available |
 | Reliable uptime or login state | Stage 04 candidate | Planned | Not available |
 | Text chat and announcements | Stage 04 candidate | Planned | While app is active in a later stage |
 | Lock/logoff/restart/shutdown | Supported APIs only | Supported APIs only | Not available to a normal app |
@@ -28,25 +28,25 @@ The full capability contract is in [the capability matrix](docs/architecture/cap
 
 ## Current controller and macOS endpoint
 
-The native Apple-silicon controller preview in [`apps/controller-macos`](apps/controller-macos/) includes:
+The native Apple-silicon controller in [`apps/controller-macos`](apps/controller-macos/) includes:
 
 - Dashboard, device detail, schedule editor, chat, audit, storage, and settings shells built with SwiftUI
 - Direct chat, family group chat, and all-child-device announcements with explicit recipient lists and delivery state
-- Local SQLite migrations and bounded synthetic macOS, Windows, and standard-iPad fixtures
-- Truthful per-platform capability and limitation displays; `Offline` is never presented as proof of power-off
+- One canonical list of real paired devices; synthetic macOS, Windows, and iPad records remain test-only fixtures
+- Truthful paired-device capability displays; `Offline` is never presented as proof of power-off
 - Deterministic schedule validation with lock as the default restriction
 - A visible Service Management start-at-login option and an original generated app icon
 - A local hub helper with Bonjour discovery, TLS 1.3 certificate pinning, Ed25519-signed protocol envelopes, one-time pairing, adaptive heartbeats, delta snapshots, receipts, and bounded SQLite state
 - HMAC-authenticated loopback IPC bootstrapped with an ephemeral in-memory session key, so routine launch and hub controls do not require Keychain password entry
 - A visible ordinary-process mock-agent CLI for safe pairing and concurrency tests
 
-Stage 04 keeps all communication local-first. Policy enforcement, browser metadata, unrestricted commands, and remote device actions remain intentionally unavailable.
+Stage 05 keeps all communication local-first. Typed announcements are spoken by macOS on the child without microphone recording, audio upload, or attachment creation. Policy enforcement, unrestricted commands, and remote device actions remain intentionally unavailable.
 
-The Stage 04 rc.1 package is one selectable installer. It installs the Apple-silicon Parent Controller by default; on a child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. The universal `arm64`/`x86_64` endpoint has a visible dashboard, boot daemon, login helper, authenticated XPC, protected configuration and queue files, Keychain-backed identity, adaptive delta heartbeats, bounded/redacted logs, and administrator uninstaller. When enabled, it reports at most 64 regular application names, bundle identifiers, and foreground state through event-driven workspace notifications. It never reports command lines, paths, window/document titles, or contents. Chat queues are bounded, messages have queued/sent/delivered/read/failed states, and parent broadcasts fan out to every paired child device. MAC addresses remain optional display metadata and never device identity.
+The Stage 05 package remains one selectable installer. It installs the Apple-silicon Parent Controller by default; on a child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. The universal `arm64`/`x86_64` endpoint has a visible dashboard, boot daemon, login helper, authenticated XPC, protected configuration and queue files, Keychain-backed identity, adaptive delta heartbeats, bounded/redacted logs, native browser host, and administrator uninstaller. When enabled, app activity remains limited to 64 regular application names, bundle identifiers, and foreground state. Browser sharing is off by default and requires the separately loaded visible extension; it reports at most 128 HTTP(S) tab titles and website origins, never private tabs, paths, queries, fragments, page content, forms, cookies, passwords, or network traffic. Chat queues remain bounded, parent broadcasts fan out to paired children, arrival sound follows macOS notification controls, and Read requires opening the relevant conversation.
 
 To test one mock after installing the developer candidate:
 
-1. On the dashboard, choose **Create one-time pairing code**, then **Copy mock token**.
+1. On the dashboard, choose **Create one-time pairing code**, then **Copy pairing token**.
 2. In Terminal, set `TOKEN` to the copied value and run:
 
    ```sh
@@ -74,7 +74,7 @@ npm test
 npm run cleanup:list
 ```
 
-Building the Stage 04 macOS candidate requires macOS 14 or newer with Xcode and Swift installed. Build work is constrained to two workers and one project-owned output tree:
+Building the Stage 05 macOS candidate requires macOS 14 or newer with Xcode and Swift installed. Build work is constrained to two workers and one project-owned output tree:
 
 ```sh
 swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests
@@ -83,10 +83,11 @@ swift format lint --recursive agents/endpoint-macos/Sources agents/endpoint-maco
 swift test --package-path agents/endpoint-macos --jobs 2
 ./script/build_endpoint_app.sh Release
 ./script/build_and_run.sh
+./script/package_browser_extension.sh
 ./script/package_endpoint_release.sh
 ```
 
-The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; its protected XPC features require the installed daemon. `package_endpoint_release.sh` creates the one retained selectable Stage 04 `.pkg` and checksum. The candidate is ad-hoc app-signed, installer-unsigned, and not notarized.
+The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; its protected XPC features require the installed daemon. `package_browser_extension.sh` creates the single shared Chrome/Edge/Arc ZIP; `package_endpoint_release.sh` creates the selectable Stage 05 `.pkg`. Builders default to ad-hoc app/helper signing for credential-free CI; a physical developer candidate can set `MACOS_SIGNING_IDENTITY` to one stable local Apple Development identity. The installer and extension ZIP remain unsigned and not notarized.
 
 Install the same package on the parent Mac with its default **Parent Controller** choice. On the child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. Confirm the endpoint service before pairing:
 
