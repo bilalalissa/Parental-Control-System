@@ -2,7 +2,7 @@
 
 - Version: `0.5.0-rc.9`
 - Branch: `stage/05-chromium-extension`
-- Status: `APPROVED`
+- Status: `MERGED`
 - Platform: Chrome, Microsoft Edge, and Arc on a universal macOS child endpoint; Parent Controller on Apple silicon; macOS 14 or newer
 
 ## Objective and scope
