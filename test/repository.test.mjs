@@ -329,7 +329,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–04 are merged; STAGE-05 `0\.5\.0-rc\.9`/);
+  assert.match(readme, /Stages 00–05 are merged; the approved STAGE-05 candidate is `0\.5\.0-rc\.9`/);
   assert.match(readme, /unread counters/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
