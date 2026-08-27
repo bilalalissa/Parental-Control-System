@@ -395,6 +395,7 @@ public final class EndpointAgent: @unchecked Sendable {
       $0.adultOverrideUntil = snapshot.1.adultOverrideUntil
     }
     try sendPolicyReceipt(for: envelope.id, state: "policy-installed")
+    EndpointPolicyWake.post()
     log.write(
       event: "policy.installed", detail: "Installed signed policy version \(policy.version)")
   }
@@ -409,6 +410,8 @@ public final class EndpointAgent: @unchecked Sendable {
       let expiresAt = ISO8601DateFormatter().date(from: expiresText)
     else { throw EndpointAgentError.invalidMessage }
     try policyRuntime.setImmediateAction(action, expiresAt: expiresAt)
+    _ = policyRuntime.tick(sessionActive: repository.status().sessionState == .active)
+    EndpointPolicyWake.post()
     try sendPolicyReceipt(for: envelope.id, state: "action-accepted")
     log.write(event: "policy.immediate", detail: "Accepted allowlisted action \(action.rawValue)")
   }

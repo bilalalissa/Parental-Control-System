@@ -166,14 +166,15 @@ public struct ParentalControlPolicy: Codable, Equatable, Identifiable, Sendable 
   }
 
   public func replacing(
-    version: UInt64? = nil, bonusMinutes: Int? = nil, signature: PolicySignature? = nil
+    version: UInt64? = nil, exceptions: [PolicyException]? = nil, bonusMinutes: Int? = nil,
+    signature: PolicySignature? = nil
   ) -> ParentalControlPolicy {
     ParentalControlPolicy(
       policyID: policyID, version: version ?? self.version, deviceID: deviceID,
       timezone: timezone, effectiveAt: effectiveAt, expiresAt: expiresAt,
       defaultAction: defaultAction, warningOffsetsMinutes: warningOffsetsMinutes,
       gracePeriodSeconds: gracePeriodSeconds, weeklyAllowed: weeklyAllowed,
-      blockedIntervals: blockedIntervals, exceptions: exceptions,
+      blockedIntervals: blockedIntervals, exceptions: exceptions ?? self.exceptions,
       dailyQuotaMinutes: dailyQuotaMinutes, bonusMinutes: bonusMinutes ?? self.bonusMinutes,
       childExplanation: childExplanation, signature: signature ?? self.signature)
   }

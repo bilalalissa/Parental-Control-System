@@ -57,6 +57,7 @@ public struct EndpointPolicyRuntimeState: Codable, Equatable, Sendable {
   public var restrictionSource: PolicyDecisionSource?
   public var restrictionAction: PolicyAction?
   public var restrictionEnforced: Bool?
+  public var pendingUserEvents: [EndpointPolicyEvent]?
 
   public init(
     usageDay: String? = nil, activeUseSeconds: TimeInterval = 0,
@@ -66,7 +67,7 @@ public struct EndpointPolicyRuntimeState: Codable, Equatable, Sendable {
     issuedWarnings: [Int] = [], immediateAction: PolicyAction? = nil,
     immediateActionExpiresAt: Date? = nil, restrictionBeganAt: Date? = nil,
     restrictionSource: PolicyDecisionSource? = nil, restrictionAction: PolicyAction? = nil,
-    restrictionEnforced: Bool? = nil
+    restrictionEnforced: Bool? = nil, pendingUserEvents: [EndpointPolicyEvent] = []
   ) {
     self.usageDay = usageDay
     self.activeUseSeconds = activeUseSeconds
@@ -84,13 +85,15 @@ public struct EndpointPolicyRuntimeState: Codable, Equatable, Sendable {
     self.restrictionSource = restrictionSource
     self.restrictionAction = restrictionAction
     self.restrictionEnforced = restrictionEnforced
+    self.pendingUserEvents = Array(pendingUserEvents.suffix(32))
   }
 }
 
-public enum EndpointPolicyEvent: Equatable, Sendable {
+public enum EndpointPolicyEvent: Codable, Equatable, Sendable {
   case warning(minutes: Int, action: PolicyAction, explanation: String)
   case enforce(action: PolicyAction, explanation: String)
   case clockChangeDetected
+  case bonusGranted(minutes: Int, until: Date)
 }
 
 public final class EndpointPolicyRuntime: @unchecked Sendable {
@@ -135,10 +138,18 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
     guard candidate.version > (policy?.version ?? 0) else {
       throw EndpointPolicyError.replayedVersion
     }
+    let former = policy
     policy = candidate
     state.clockTrusted = true
     state.issuedWarnings = []
     clearRestrictionLocked()
+    let formerBonusEnd = former?.exceptions.filter { $0.decision == .allow }.map(\.end).max()
+    if let bonusEnd = candidate.exceptions.filter({ $0.decision == .allow }).map(\.end).max(),
+      bonusEnd > Date(), bonusEnd > (formerBonusEnd ?? .distantPast)
+    {
+      let minutes = max(1, Int(ceil(bonusEnd.timeIntervalSinceNow / 60)))
+      enqueueUserEventsLocked([.bonusGranted(minutes: minutes, until: bonusEnd)])
+    }
     try persistLocked()
   }
 
@@ -200,14 +211,44 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
     return (policy, current, lastDecision)
   }
 
+  public func claimUserEvents(limit: Int = 16) -> [EndpointPolicyEvent] {
+    lock.lock()
+    defer { lock.unlock() }
+    let count = min(max(1, limit), min(state.pendingUserEvents?.count ?? 0, 32))
+    guard count > 0 else { return [] }
+    let pending = state.pendingUserEvents ?? []
+    let claimed = Array(pending.prefix(count))
+    state.pendingUserEvents = Array(pending.dropFirst(count))
+    do {
+      try persistLocked()
+    } catch {
+      state.pendingUserEvents = pending
+      return []
+    }
+    return claimed
+  }
+
   public func tick(
     now: Date = Date(), uptime: TimeInterval = EndpointContinuousClock.uptime(),
     sessionActive: Bool
   ) -> [EndpointPolicyEvent] {
     lock.lock()
     defer { lock.unlock() }
-    guard let policy else { return [] }
     var events: [EndpointPolicyEvent] = []
+    if state.immediateActionExpiresAt.map({ $0 <= now }) == true {
+      state.immediateAction = nil
+      state.immediateActionExpiresAt = nil
+    }
+    if let immediateAction = state.immediateAction {
+      events.append(
+        .enforce(action: immediateAction, explanation: "Authenticated immediate action"))
+      state.immediateAction = nil
+      state.immediateActionExpiresAt = nil
+      enqueueUserEventsLocked(events)
+      try? persistLocked()
+      return events
+    }
+    guard let policy else { return [] }
     let day = dayKey(now, timezone: policy.timezone)
     if state.usageDay != day {
       state.usageDay = day
@@ -233,10 +274,6 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
     state.lastWallClock = now
     state.lastUptime = uptime
     if state.adultOverrideUntil.map({ $0 <= now }) == true { state.adultOverrideUntil = nil }
-    if state.immediateActionExpiresAt.map({ $0 <= now }) == true {
-      state.immediateAction = nil
-      state.immediateActionExpiresAt = nil
-    }
     let input = PolicyEvaluationInput(
       at: now, activeUseMinutes: Int(state.activeUseSeconds / 60),
       adultOverrideActive: state.adultOverrideUntil.map({ $0 > now }) ?? false,
@@ -267,6 +304,11 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
         state.restrictionSource = decision.source
         state.restrictionAction = action
         state.restrictionEnforced = false
+        if policy.gracePeriodSeconds > 0 {
+          let minutes = max(1, Int(ceil(Double(policy.gracePeriodSeconds) / 60)))
+          events.append(
+            .warning(minutes: minutes, action: action, explanation: decision.reason))
+        }
       }
       let immediate = decision.source == .immediateCommand || decision.source == .inactivePolicy
       let elapsed = now.timeIntervalSince(state.restrictionBeganAt ?? now)
@@ -280,8 +322,16 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
     lastDecision = decision
     state.immediateAction = nil
     state.immediateActionExpiresAt = nil
+    enqueueUserEventsLocked(events)
     try? persistLocked()
     return events
+  }
+
+  private func enqueueUserEventsLocked(_ events: [EndpointPolicyEvent]) {
+    guard !events.isEmpty else { return }
+    var pending = state.pendingUserEvents ?? []
+    pending.append(contentsOf: events)
+    state.pendingUserEvents = Array(pending.suffix(32))
   }
 
   private func minutesUntilRestriction(

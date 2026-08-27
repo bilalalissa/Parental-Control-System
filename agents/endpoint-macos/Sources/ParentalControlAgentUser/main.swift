@@ -1,8 +1,18 @@
 import AVFoundation
 import AppKit
+import CoreFoundation
 import CoreServices
 import EndpointCore
 import Foundation
+
+private func policyWakeCallback(
+  _: CFNotificationCenter?, observer: UnsafeMutableRawPointer?, _: CFNotificationName?,
+  _: UnsafeRawPointer?, _: CFDictionary?
+) {
+  guard let observer else { return }
+  let reporter = Unmanaged<SessionReporter>.fromOpaque(observer).takeUnretainedValue()
+  reporter.policyEventsAvailable()
+}
 
 final class SessionReporter: NSObject, @unchecked Sendable {
   private let client = EndpointXPCClient()
@@ -11,6 +21,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   private let speechSynthesizer = AVSpeechSynthesizer()
   private var knownParentMessageIDs: Set<UUID> = []
   private var messagesPrimed = false
+  private var policyBanner: NSPanel?
   func start() {
     let center = NSWorkspace.shared.notificationCenter
     center.addObserver(
@@ -35,16 +46,33 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     DistributedNotificationCenter.default().addObserver(
       self, selector: #selector(chatReceived),
       name: Notification.Name("com.bilalalissa.ParentalControlAgent.chat-received"), object: nil)
-    DistributedNotificationCenter.default().addObserver(
-      self, selector: #selector(policyEvent(_:)),
-      name: Notification.Name("com.bilalalissa.ParentalControlAgent.policy-event"), object: nil)
+    CFNotificationCenterAddObserver(
+      CFNotificationCenterGetDarwinNotifyCenter(),
+      Unmanaged.passUnretained(self).toOpaque(),
+      policyWakeCallback,
+      EndpointPolicyWake.name as CFString,
+      nil,
+      .deliverImmediately)
     report(.active)
     reportApplications()
     primeMessages()
+    claimPolicyEvents()
     timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
       guard let self else { return }
       report(currentState)
+      claimPolicyEvents()
     }
+  }
+  deinit {
+    CFNotificationCenterRemoveObserver(
+      CFNotificationCenterGetDarwinNotifyCenter(),
+      Unmanaged.passUnretained(self).toOpaque(),
+      CFNotificationName(EndpointPolicyWake.name as CFString),
+      nil)
+  }
+
+  fileprivate func policyEventsAvailable() {
+    DispatchQueue.main.async { [weak self] in self?.claimPolicyEvents() }
   }
   @objc private func active() {
     currentState = .active
@@ -62,13 +90,79 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     NSSound.beep()
     speakNewAnnouncements()
   }
-  @objc private func policyEvent(_ notification: Notification) {
-    guard let kind = notification.userInfo?["kind"] as? String else { return }
+  private func claimPolicyEvents() {
+    client.claimPolicyEvents { [weak self] result in
+      guard case .success(let events) = result else { return }
+      DispatchQueue.main.async { [weak self] in
+        for event in events { self?.handlePolicyEvent(event) }
+      }
+    }
+  }
+
+  @MainActor private func handlePolicyEvent(_ event: EndpointPolicyEvent) {
     NSSound.beep()
-    guard kind == "enforce",
-      let action = notification.userInfo?["action"] as? String
-    else { return }
-    perform(action)
+    switch event {
+    case .warning(let minutes, let action, let explanation):
+      showPolicyBanner(
+        title: "Time warning",
+        message:
+          "\(minutes) minute\(minutes == 1 ? "" : "s") until \(action.rawValue). \(explanation)")
+    case .enforce(let action, _):
+      perform(action.rawValue)
+    case .clockChangeDetected:
+      showPolicyBanner(
+        title: "Time settings changed",
+        message: "Reconnect to the parent controller to refresh the signed schedule.")
+    case .bonusGranted(let minutes, let until):
+      showPolicyBanner(
+        title: "More time approved",
+        message:
+          "\(minutes) minute\(minutes == 1 ? "" : "s") approved, until \(until.formatted(date: .omitted, time: .shortened))."
+      )
+    }
+  }
+
+  @MainActor private func showPolicyBanner(title: String, message: String) {
+    policyBanner?.orderOut(nil)
+    NSApplication.shared.setActivationPolicy(.accessory)
+    let panel = NSPanel(
+      contentRect: NSRect(x: 0, y: 0, width: 390, height: 116),
+      styleMask: [.titled, .nonactivatingPanel], backing: .buffered, defer: false)
+    panel.title = title
+    panel.level = .floating
+    panel.isReleasedWhenClosed = false
+    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+    let titleLabel = NSTextField(labelWithString: title)
+    titleLabel.font = .boldSystemFont(ofSize: 15)
+    let messageLabel = NSTextField(wrappingLabelWithString: message)
+    messageLabel.font = .systemFont(ofSize: 13)
+    messageLabel.maximumNumberOfLines = 3
+    let stack = NSStackView(views: [titleLabel, messageLabel])
+    stack.orientation = .vertical
+    stack.alignment = .leading
+    stack.spacing = 8
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    let content = NSView()
+    content.addSubview(stack)
+    NSLayoutConstraint.activate([
+      stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 18),
+      stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -18),
+      stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 16),
+      stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -16),
+    ])
+    panel.contentView = content
+    if let frame = NSScreen.main?.visibleFrame {
+      panel.setFrameOrigin(
+        NSPoint(x: frame.maxX - panel.frame.width - 18, y: frame.maxY - panel.frame.height - 18))
+    }
+    policyBanner = panel
+    panel.orderFrontRegardless()
+    DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self, weak panel] in
+      guard let self, let panel, self.policyBanner === panel else { return }
+      panel.orderOut(nil)
+      self.policyBanner = nil
+      NSApplication.shared.setActivationPolicy(.prohibited)
+    }
   }
 
   private func perform(_ action: String) {

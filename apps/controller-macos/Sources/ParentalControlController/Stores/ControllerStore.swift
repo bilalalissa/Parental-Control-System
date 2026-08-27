@@ -323,7 +323,7 @@ final class ControllerStore {
   }
 
   func grantBonus(deviceID: String, minutes: Int) {
-    schedule.bonusMinutes = max(0, min(1_440, schedule.bonusMinutes + minutes))
+    schedule.approveRequestedTime(minutes: minutes)
     do { try database.saveSchedule(schedule) } catch {
       scheduleStatusMessage = "Bonus time could not be saved: \(error)"
       return
@@ -388,6 +388,14 @@ final class ControllerStore {
       defaultAction: action,
       warningOffsetsMinutes: Array(Set([schedule.warningMinutes, 5, 1])).sorted(by: >),
       gracePeriodSeconds: schedule.gracePeriodSeconds, weeklyAllowed: windows,
+      exceptions: schedule.bonusUntil.flatMap { until in
+        until > Date()
+          ? [
+            PolicyException(
+              start: Date().addingTimeInterval(-5), end: until, decision: .allow,
+              reason: "Parent-approved time extension")
+          ] : nil
+      } ?? [],
       dailyQuotaMinutes: schedule.dailyQuotaMinutes, bonusMinutes: schedule.bonusMinutes,
       childExplanation: "Available during family-approved hours; ask a parent for more time.",
       signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))

@@ -195,32 +195,20 @@ private final class EndpointPolicyScheduler: @unchecked Sendable {
       $0.adultOverrideUntil = snapshot.1.adultOverrideUntil
     }
     for event in events {
-      let userInfo: [String: String]
       switch event {
-      case .warning(let minutes, let action, let explanation):
-        userInfo = [
-          "kind": "warning", "minutes": "\(minutes)", "action": action.rawValue,
-          "explanation": explanation,
-        ]
+      case .warning(let minutes, let action, _):
         log.write(
           event: "policy.warning", detail: "Warning \(minutes) minutes before \(action.rawValue)")
-      case .enforce(let action, let explanation):
-        userInfo = [
-          "kind": "enforce", "action": action.rawValue, "explanation": explanation,
-        ]
+      case .enforce(let action, _):
         log.write(
           event: "policy.enforce", detail: "Requested allowlisted action \(action.rawValue)")
       case .clockChangeDetected:
-        userInfo = [
-          "kind": "clock-change", "action": PolicyAction.lock.rawValue,
-          "explanation": "Clock adjustment detected; reconnect to refresh policy.",
-        ]
         log.write(event: "policy.clock-change", detail: "Wall clock continuity check failed")
+      case .bonusGranted:
+        log.write(event: "policy.bonus", detail: "Parent-approved bonus time installed")
       }
-      DistributedNotificationCenter.default().postNotificationName(
-        Notification.Name("com.bilalalissa.ParentalControlAgent.policy-event"), object: nil,
-        userInfo: userInfo, deliverImmediately: true)
     }
+    if !events.isEmpty { EndpointPolicyWake.post() }
   }
 }
 

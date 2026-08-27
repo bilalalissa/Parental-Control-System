@@ -1,8 +1,8 @@
 # STAGE-06 — macOS policy enforcement
 
-- Version: `0.6.0-rc.1`
+- Version: `0.6.0-rc.2`
 - Branch: `stage/06-macos-policy-enforcement`
-- Status: `READY_FOR_DEVELOPER_TEST`
+- Status: `READY_FOR_DEVELOPER_RETEST`
 - Platform: Apple-silicon Parent Controller and universal Apple-silicon/Intel macOS Child Endpoint on macOS 14 or newer
 
 ## Objective, scope, and acceptance
@@ -27,6 +27,9 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 - The visible child app shows policy version, current decision/action/reason, clock trust, and override expiry. Settings are read-only. Three bad adult-code attempts in five minutes cause a five-minute lockout; a correct code grants a bounded 15-minute local override.
 - Immediate actions are allowlisted, signed, replay-protected, capability-checked, and expire after two minutes in the controller queue (the endpoint rejects any action beyond fifteen minutes). Offline device buttons are disabled. High-impact actions require explicit parent confirmation.
 - Endpoint acceptance receipts and parent audit records contain command type/state metadata but no policy explanation, adult code, chat body, application name, tab title/origin, device network address, or family content.
+- Physical rc.1 feedback showed that transport and endpoint receipts succeeded but the root daemon's transient session notification could be missed by the logged-in helper. rc.2 persists a bounded queue of typed warning/action/clock/bonus events, wakes the helper through the systemwide Darwin notification center, and retains startup/periodic claims so a late helper cannot lose an event.
+- Direct actions are evaluated and queued immediately upon authenticated acceptance instead of waiting for the next 15-second policy tick. A newly blocked schedule also emits a visible grace warning before enforcement.
+- Approving a child's time request now publishes a signed, bounded allow exception through the approval expiry, in addition to the existing bonus quota. The child receives a visible local approval notice; macOS is not programmatically unlocked.
 
 ## Unsaved-work and action behavior
 
@@ -36,8 +39,8 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 
 ## Verification evidence
 
-- Controller/hub: 39 tests in 12 suites passed, including policy precedence/signatures/warnings, authenticated IPC, TLS, persistence bounds, and existing Stage-05 regressions.
-- Endpoint: 17 tests in 3 suites passed, including real TLS policy delivery, protected cached-policy verification, tamper/version replay, persistent grace, reboot re-enforcement, sleep/resume clock continuity, adult-code lockout, clock-change fail-closed behavior, and isolated immediate action.
+- Controller/hub: 40 tests in 12 suites passed, including policy precedence/signatures/warnings, authenticated IPC, TLS, persistence bounds, approved-time interval behavior, and existing Stage-05 regressions.
+- Endpoint: 19 tests in 3 suites passed, including real TLS policy delivery, protected cached-policy verification, tamper/version replay, durable warning/action handoff, direct action without a schedule, persistent grace, reboot re-enforcement, sleep/resume clock continuity, adult-code lockout, and clock-change fail-closed behavior.
 - Full repository suite: 40 tests passed and the Windows-only package test was skipped on macOS. Swift format lint, shell syntax, JSON validation, `git diff --check`, and the bounded secret-pattern scan passed.
 - The retained PKG was expanded and its packaged Parent Controller and Child Endpoint passed deep/strict code-signature verification. Both embed version `0.6.0-rc.1`, build `6001`, and source commit `06532b341b0d`. The parent executable is `arm64`; the child executable and its daemon, login helper, control tool, and browser native host are universal `x86_64 arm64`.
 - `ParentalControlSystem-0.6.0-rc.1.pkg`: SHA-256 `315f91d6a3895f6d44138d99413b77adbb3e30c3f8f10bdb10b74a092207fbf9`; contained apps/helpers are ad-hoc signed; the product package is unsigned and not notarized.
@@ -49,7 +52,7 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 
 1. Verify the supplied PKG and extension ZIP SHA-256 values before opening either artifact.
 2. On a parent Mac with no prior version, run the PKG with its default **Parent Controller** selection. On a child Mac with no prior version, run the same PKG, choose **Customize**, deselect Parent Controller, and select **Child Endpoint**.
-3. Open both visible apps and confirm version `0.6.0-rc.1`. On the child run `parental-control-agentctl status`; capture only health, connection, policy, and session fields—not device/network identifiers.
+3. Open both visible apps and confirm version `0.6.0-rc.2`. On the child run `parental-control-agentctl status`; capture only health, connection, policy, and session fields—not device/network identifiers.
 4. Pair once with a new one-time code. Confirm the child is Online, then select it in the parent's single Devices list.
 5. In Schedule choose a small test window that currently allows use, a 1-minute warning, a 15-second grace, and Lock. Choose **Sign and Apply Policy** and record the displayed adult override code privately.
 6. Adjust the test window so it ends within the next few minutes. Confirm the child shows a generic warning, then locks only after the configured grace. Confirm open apps/documents remain present after unlocking.

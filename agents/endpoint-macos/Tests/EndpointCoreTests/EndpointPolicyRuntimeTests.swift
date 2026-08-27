@@ -86,6 +86,51 @@ struct EndpointPolicyRuntimeTests {
     #expect(runtime.snapshot().1.immediateAction == nil)
   }
 
+  @Test("immediate lock is durably handed to the user helper without a schedule")
+  func immediateLockWithoutPolicy() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.setImmediateAction(.lock, expiresAt: Date().addingTimeInterval(120))
+    #expect(
+      runtime.tick(now: Date(), uptime: 100, sessionActive: true)
+        == [.enforce(action: .lock, explanation: "Authenticated immediate action")])
+    #expect(
+      runtime.claimUserEvents()
+        == [.enforce(action: .lock, explanation: "Authenticated immediate action")])
+    #expect(runtime.claimUserEvents().isEmpty)
+  }
+
+  @Test("warning and approved-time events survive until the user helper claims them")
+  func durableUserEvents() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let now = Date()
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.install(
+      identity.sign(policy: policy(version: 1)), controllerPublicKey: identity.publicKeyData)
+    _ = runtime.tick(now: now, uptime: 100, sessionActive: true)
+    let extended = policy(version: 2).replacing(
+      exceptions: [
+        PolicyException(
+          start: now.addingTimeInterval(-1), end: now.addingTimeInterval(15 * 60),
+          decision: .allow, reason: "Synthetic approved time")
+      ])
+    try runtime.install(
+      identity.sign(policy: extended), controllerPublicKey: identity.publicKeyData)
+
+    let restarted = EndpointPolicyRuntime(
+      root: root, deviceID: "child-policy-test", controllerPublicKey: identity.publicKeyData)
+    let events = restarted.claimUserEvents()
+    #expect(
+      events.contains { event in
+        if case .bonusGranted(let minutes, _) = event { return minutes >= 14 }
+        return false
+      })
+    #expect(restarted.claimUserEvents().isEmpty)
+  }
+
   @Test("grace period survives runtime restart and enforces once")
   func persistentGrace() throws {
     let root = temporaryRoot()
@@ -107,7 +152,9 @@ struct EndpointPolicyRuntimeTests {
     let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
     try runtime.install(
       identity.sign(policy: blocked), controllerPublicKey: identity.publicKeyData)
-    #expect(runtime.tick(now: start, uptime: 100, sessionActive: true).isEmpty)
+    #expect(
+      runtime.tick(now: start, uptime: 100, sessionActive: true)
+        .contains(.warning(minutes: 1, action: .lock, explanation: "Synthetic bedtime")))
 
     let restored = EndpointPolicyRuntime(
       root: root, deviceID: "child-policy-test", controllerPublicKey: identity.publicKeyData)

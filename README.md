@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–05 are merged; STAGE-06 `0.6.0-rc.1` is ready for developer testing.** The macOS child now verifies, persists, and locally enforces the paired controller's signed schedule while offline. It adds warnings, a grace period, lock-first restrictions, explicitly confirmed logoff/restart/shutdown requests, bonus time, protected adult override, clock-change handling, sleep/reboot continuity, authenticated receipts, and content-free audit metadata. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–05 are merged; STAGE-06 `0.6.0-rc.2` is ready for developer retesting.** This replacement candidate makes daemon-to-session warning/action delivery durable, executes accepted direct actions promptly, and turns approved time requests into bounded allow intervals. The macOS child locally enforces its paired controller's verified, persisted signed schedule while offline. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 

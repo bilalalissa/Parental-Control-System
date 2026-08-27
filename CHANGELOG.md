@@ -2,6 +2,14 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.0-rc.2 — 2026-08-27
+
+Status: **STAGE-06 ready for developer retest**
+
+- Replaces the root-daemon-to-login-helper transient enforcement handoff with a bounded, persisted, authenticated XPC event queue plus a systemwide wake signal, so warnings and actions survive helper timing and restart races.
+- Evaluates accepted direct actions promptly and adds a visible grace warning when a newly applied schedule is already restrictive.
+- Converts approved child time requests into a signed, expiring allow interval and gives the child visible local confirmation; macOS remains responsible for authentication and unlocking.
+
 ## 0.6.0-rc.1 — 2026-08-26
 
 Status: **STAGE-06 ready for developer test**

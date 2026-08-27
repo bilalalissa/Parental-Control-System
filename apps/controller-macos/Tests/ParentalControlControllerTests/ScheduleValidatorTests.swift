@@ -60,4 +60,16 @@ struct ScheduleValidatorTests {
     ]
     #expect(!ScheduleValidator.validate(schedule).contains(.overlappingWindows))
   }
+
+  @Test("approved request extends quota and creates a bounded allow interval")
+  func approvedRequestedTime() {
+    var schedule = ScheduleDraft.standard
+    let now = Date(timeIntervalSince1970: 1_700_000_000)
+    schedule.approveRequestedTime(minutes: 15, now: now)
+    #expect(schedule.bonusMinutes == 15)
+    #expect(schedule.bonusUntil == now.addingTimeInterval(15 * 60))
+    schedule.approveRequestedTime(minutes: 15, now: now.addingTimeInterval(60))
+    #expect(schedule.bonusMinutes == 30)
+    #expect(schedule.bonusUntil == now.addingTimeInterval(30 * 60))
+  }
 }

@@ -259,6 +259,14 @@ struct EndpointCoreTests {
         uid: 501, signingIdentifier: EndpointMachService.helperIdentifier,
         operation: "session-update"))
     #expect(
+      XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.helperIdentifier,
+        operation: "policy-events"))
+    #expect(
+      !XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.childIdentifier,
+        operation: "policy-events"))
+    #expect(
       !XPCAuthorization.allows(
         uid: 0, signingIdentifier: EndpointMachService.helperIdentifier, operation: "status"))
     #expect(!XPCAuthorization.allows(uid: 501, signingIdentifier: "untrusted", operation: "status"))

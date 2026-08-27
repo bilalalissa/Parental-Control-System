@@ -1,4 +1,4 @@
-import Darwin
+import CoreFoundation
 @preconcurrency import Foundation
 import HubCore
 import Security
@@ -12,6 +12,19 @@ public enum EndpointMachService {
   public static let browserHostIdentifier = "com.bilalalissa.ParentalControlBrowserHost"
 }
 
+public enum EndpointPolicyWake {
+  public static let name = "com.bilalalissa.ParentalControlAgent.policy-events"
+
+  public static func post() {
+    CFNotificationCenterPostNotification(
+      CFNotificationCenterGetDarwinNotifyCenter(),
+      CFNotificationName(name as CFString),
+      nil,
+      nil,
+      true)
+  }
+}
+
 @objc public protocol EndpointXPCProtocol {
   func status(withReply reply: @escaping (Data?, String?) -> Void)
   func dashboard(withReply reply: @escaping (Data?, String?) -> Void)
@@ -23,6 +36,7 @@ public enum EndpointMachService {
   func markChatRead(withReply reply: @escaping (Bool, String?) -> Void)
   func requestMoreTime(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
   func submitAdultCode(_ payload: Data, withReply reply: @escaping (Data?, String?) -> Void)
+  func claimPolicyEvents(withReply reply: @escaping (Data?, String?) -> Void)
 }
 
 public enum XPCAuthorization {
@@ -31,6 +45,7 @@ public enum XPCAuthorization {
       [
         "status", "dashboard", "session-update", "activity-update", "browser-configuration",
         "browser-update", "send-chat", "mark-chat-read", "time-request", "adult-code",
+        "policy-events",
       ]
       .contains(operation)
     else { return false }
@@ -41,6 +56,9 @@ public enum XPCAuthorization {
         || signingIdentifier == EndpointMachService.controlIdentifier
     }
     if operation == "session-update" || operation == "activity-update" {
+      return signingIdentifier == EndpointMachService.helperIdentifier
+    }
+    if operation == "policy-events" {
       return signingIdentifier == EndpointMachService.helperIdentifier
     }
     if operation == "browser-configuration" || operation == "browser-update" {
@@ -599,6 +617,25 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
       reply(nil, "The adult code was not accepted.")
     }
   }
+
+  func claimPolicyEvents(withReply reply: @escaping (Data?, String?) -> Void) {
+    guard
+      XPCAuthorization.allows(
+        uid: uid, signingIdentifier: identifier, operation: "policy-events")
+    else {
+      reply(nil, "unauthorized")
+      return
+    }
+    guard let policyRuntime else {
+      reply(nil, "policy unavailable")
+      return
+    }
+    do {
+      reply(try JSONEncoder.endpoint.encode(policyRuntime.claimUserEvents()), nil)
+    } catch {
+      reply(nil, "encoding failed")
+    }
+  }
 }
 
 public struct EndpointChatRequest: Codable, Equatable, Sendable {
@@ -827,6 +864,22 @@ public final class EndpointXPCClient: @unchecked Sendable {
         } catch { completion(.failure(error)) }
       }
     } catch { completion(.failure(error)) }
+  }
+
+  public func claimPolicyEvents(
+    completion: @escaping @Sendable (Result<[EndpointPolicyEvent], Error>) -> Void
+  ) {
+    let proxy =
+      connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
+      as? EndpointXPCProtocol
+    proxy?.claimPolicyEvents { data, error in
+      do {
+        if let error { throw EndpointXPCError.remote(error) }
+        guard let data else { throw EndpointXPCError.malformed }
+        completion(
+          .success(try JSONDecoder.endpoint.decode([EndpointPolicyEvent].self, from: data)))
+      } catch { completion(.failure(error)) }
+    }
   }
 }
 

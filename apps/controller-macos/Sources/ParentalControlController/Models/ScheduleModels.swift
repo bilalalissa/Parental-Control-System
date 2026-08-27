@@ -81,18 +81,21 @@ struct ScheduleDraft: Codable, Equatable, Sendable {
   var dailyQuotaMinutes: Int
   var warningMinutes: Int
   var bonusMinutes: Int
+  var bonusUntil: Date?
   var gracePeriodSeconds: Int
   var action: RestrictionAction
   var windows: [WeeklyWindow]
 
   init(
     timezone: String, dailyQuotaMinutes: Int, warningMinutes: Int, bonusMinutes: Int,
+    bonusUntil: Date? = nil,
     gracePeriodSeconds: Int, action: RestrictionAction, windows: [WeeklyWindow]
   ) {
     self.timezone = timezone
     self.dailyQuotaMinutes = dailyQuotaMinutes
     self.warningMinutes = warningMinutes
     self.bonusMinutes = bonusMinutes
+    self.bonusUntil = bonusUntil
     self.gracePeriodSeconds = gracePeriodSeconds
     self.action = action
     self.windows = windows
@@ -109,7 +112,8 @@ struct ScheduleDraft: Codable, Equatable, Sendable {
   )
 
   private enum CodingKeys: String, CodingKey {
-    case timezone, dailyQuotaMinutes, warningMinutes, bonusMinutes, gracePeriodSeconds, action,
+    case timezone, dailyQuotaMinutes, warningMinutes, bonusMinutes, bonusUntil, gracePeriodSeconds,
+      action,
       windows
   }
 
@@ -119,9 +123,17 @@ struct ScheduleDraft: Codable, Equatable, Sendable {
     dailyQuotaMinutes = try values.decode(Int.self, forKey: .dailyQuotaMinutes)
     warningMinutes = try values.decode(Int.self, forKey: .warningMinutes)
     bonusMinutes = try values.decodeIfPresent(Int.self, forKey: .bonusMinutes) ?? 0
+    bonusUntil = try values.decodeIfPresent(Date.self, forKey: .bonusUntil)
     gracePeriodSeconds = try values.decodeIfPresent(Int.self, forKey: .gracePeriodSeconds) ?? 60
     action = try values.decode(RestrictionAction.self, forKey: .action)
     windows = try values.decode([WeeklyWindow].self, forKey: .windows)
+  }
+
+  mutating func approveRequestedTime(minutes: Int, now: Date = Date()) {
+    let bounded = max(5, min(minutes, 240))
+    bonusMinutes = max(0, min(1_440, bonusMinutes + bounded))
+    let start = max(now, bonusUntil ?? now)
+    bonusUntil = start.addingTimeInterval(TimeInterval(bounded * 60))
   }
 }
 
