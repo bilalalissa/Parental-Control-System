@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.5.0-rc.9 — 2026-08-26
 
-Status: **STAGE-05 implementation in progress**
+Status: **STAGE-05 ready for developer retest**
 
 - Replaces the legacy synthetic-device sidebar plus separate bottom paired-device panel with one canonical real paired-device sidebar/detail workflow.
 - Removes only the exact fixed Stage-01 preview rows from upgraded controller databases; synthetic fixtures remain available to tests and explicit mock tooling.
