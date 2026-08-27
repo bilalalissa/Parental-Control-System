@@ -1,4 +1,5 @@
 import AppKit
+import DesignSystem
 import EndpointCore
 import SwiftUI
 import UserNotifications
@@ -9,7 +10,9 @@ struct ParentalControlChildApp: App {
   @StateObject private var model = ChildDashboardModel()
   var body: some Scene {
     WindowGroup("Parental Control") {
-      ChildDashboard(model: model).frame(minWidth: 680, minHeight: 580)
+      ChildDashboard(model: model)
+        .frame(minWidth: 680, minHeight: 580)
+        .controlTheme()
     }
     .windowResizability(.contentMinSize)
   }
@@ -164,8 +167,10 @@ struct ChildDashboard: View {
       HStack(spacing: 14) {
         Image(nsImage: NSApplication.shared.applicationIconImage).resizable().frame(
           width: 58, height: 58)
-        VStack(alignment: .leading) {
-          Text("Parental controls are visible and active").font(.title2.bold())
+        VStack(alignment: .leading, spacing: 5) {
+          ControlEyebrow("Visible family endpoint")
+          Text("Parental controls are visible and active")
+            .font(.system(.title2, design: .monospaced, weight: .bold))
           Text("This Mac communicates directly with your parent controller on the local network.")
             .foregroundStyle(.secondary)
         }
@@ -187,7 +192,7 @@ struct ChildDashboard: View {
               title: "Privacy", systemImage: "hand.raised", tag: 3,
               selection: $selectedTab)
           }
-          .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+          .background(ControlTheme.surface, in: RoundedRectangle(cornerRadius: 8))
 
           Group {
             switch selectedTab {
@@ -211,6 +216,7 @@ struct ChildDashboard: View {
       }
     }
     .padding(22)
+    .background(ControlTheme.canvas)
     .toolbar {
       Button("Refresh") { model.refresh() }.accessibilityIdentifier("refresh-status")
     }
@@ -264,7 +270,10 @@ struct ChildDashboard: View {
                 .font(.caption2).foregroundStyle(.secondary)
               }
               .padding(10)
-              .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+              .background(ControlTheme.surface, in: RoundedRectangle(cornerRadius: 10))
+              .overlay {
+                RoundedRectangle(cornerRadius: 10).stroke(ControlTheme.border)
+              }
               if !message.isFromParent { Spacer(minLength: 80) }
             }
           }
@@ -363,7 +372,7 @@ private struct ChildTabButton: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(.red, in: Capsule())
+            .background(ControlTheme.accent, in: Capsule())
             .accessibilityLabel("Unread messages")
             .accessibilityValue("\(badge)")
         }
@@ -371,7 +380,8 @@ private struct ChildTabButton: View {
       .frame(maxWidth: .infinity)
       .padding(.vertical, 8)
       .background(
-        selection == tag ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(.clear),
+        selection == tag
+          ? AnyShapeStyle(ControlTheme.accent.opacity(0.16)) : AnyShapeStyle(.clear),
         in: RoundedRectangle(cornerRadius: 7))
     }
     .buttonStyle(.plain)

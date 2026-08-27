@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/05-chromium-extension");
-  assert.equal(active[0].version, "0.5.0-rc.8");
+  assert.equal(active[0].version, "0.5.0-rc.9");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -234,6 +234,28 @@ test("Stage 05 activity alerts are classified narrowly and rate limited", async 
   assert.match(devices, /Observed activity alerts/);
 });
 
+test("Stage 05 release UI uses one real paired-device list and the shared visual language", async () => {
+  const [devices, dashboard, store, theme, child, popup] = await Promise.all([
+    read("apps/controller-macos/Sources/ParentalControlController/Views/DevicesView.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/DashboardView.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Stores/ControllerStore.swift"),
+    read("apps/controller-macos/Sources/DesignSystem/ControlTheme.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift"),
+    read("browser-extensions/webextension/popup.html"),
+  ]);
+  assert.match(devices, /ForEach\(store\.pairedDevices\)/);
+  assert.match(devices, /selectedPairedDevice/);
+  assert.doesNotMatch(devices, /Paired macOS devices|store\.devices|safeAreaInset/);
+  assert.match(dashboard, /ForEach\(store\.pairedDevices\)/);
+  assert.doesNotMatch(dashboard, /synthetic shell data|Privacy-first preview|Mock token/);
+  assert.match(store, /removeLegacySyntheticPreviewData/);
+  assert.match(theme, /public enum ControlTheme/);
+  assert.match(theme, /displayTitle/);
+  assert.match(child, /\.controlTheme\(\)/);
+  assert.match(popup, /--accent: #ff5843/);
+  assert.match(popup, /ui-monospace/);
+});
+
 test("local Markdown links resolve inside the repository", async () => {
   const markdownFiles = await walk(root, ".md");
   const missing = [];
@@ -307,8 +329,8 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–04 are merged; STAGE-05 `0\.5\.0-rc\.8`/);
-  assert.match(readme, /unread Chat counters/);
+  assert.match(readme, /Stages 00–04 are merged; STAGE-05 `0\.5\.0-rc\.9`/);
+  assert.match(readme, /unread counters/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });

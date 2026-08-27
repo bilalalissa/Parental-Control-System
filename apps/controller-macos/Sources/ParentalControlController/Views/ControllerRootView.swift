@@ -1,3 +1,4 @@
+import DesignSystem
 import SwiftUI
 
 struct ControllerRootView: View {
@@ -50,6 +51,7 @@ struct ControllerRootView: View {
         }
         selectedView
       }
+      .background(ControlTheme.canvas)
       .toolbar {
         ToolbarItem(placement: .primaryAction) {
           SettingsLink {
@@ -102,7 +104,7 @@ private struct UnreadChatBadge: View {
       .foregroundStyle(.white)
       .padding(.horizontal, 6)
       .padding(.vertical, 2)
-      .background(.red, in: Capsule())
+      .background(ControlTheme.accent, in: Capsule())
       .accessibilityLabel("Unread messages")
       .accessibilityValue("\(count)")
   }

@@ -27,7 +27,10 @@ let package = Package(
         .linkedFramework("UserNotifications"),
       ]),
     .executableTarget(
-      name: "ParentalControlChild", dependencies: ["EndpointCore"],
+      name: "ParentalControlChild",
+      dependencies: [
+        "EndpointCore", .product(name: "DesignSystem", package: "controller-macos"),
+      ],
       linkerSettings: [.linkedFramework("UserNotifications")]),
     .executableTarget(name: "ParentalControlAgentDaemon", dependencies: ["EndpointCore"]),
     .executableTarget(

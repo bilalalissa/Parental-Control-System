@@ -230,6 +230,23 @@ final class ControllerDatabase {
     }
   }
 
+  /// Stage 01 preview rows used fixed IDs and never represented paired endpoints. Remove only
+  /// those exact fixtures when a production controller opens an older local database.
+  func removeLegacySyntheticPreviewData() throws {
+    let deviceIDs = [Self.studyMacID, Self.familyPCID, Self.schoolIPadID].map(\.uuidString)
+    let auditIDs = Self.syntheticAuditEvents.map { $0.id.uuidString }
+    let messageIDs = Self.syntheticMessages.map { $0.id.uuidString }
+    for id in messageIDs {
+      try run("DELETE FROM chat_messages WHERE id = ?;", values: [.text(id)])
+    }
+    for id in auditIDs {
+      try run("DELETE FROM audit_events WHERE id = ?;", values: [.text(id)])
+    }
+    for id in deviceIDs {
+      try run("DELETE FROM devices WHERE id = ?;", values: [.text(id)])
+    }
+  }
+
   func loadDevices() throws -> [ManagedDevice] {
     var statement: OpaquePointer?
     try prepare(

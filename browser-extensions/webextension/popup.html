@@ -5,15 +5,59 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Browser Sharing</title>
     <style>
-      body { font: 13px system-ui, sans-serif; margin: 16px; width: 290px; color: #17233a; }
-      h1 { font-size: 16px; margin: 0 0 8px; }
-      #status { font-weight: 650; margin: 10px 0; }
-      p { line-height: 1.4; }
-      .private { color: #526078; }
+      :root {
+        color-scheme: dark;
+        --canvas: #06080c;
+        --surface: #12151c;
+        --surface-strong: #181c24;
+        --accent: #ff5843;
+        --accent-soft: #ff7963;
+        --text: #f4f2ee;
+        --muted: #9ea6b5;
+        --border: rgba(255, 255, 255, 0.12);
+      }
+      * { box-sizing: border-box; }
+      body {
+        background: radial-gradient(circle at 85% 5%, #171e2b 0, var(--canvas) 48%);
+        color: var(--text);
+        font: 13px system-ui, sans-serif;
+        margin: 0;
+        min-height: 330px;
+        padding: 20px;
+        width: 320px;
+      }
+      .eyebrow {
+        color: var(--accent-soft);
+        font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.14em;
+        margin: 0 0 18px;
+        text-transform: uppercase;
+      }
+      h1 {
+        font: 700 21px/1.08 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: -0.035em;
+        margin: 0 0 14px;
+        max-width: 270px;
+      }
+      h1 em { color: var(--accent-soft); font-style: normal; }
+      #status {
+        background: var(--surface-strong);
+        border: 1px solid var(--border);
+        border-left: 2px solid var(--accent);
+        border-radius: 8px;
+        font-weight: 650;
+        margin: 14px 0;
+        padding: 10px 11px;
+      }
+      p { line-height: 1.5; }
+      .private { color: var(--muted); }
+      .rule { background: var(--accent); height: 2px; margin: 16px 0; width: 36px; }
     </style>
   </head>
   <body>
-    <h1>Parental Control Browser Sharing</h1>
+    <p class="eyebrow">Visible browser endpoint</p>
+    <h1>Browser sharing stays <em>reviewable.</em></h1>
+    <div class="rule"></div>
     <div id="status">Checking local sharing…</div>
     <p>When your parent enables sharing, this extension reports at most 128 tab titles and website origins to the paired controller on your local network.</p>
     <p class="private">Private tabs, page contents, forms, cookies, passwords, query strings, fragments, and network traffic are never shared.</p>

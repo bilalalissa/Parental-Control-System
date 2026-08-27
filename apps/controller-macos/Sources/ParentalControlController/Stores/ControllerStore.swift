@@ -7,8 +7,7 @@ import UserNotifications
 @MainActor
 @Observable
 final class ControllerStore {
-  var selectedDeviceID: ManagedDevice.ID?
-  var devices: [ManagedDevice]
+  var selectedDeviceID: String?
   var auditEvents: [AuditEvent]
   var chatMessages: [ChatMessage]
   var schedule: ScheduleDraft
@@ -33,13 +32,11 @@ final class ControllerStore {
   init(database: ControllerDatabase) throws {
     self.database = database
     try database.migrate()
-    try database.seedSyntheticDataIfNeeded()
-    devices = try database.loadDevices()
+    try database.removeLegacySyntheticPreviewData()
     auditEvents = try database.loadAuditEvents()
     chatMessages = try database.loadChatMessages()
     schedule = try database.latestSchedule() ?? .standard
     storageSnapshot = try database.storageSnapshot()
-    selectedDeviceID = devices.first?.id
   }
 
   static func live() -> ControllerStore {
@@ -58,14 +55,13 @@ final class ControllerStore {
     }
   }
 
-  var selectedDevice: ManagedDevice? {
-    guard let selectedDeviceID else { return devices.first }
-    return devices.first { $0.id == selectedDeviceID }
+  var selectedPairedDevice: HubDeviceRecord? {
+    guard let selectedDeviceID else { return pairedDevices.first }
+    return pairedDevices.first { $0.id == selectedDeviceID }
   }
 
-  var onlineDeviceCount: Int { devices.filter(\.isOnline).count }
-  var offlineDeviceCount: Int { devices.filter { $0.connectionState == .offline }.count }
-  var approximateDeviceCount: Int { devices.filter { $0.connectionState == .approximate }.count }
+  var onlineDeviceCount: Int { pairedDevices.filter { $0.state() == .online }.count }
+  var offlineDeviceCount: Int { pairedDevices.filter { $0.state() == .offline }.count }
 
   var unreadChatCount: Int {
     hubStatus?.chatMessages.filter(\.isUnreadForParent).count ?? 0
@@ -275,6 +271,10 @@ final class ControllerStore {
         UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
     hubStatus = status
+    let availableIDs = Set(status.devices.filter { !$0.isRevoked }.map(\.id))
+    if selectedDeviceID == nil || !availableIDs.contains(selectedDeviceID ?? "") {
+      selectedDeviceID = status.devices.first { !$0.isRevoked }?.id
+    }
   }
 
   func stopHub() {

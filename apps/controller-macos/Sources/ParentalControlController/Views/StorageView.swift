@@ -24,9 +24,9 @@ struct StorageView: View {
             tint: .blue
           )
           MetricCard(
-            title: "Devices",
-            value: "\(store.storageSnapshot.deviceCount)",
-            subtitle: "Synthetic Stage 01 rows",
+            title: "Paired devices",
+            value: "\(store.pairedDevices.count)",
+            subtitle: "Authenticated local records",
             systemImage: "laptopcomputer.and.iphone",
             tint: .purple
           )
@@ -48,7 +48,7 @@ struct StorageView: View {
             RetentionStepper(title: "Family chat", days: $chatDays, range: 1...90)
             RetentionStepper(title: "Connection and audit events", days: $auditDays, range: 1...90)
             Text(
-              "These preferences shape later-stage pruning. Stage 01 stores only bounded synthetic fixtures and schedule revisions."
+              "These preferences shape bounded local pruning. Per-device application and browser retention is controlled from Devices."
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -60,7 +60,7 @@ struct StorageView: View {
             Label("Data stays on this Mac", systemImage: "externaldrive.badge.checkmark")
               .font(.headline)
             Text(
-              "The controller shell has no hosted account, relay, telemetry endpoint, or public-IP lookup. Secrets will use Keychain in the stages that introduce pairing."
+              "The controller has no hosted account, relay, telemetry endpoint, or public-IP lookup. Pairing secrets remain in macOS Keychain."
             )
             .foregroundStyle(.secondary)
           }

@@ -1,3 +1,4 @@
+import DesignSystem
 import SwiftUI
 
 struct SectionCard<Content: View>: View {
@@ -11,10 +12,10 @@ struct SectionCard<Content: View>: View {
     content
       .padding(16)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+      .background(ControlTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
       .overlay {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
-          .stroke(.separator.opacity(0.45), lineWidth: 1)
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+          .stroke(ControlTheme.border, lineWidth: 1)
       }
   }
 }
@@ -82,11 +83,17 @@ struct ScreenHeader: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 5) {
       Text(title)
-        .font(.largeTitle.weight(.semibold))
+        .font(ControlTheme.displayTitle)
       Text(subtitle)
         .font(.callout)
         .foregroundStyle(.secondary)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+    .overlay(alignment: .bottomLeading) {
+      Rectangle()
+        .fill(ControlTheme.accent)
+        .frame(width: 42, height: 2)
+        .offset(y: 11)
+    }
   }
 }

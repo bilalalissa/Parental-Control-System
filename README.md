@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–04 are merged; STAGE-05 `0.5.0-rc.8` is ready for developer retest.** It adds one visible Chrome/Edge/Arc extension, an exact-identity-checked macOS native-messaging host, opt-in bounded tab-title and query-free-origin sharing, reliable logged-in helper health, independently scrollable retained activity, bounded YouTube/game alerts, child notification banners and system sound, explicit unread Chat counters, parent-only edit/delete, local spoken announcements, Sent/Delivered/Read behavior, serialized Parent Controller hub startup, bounded Keychain authorization with a human-response grace period, and optional stable local development signing. Policy enforcement remains excluded. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–04 are merged; STAGE-05 `0.5.0-rc.9` is being prepared for developer retest.** It consolidates real paired devices into one controller list and applies one accessible dark editorial visual language to the Parent Controller, visible Child app, and browser extension. It retains the Stage-05 visible Chrome/Edge/Arc extension, bounded tab-title/origin sharing, activity alerts, chat notifications and unread counters, message receipts/mutations, local spoken announcements, reliable helper health, and bounded Keychain behavior. Policy enforcement remains excluded. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
@@ -28,12 +28,12 @@ The full capability contract is in [the capability matrix](docs/architecture/cap
 
 ## Current controller and macOS endpoint
 
-The native Apple-silicon controller preview in [`apps/controller-macos`](apps/controller-macos/) includes:
+The native Apple-silicon controller in [`apps/controller-macos`](apps/controller-macos/) includes:
 
 - Dashboard, device detail, schedule editor, chat, audit, storage, and settings shells built with SwiftUI
 - Direct chat, family group chat, and all-child-device announcements with explicit recipient lists and delivery state
-- Local SQLite migrations and bounded synthetic macOS, Windows, and standard-iPad fixtures
-- Truthful per-platform capability and limitation displays; `Offline` is never presented as proof of power-off
+- One canonical list of real paired devices; synthetic macOS, Windows, and iPad records remain test-only fixtures
+- Truthful paired-device capability displays; `Offline` is never presented as proof of power-off
 - Deterministic schedule validation with lock as the default restriction
 - A visible Service Management start-at-login option and an original generated app icon
 - A local hub helper with Bonjour discovery, TLS 1.3 certificate pinning, Ed25519-signed protocol envelopes, one-time pairing, adaptive heartbeats, delta snapshots, receipts, and bounded SQLite state
@@ -46,7 +46,7 @@ The Stage 05 package remains one selectable installer. It installs the Apple-sil
 
 To test one mock after installing the developer candidate:
 
-1. On the dashboard, choose **Create one-time pairing code**, then **Copy mock token**.
+1. On the dashboard, choose **Create one-time pairing code**, then **Copy pairing token**.
 2. In Terminal, set `TOKEN` to the copied value and run:
 
    ```sh

@@ -57,6 +57,21 @@ struct DatabaseMigrationTests {
     let snapshot = try database.storageSnapshot()
     #expect(snapshot.deviceCount == 0)
   }
+
+  @Test("legacy preview fixtures are removed without broad database deletion")
+  func legacyPreviewFixturesAreRemoved() throws {
+    let fixture = try TemporaryDatabase()
+    defer { fixture.remove() }
+    let database = try ControllerDatabase(path: fixture.path)
+    try database.migrate()
+    try database.seedSyntheticDataIfNeeded()
+
+    try database.removeLegacySyntheticPreviewData()
+
+    #expect(try database.loadDevices().isEmpty)
+    #expect(try database.loadAuditEvents().isEmpty)
+    #expect(try database.loadChatMessages().isEmpty)
+  }
 }
 
 private struct TemporaryDatabase {

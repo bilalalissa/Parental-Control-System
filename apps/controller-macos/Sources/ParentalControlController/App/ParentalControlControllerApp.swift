@@ -1,4 +1,5 @@
 import AppKit
+import DesignSystem
 import SwiftUI
 import UserNotifications
 
@@ -12,6 +13,7 @@ struct ParentalControlControllerApp: App {
       ControllerRootView(store: store)
         .frame(minWidth: 980, minHeight: 650)
         .accessibilityIdentifier(AccessibilityID.mainWindow.rawValue)
+        .controlTheme()
     }
     .defaultSize(width: 1180, height: 760)
     .commands {
@@ -42,7 +44,7 @@ struct ParentalControlControllerApp: App {
     }
 
     Settings {
-      ControllerSettingsView()
+      ControllerSettingsView().controlTheme()
     }
   }
 }

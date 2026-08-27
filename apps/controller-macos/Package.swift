@@ -9,6 +9,10 @@ let package = Package(
     ],
     products: [
         .library(
+            name: "DesignSystem",
+            targets: ["DesignSystem"]
+        ),
+        .library(
             name: "HubCore",
             targets: ["HubCore"]
         ),
@@ -26,6 +30,7 @@ let package = Package(
         )
     ],
     targets: [
+        .target(name: "DesignSystem"),
         .target(
             name: "HubCore",
             linkerSettings: [
@@ -36,7 +41,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "ParentalControlController",
-            dependencies: ["HubCore"],
+            dependencies: ["DesignSystem", "HubCore"],
             linkerSettings: [
                 .linkedLibrary("sqlite3"),
                 .linkedFramework("UserNotifications")

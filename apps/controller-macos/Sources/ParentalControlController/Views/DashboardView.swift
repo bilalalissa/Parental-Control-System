@@ -1,48 +1,50 @@
 import AppKit
+import DesignSystem
+import HubCore
 import SwiftUI
 
 struct DashboardView: View {
   let store: ControllerStore
-  let openDevice: (ManagedDevice.ID) -> Void
+  let openDevice: (String) -> Void
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         ScreenHeader(
           title: "Family overview",
-          subtitle: "Local-first Stage 02 hub with synthetic shell data and visible mock agents."
+          subtitle: "Your local authority for paired family devices—no cloud relay required."
         )
 
         HStack(spacing: 14) {
           MetricCard(
+            title: "Paired",
+            value: "\(store.pairedDevices.count)",
+            subtitle: "Explicitly trusted devices",
+            systemImage: "checkmark.shield",
+            tint: ControlTheme.accent
+          )
+          MetricCard(
             title: "Online",
             value: "\(store.onlineDeviceCount)",
-            subtitle: "Authenticated presence in later stages",
+            subtitle: "Authenticated LAN presence",
             systemImage: "wifi",
-            tint: .green
+            tint: ControlTheme.success
           )
           MetricCard(
             title: "Offline",
             value: "\(store.offlineDeviceCount)",
-            subtitle: "Never inferred as powered off",
+            subtitle: "Last seen—not inferred power state",
             systemImage: "wifi.slash",
-            tint: .secondary
-          )
-          MetricCard(
-            title: "Approximate",
-            value: "\(store.approximateDeviceCount)",
-            subtitle: "Truthful iPadOS presence",
-            systemImage: "ipad",
-            tint: .blue
+            tint: ControlTheme.textMuted
           )
         }
 
         SectionCard {
           VStack(alignment: .leading, spacing: 12) {
-            Label("Privacy-first preview", systemImage: "hand.raised.fill")
+            Label("Visible by design", systemImage: "hand.raised.fill")
               .font(.headline)
             Text(
-              "No network service is running and no real device information is collected. Device names, events, and messages on this screen are synthetic fixtures stored in local SQLite."
+              "Paired devices communicate directly over the authenticated local network. Controller data stays on this Mac, and every child endpoint remains visible to its user."
             )
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -69,16 +71,18 @@ struct DashboardView: View {
                   .foregroundStyle(.secondary)
                 Spacer()
               }
-              Text("Use only with the visible Stage 02 mock agent or a later approved endpoint.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+              Text(
+                "Use this code only in the visible Parental Control Child app you intend to pair."
+              )
+              .font(.caption)
+              .foregroundStyle(.secondary)
               if let token = store.pairingInvitationToken {
                 HStack {
-                  Text("Mock token: \(token.prefix(24))…")
+                  Text("Pairing token: \(token.prefix(24))…")
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
                   Spacer()
-                  Button("Copy mock token") {
+                  Button("Copy pairing token") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(token, forType: .string)
                   }
@@ -99,7 +103,14 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 10) {
           Text("Devices")
             .font(.title2.weight(.semibold))
-          ForEach(store.devices) { device in
+          if store.pairedDevices.isEmpty {
+            ContentUnavailableView(
+              "No paired devices", systemImage: "laptopcomputer.and.iphone",
+              description: Text("Create a one-time pairing code to add a visible child device.")
+            )
+            .frame(maxWidth: .infinity, minHeight: 150)
+          }
+          ForEach(store.pairedDevices) { device in
             Button {
               openDevice(device.id)
             } label: {
@@ -112,36 +123,56 @@ struct DashboardView: View {
       }
       .padding(24)
     }
-    .background(.background.secondary)
+    .background(ControlTheme.canvas)
     .navigationTitle("Dashboard")
     .accessibilityIdentifier(AccessibilityID.dashboard.rawValue)
   }
 }
 
 private struct DashboardDeviceRow: View {
-  let device: ManagedDevice
+  let device: HubDeviceRecord
 
   var body: some View {
     SectionCard {
       HStack(spacing: 14) {
-        Image(systemName: device.platform.systemImage)
+        Image(systemName: "laptopcomputer")
           .font(.title2)
           .foregroundStyle(.tint)
           .frame(width: 36)
         VStack(alignment: .leading, spacing: 3) {
           Text(device.name)
             .font(.headline)
-          Text("\(device.platform.displayName) · \(device.currentAllowance)")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
+          Text(
+            "\(device.platform.capitalized) · Last seen \(device.lastSeen.formatted(date: .omitted, time: .shortened))"
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
         }
         Spacer()
-        StatusBadge(state: device.connectionState)
+        HubStatusBadge(state: device.state())
         Image(systemName: "chevron.right")
           .foregroundStyle(.tertiary)
       }
       .contentShape(Rectangle())
     }
+  }
+}
+
+private struct HubStatusBadge: View {
+  let state: HubDeviceState
+
+  private var color: Color { state == .online ? ControlTheme.success : ControlTheme.textMuted }
+
+  var body: some View {
+    HStack(spacing: 5) {
+      Circle().fill(color).frame(width: 7, height: 7)
+      Text(state == .online ? "Online" : "Offline")
+    }
+    .font(.caption.weight(.medium))
+    .foregroundStyle(color)
+    .padding(.horizontal, 8)
+    .padding(.vertical, 4)
+    .background(color.opacity(0.12), in: Capsule())
   }
 }

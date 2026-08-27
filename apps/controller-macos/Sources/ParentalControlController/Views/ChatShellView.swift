@@ -1,3 +1,4 @@
+import DesignSystem
 import HubCore
 import SwiftUI
 
@@ -71,7 +72,8 @@ struct ChatShellView: View {
     VStack(alignment: .leading, spacing: 14) {
       HStack {
         VStack(alignment: .leading, spacing: 4) {
-          Text("Family chat").font(.largeTitle.weight(.semibold))
+          ControlEyebrow("Secure local conversation")
+          Text("Family chat").font(ControlTheme.displayTitle)
           Text("Encrypted LAN delivery · bounded 30-day local retention")
             .foregroundStyle(.secondary)
         }
@@ -150,7 +152,7 @@ struct ChatShellView: View {
         Label("Offline devices retain up to 100 queued envelopes.", systemImage: "tray.full")
           .font(.caption).foregroundStyle(.secondary)
       }
-    }.padding(16).background(.bar)
+    }.padding(16).background(ControlTheme.surfaceStrong)
   }
 
   private var audienceDescription: String {
@@ -252,7 +254,8 @@ private struct HubMessageBubble: View {
       .frame(maxWidth: 520, alignment: .leading)
       .background(
         message.isFromParent
-          ? AnyShapeStyle(Color.accentColor.opacity(0.13)) : AnyShapeStyle(.regularMaterial),
+          ? AnyShapeStyle(ControlTheme.accent.opacity(0.14))
+          : AnyShapeStyle(ControlTheme.surface),
         in: RoundedRectangle(cornerRadius: 13))
       if !message.isFromParent { Spacer(minLength: 80) }
     }
