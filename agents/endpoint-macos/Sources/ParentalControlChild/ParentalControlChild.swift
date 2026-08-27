@@ -43,6 +43,7 @@ final class ChildDashboardModel: NSObject, ObservableObject {
   private let client = EndpointXPCClient()
   private var timer: Timer?
   private var chatVisible = false
+  private var incomingNotificationTracker = IncomingMessageNotificationTracker()
 
   var unreadMessageCount: Int {
     messages.filter(\.isUnreadFromParent).count
@@ -57,10 +58,6 @@ final class ChildDashboardModel: NSObject, ObservableObject {
     center.addObserver(
       self, selector: #selector(chatChanged),
       name: Notification.Name("com.bilalalissa.ParentalControlAgent.chat-changed"), object: nil)
-    Task {
-      _ = try? await UNUserNotificationCenter.current().requestAuthorization(
-        options: [.alert, .sound])
-    }
     refresh()
     timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
       Task { @MainActor in self?.refresh() }
@@ -76,9 +73,15 @@ final class ChildDashboardModel: NSObject, ObservableObject {
       Task { @MainActor in
         switch result {
         case .success(let value):
+          let newParentMessages =
+            self?.incomingNotificationTracker.newlyReceivedMessages(
+              in: value.messages) ?? []
           self?.status = value.status
           self?.messages = value.messages
           self?.error = ""
+          if !newParentMessages.isEmpty {
+            self?.notifyAboutIncomingMessages(count: newParentMessages.count)
+          }
           if self?.chatVisible == true { self?.markChatRead() }
         case .failure:
           self?.error =
@@ -86,6 +89,16 @@ final class ChildDashboardModel: NSObject, ObservableObject {
         }
       }
     }
+  }
+
+  private func notifyAboutIncomingMessages(count: Int) {
+    let content = UNMutableNotificationContent()
+    content.title = count == 1 ? "Message from your parent" : "Messages from your parent"
+    content.body =
+      count == 1 ? "Open Parental Control to read it." : "Open Parental Control to read them."
+    content.sound = .default
+    UNUserNotificationCenter.current().add(
+      UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
   }
 
   func setChatVisible(_ visible: Bool) {

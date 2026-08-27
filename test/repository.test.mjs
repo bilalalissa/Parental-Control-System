@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/05-chromium-extension");
-  assert.equal(active[0].version, "0.5.0-rc.7");
+  assert.equal(active[0].version, "0.5.0-rc.8");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -78,7 +78,7 @@ test("child notification authorization avoids actor-isolated completion callback
   );
   assert.match(
     child,
-    /Task\s*\{[\s\S]*try\?\s+await\s+UNUserNotificationCenter\.current\(\)\.requestAuthorization/,
+    /let center = UNUserNotificationCenter\.current\(\)[\s\S]*Task\s*\{[\s\S]*try\?\s+await\s+center\.requestAuthorization/,
   );
   assert.doesNotMatch(child, /requestAuthorization\([^)]*\)\s*\{\s*_,\s*_\s+in/);
 });
@@ -158,7 +158,7 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /configuration\.browser \|\| browser/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.7\.zip/);
+  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.8\.zip/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
   assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
@@ -187,6 +187,10 @@ test("Stage 05 chat feedback uses system-controlled audio, unread badges, and ex
   assert.match(childHelper, /message\.audience == \.announcement/);
   assert.match(childApp, /ChildAppDelegate/);
   assert.match(childApp, /completionHandler\(\[\.banner, \.sound\]\)/);
+  assert.match(childApp, /IncomingMessageNotificationTracker/);
+  assert.match(childApp, /UNMutableNotificationContent/);
+  assert.match(childApp, /content\.sound = \.default/);
+  assert.match(childApp, /Open Parental Control to read/);
   assert.match(childApp, /result\.isSuccess \{ NSSound\.beep\(\) \}/);
   assert.match(childApp, /badge: model\.unreadMessageCount/);
   assert.match(childApp, /ChildTabButton/);
@@ -207,7 +211,27 @@ test("Stage 05 retains only bounded, content-minimal open-tab observations", asy
   assert.match(database, /DELETE FROM browser_tabs[\s\S]*browser = \?[\s\S]*profile_id = \?[\s\S]*title = \?[\s\S]*origin = \?/);
   assert.match(devices, /Recently observed open tabs are retained/);
   assert.match(devices, /Active when observed/);
+  assert.match(devices, /ScrollView\(\.vertical\)/);
+  assert.match(devices, /scrollIndicators\(\.visible\)/);
+  assert.doesNotMatch(devices, /activity\.prefix\(8\)/);
+  assert.doesNotMatch(devices, /browserTabs\.prefix\(8\)/);
   assert.doesNotMatch(database, /chrome_history|browser_history|full_url|page_content/);
+});
+
+test("Stage 05 activity alerts are classified narrowly and rate limited", async () => {
+  const [alerts, controller, devices] = await Promise.all([
+    read("apps/controller-macos/Sources/HubCore/Models/ActivityAlerts.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Stores/ControllerStore.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/DevicesView.swift"),
+  ]);
+  assert.match(alerts, /youtube\.com/);
+  assert.match(alerts, /possibleGame/);
+  assert.match(alerts, /30 \* 60/);
+  assert.match(alerts, /tab\.origin/);
+  assert.doesNotMatch(alerts, /pageContent|fullURL|privateTab/);
+  assert.match(controller, /YouTube activity detected/);
+  assert.match(controller, /Possible game activity detected/);
+  assert.match(devices, /Observed activity alerts/);
 });
 
 test("local Markdown links resolve inside the repository", async () => {
@@ -283,7 +307,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–04 are merged; STAGE-05 `0\.5\.0-rc\.7`/);
+  assert.match(readme, /Stages 00–04 are merged; STAGE-05 `0\.5\.0-rc\.8`/);
   assert.match(readme, /unread Chat counters/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);

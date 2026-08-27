@@ -87,6 +87,12 @@ private struct PairedDeviceControlRow: View {
     _browserRetentionDays = State(initialValue: browserConfiguration.retentionDays)
   }
 
+  private var activityAlertKinds: [HubActivityAlertKind] {
+    let appKinds = activity.compactMap(HubActivityAlertClassifier.kind(for:))
+    let tabKinds = browserTabs.compactMap(HubActivityAlertClassifier.kind(for:))
+    return Array(Set(appKinds + tabKinds)).sorted { $0.rawValue < $1.rawValue }
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
@@ -115,6 +121,20 @@ private struct PairedDeviceControlRow: View {
 
       if isExpanded {
         VStack(alignment: .leading, spacing: 8) {
+          if !activityAlertKinds.isEmpty {
+            HStack(spacing: 8) {
+              Label("Observed activity alerts", systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+              ForEach(activityAlertKinds, id: \.self) { kind in
+                Text(kind.title)
+                  .font(.caption.weight(.semibold))
+                  .padding(.horizontal, 8)
+                  .padding(.vertical, 3)
+                  .background(.orange.opacity(0.14), in: Capsule())
+              }
+            }
+            .accessibilityElement(children: .combine)
+          }
           HStack {
             Toggle(
               "Share application names",
@@ -137,16 +157,30 @@ private struct PairedDeviceControlRow: View {
             "Application names and bundle identifiers only—never command lines or window contents."
           )
           .font(.caption).foregroundStyle(.secondary)
-          ForEach(activity.prefix(8)) { application in
-            HStack {
-              Image(systemName: application.isForeground ? "app.badge.checkmark" : "app")
-              Text(application.applicationName)
-              Text(application.bundleIdentifier).font(.caption).foregroundStyle(.secondary)
-              Spacer()
-              if application.isForeground {
-                Text("Foreground").font(.caption).foregroundStyle(.green)
+          if !activity.isEmpty {
+            ScrollView(.vertical) {
+              LazyVStack(alignment: .leading, spacing: 8) {
+                ForEach(activity) { application in
+                  HStack {
+                    Image(systemName: application.isForeground ? "app.badge.checkmark" : "app")
+                    Text(application.applicationName)
+                    Text(application.bundleIdentifier).font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    if let kind = HubActivityAlertClassifier.kind(for: application) {
+                      Label(kind.title, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(.orange)
+                    }
+                    if application.isForeground {
+                      Text("Foreground").font(.caption).foregroundStyle(.green)
+                    }
+                  }
+                }
               }
+              .padding(.trailing, 6)
             }
+            .scrollIndicators(.visible)
+            .frame(height: min(220, max(38, CGFloat(activity.count) * 30)))
+            .accessibilityLabel("Recently observed applications")
           }
           if activity.isEmpty {
             Text(
@@ -181,21 +215,35 @@ private struct PairedDeviceControlRow: View {
             "Recently observed open tabs are retained for the selected period. Shares titles and website origins only; private tabs, full paths, query strings, fragments, page content, forms, cookies, and traffic are excluded."
           )
           .font(.caption).foregroundStyle(.secondary)
-          ForEach(Array(browserTabs.prefix(8).enumerated()), id: \.offset) { _, tab in
-            HStack {
-              Image(systemName: tab.isActive ? "globe.badge.chevron.backward" : "globe")
-              VStack(alignment: .leading, spacing: 2) {
-                Text(tab.title)
-                Text(
-                  "\(tab.browser.capitalized) · \(tab.origin) · Observed \(tab.observedAt.formatted(date: .omitted, time: .shortened))"
-                )
-                .font(.caption).foregroundStyle(.secondary)
+          if !browserTabs.isEmpty {
+            ScrollView(.vertical) {
+              LazyVStack(alignment: .leading, spacing: 10) {
+                ForEach(browserTabs) { tab in
+                  HStack {
+                    Image(systemName: tab.isActive ? "globe.badge.chevron.backward" : "globe")
+                    VStack(alignment: .leading, spacing: 2) {
+                      Text(tab.title)
+                      Text(
+                        "\(tab.browser.capitalized) · \(tab.origin) · Observed \(tab.observedAt.formatted(date: .omitted, time: .shortened))"
+                      )
+                      .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if let kind = HubActivityAlertClassifier.kind(for: tab) {
+                      Label(kind.title, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(.orange)
+                    }
+                    if tab.isActive {
+                      Text("Active when observed").font(.caption).foregroundStyle(.green)
+                    }
+                  }
+                }
               }
-              Spacer()
-              if tab.isActive {
-                Text("Active when observed").font(.caption).foregroundStyle(.green)
-              }
+              .padding(.trailing, 6)
             }
+            .scrollIndicators(.visible)
+            .frame(height: min(280, max(52, CGFloat(browserTabs.count) * 52)))
+            .accessibilityLabel("Recently observed browser tabs")
           }
           if browserTabs.isEmpty {
             Text(

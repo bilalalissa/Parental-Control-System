@@ -2,6 +2,15 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.5.0-rc.8 — 2026-08-26
+
+Status: **STAGE-05 changes being verified**
+
+- Delivers incoming child-chat feedback through the visible child app's ordinary macOS notification banner and default system sound while silently priming existing history and leaving the stable raw LaunchAgent free of notification-center calls.
+- Gives application and retained browser-tab observations independent bounded vertical scrolling with visible indicators instead of truncating each list to eight rows.
+- Classifies observed YouTube origins and conservative game origins/app identities, displays truthful inline alert badges, and emits generic parent notifications with a per-device/per-kind thirty-minute cooldown.
+- Keeps notification content generic and continues to exclude message text, full URLs, page content, private tabs, logs, screenshots, and microphone capture.
+
 ## 0.5.0-rc.7 — 2026-08-23
 
 Status: **STAGE-05 ready for developer retest**

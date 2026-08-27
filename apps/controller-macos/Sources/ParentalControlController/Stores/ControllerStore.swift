@@ -28,6 +28,7 @@ final class ControllerStore {
   private var hubRefreshTask: Task<Void, Never>?
   private var knownInboundMessageIDs: Set<UUID> = []
   private var loadedInitialHubStatus = false
+  private var activityAlertTracker = HubActivityAlertTracker()
 
   init(database: ControllerDatabase) throws {
     self.database = database
@@ -262,6 +263,17 @@ final class ControllerStore {
     }
     knownInboundMessageIDs = inboundIDs
     loadedInitialHubStatus = true
+    for alert in activityAlertTracker.newlyAlertingObservations(
+      activity: status.activity, tabs: status.browserTabs)
+    {
+      let content = UNMutableNotificationContent()
+      content.title =
+        alert.kind == .youtube ? "YouTube activity detected" : "Possible game activity detected"
+      content.body = "Open Parental Control to review shared activity."
+      content.sound = .default
+      UNUserNotificationCenter.current().add(
+        UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    }
     hubStatus = status
   }
 

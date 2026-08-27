@@ -1,15 +1,15 @@
 # STAGE-05 — Shared Chromium extension and macOS integration
 
-- Version: `0.5.0-rc.7`
+- Version: `0.5.0-rc.8`
 - Branch: `stage/05-chromium-extension`
-- Status: `READY_FOR_RETEST`
+- Status: `CHANGES_REQUESTED`
 - Platform: Chrome, Microsoft Edge, and Arc on a universal macOS child endpoint; Parent Controller on Apple silicon; macOS 14 or newer
 
 ## Objective and scope
 
 Deliver one visible Manifest V3 WebExtension source for Chrome, Edge, and Arc, one packaged extension, and a narrowly authenticated macOS native-messaging host. When the parent explicitly enables sharing, collect at most 128 open HTTP(S) tab titles and query-free origins with browser, pseudonymous local profile, active state, and observation time. Exclude private tabs and clear retained metadata immediately when disabled.
 
-Complete the deferred Stage 04 chat feedback and physical-test corrections through `rc.7`: a short system alert after a sender queues a message, generic system-controlled arrival sound for both receiver directions, explicit unread counters that clear only for the visible conversation, distinct `Sent`, `Delivered`, and `Read` indicators, authenticated parent-only edit/delete, typed parent announcements spoken automatically through local macOS speech on each receiving child, reliable one-time pairing-code creation, one bounded Keychain human-response interval, a stable logged-in helper for session/application collection, and a bounded list of recently observed open-tab title/origin pairs.
+Complete the deferred Stage 04 chat feedback and physical-test corrections through `rc.8`: a short system alert after a sender queues a message, generic system-controlled arrival banner and sound for both receiver directions, explicit unread counters that clear only for the visible conversation, distinct `Sent`, `Delivered`, and `Read` indicators, authenticated parent-only edit/delete, typed parent announcements spoken automatically through local macOS speech on each receiving child, reliable one-time pairing-code creation, one bounded Keychain human-response interval, a stable logged-in helper for session/application collection, independently scrollable bounded activity lists, and bounded alerts for observed YouTube or possible game activity.
 
 Excluded: Safari, browser history, page/document contents, full URLs or paths, query strings, fragments, forms, cookies, passwords, private browsing, downloads, bookmarks, network traffic, screenshots, keystrokes, clipboard, microphone recording, audio attachments/files/uploads, message contents in logs/audit/notification diagnostics, schedule enforcement, remote actions, public relay, cloud storage, and Stage 06+ work.
 
