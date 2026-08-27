@@ -88,7 +88,7 @@ struct ControllerRootView: View {
     case .chat:
       ChatShellView(store: store)
     case .audit:
-      AuditView(events: store.auditEvents)
+      AuditView(events: store.displayedAuditEvents)
     case .storage:
       StorageView(store: store)
     }

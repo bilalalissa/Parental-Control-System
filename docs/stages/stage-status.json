@@ -1,6 +1,6 @@
 {
   "$schema": "./stage-status.schema.json",
-  "activeStage": "STAGE-05",
+  "activeStage": "STAGE-06",
   "stages": [
     {
       "id": "STAGE-00",
@@ -49,6 +49,14 @@
       "status": "MERGED",
       "branch": "stage/05-chromium-extension",
       "document": "stage-05.md"
+    },
+    {
+      "id": "STAGE-06",
+      "name": "macOS policy enforcement",
+      "version": "0.6.0-rc.1",
+      "status": "READY_FOR_DEVELOPER_TEST",
+      "branch": "stage/06-macos-policy-enforcement",
+      "document": "stage-06.md"
     }
   ]
 }

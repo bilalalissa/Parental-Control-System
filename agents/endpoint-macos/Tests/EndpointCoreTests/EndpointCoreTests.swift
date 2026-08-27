@@ -45,10 +45,13 @@ struct EndpointCoreTests {
       initial: DeviceSnapshotCollector.collect(deviceID: configuration.deviceID))
     let logDirectory = root.appendingPathComponent("logs")
     let deviceIdentity = try Ed25519Identity(keyID: "device-\(configuration.deviceID)")
+    let policyRuntime = EndpointPolicyRuntime(
+      root: store.root, deviceID: configuration.deviceID,
+      controllerPublicKey: invitation.controllerPublicKey)
     let agent = try EndpointAgent(
       store: store, repository: repository,
       log: BoundedLog(directory: logDirectory),
-      suppliedIdentity: deviceIdentity)
+      suppliedIdentity: deviceIdentity, policyRuntime: policyRuntime)
     defer { agent.stop() }
     try agent.start()
     let pairingResult = paired.wait(timeout: .now() + 8)
@@ -111,6 +114,23 @@ struct EndpointCoreTests {
     #expect(
       repository.dashboard(markRead: false).messages.first { $0.id == parentMessageID }?.displayText
         == "Message deleted")
+    let policyVersion = UInt64(Date().timeIntervalSince1970 * 1_000)
+    _ = try hub.applyPolicy(
+      ParentalControlPolicy(
+        version: policyVersion, deviceID: configuration.deviceID, timezone: "UTC",
+        effectiveAt: Date().addingTimeInterval(-60), defaultAction: .lock,
+        warningOffsetsMinutes: [15, 5, 1], gracePeriodSeconds: 60,
+        weeklyAllowed: PolicyWeekday.allCases.map {
+          PolicyWeeklyWindow(day: $0, start: "00:00", end: "23:59")
+        }, dailyQuotaMinutes: 1_440, childExplanation: "Synthetic integration policy",
+        signature: PolicySignature(
+          keyID: "controller-local-authority", value: "unsigned")))
+    let policyDeadline = Date().addingTimeInterval(3)
+    while policyRuntime.snapshot().0?.version != policyVersion, Date() < policyDeadline {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(policyRuntime.snapshot().0?.version == policyVersion)
+    #expect(try database.counts().receipts > 0)
     let deviceBeforeRestart = try database.device(id: configuration.deviceID)
     let sequenceBeforeRestart = try #require(deviceBeforeRestart).lastSequence
     agent.stop()
@@ -134,7 +154,7 @@ struct EndpointCoreTests {
     let restartedAgent = try EndpointAgent(
       store: store, repository: repository,
       log: BoundedLog(directory: logDirectory), suppliedIdentity: deviceIdentity,
-      pairedControllerPort: restartedPort)
+      policyRuntime: policyRuntime, pairedControllerPort: restartedPort)
     defer { restartedAgent.stop() }
     try restartedAgent.start()
     let reconnectDeadline = Date().addingTimeInterval(5)

@@ -34,8 +34,8 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   const active = tracker.stages.filter((stage) => stage.id === tracker.activeStage);
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
-  assert.equal(active[0].branch, "stage/05-chromium-extension");
-  assert.equal(active[0].version, "0.5.0-rc.9");
+  assert.equal(active[0].branch, "stage/06-macos-policy-enforcement");
+  assert.equal(active[0].version, "0.6.0-rc.1");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -158,7 +158,7 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /configuration\.browser \|\| browser/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.8\.zip/);
+  assert.match(packager, /ParentalControlBrowserSharing-0\.6\.0-rc\.1\.zip/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
   assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
@@ -256,6 +256,37 @@ test("Stage 05 release UI uses one real paired-device list and the shared visual
   assert.match(popup, /ui-monospace/);
 });
 
+test("Stage 06 policy enforcement is signed, bounded, visible, and allowlisted", async () => {
+  const [policy, runtime, daemon, helper, child, schedule, devices, store, security] = await Promise.all([
+    read("apps/controller-macos/Sources/HubCore/Policy/PolicyModels.swift"),
+    read("agents/endpoint-macos/Sources/EndpointCore/EndpointPolicyRuntime.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlAgentDaemon/main.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlAgentUser/main.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/ScheduleEditorView.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/DevicesView.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Stores/ControllerStore.swift"),
+    read("SECURITY.md"),
+  ]);
+  assert.match(policy, /Curve25519\.Signing\.PublicKey/);
+  assert.match(policy, /adultOverride[\s\S]*immediateCommand[\s\S]*exception[\s\S]*blockedInterval[\s\S]*dailyQuota/);
+  assert.match(runtime, /replayedVersion/);
+  assert.match(runtime, /maximumFailedAttempts = 3/);
+  assert.match(runtime, /lockoutDuration: TimeInterval = 5 \* 60/);
+  assert.match(runtime, /mach_continuous_time/);
+  assert.match(runtime, /posixPermissions: 0o600/);
+  assert.match(daemon, /repeating: 15/);
+  assert.match(helper, /ScreenSaverEngine\.app/);
+  assert.match(helper, /kAEShowRestartDialog/);
+  assert.match(helper, /kAEShowShutdownDialog/);
+  assert.doesNotMatch(helper, /kAERestart|kAEShutDown/);
+  assert.match(child, /Settings are read-only here/);
+  assert.match(schedule, /Sign and Apply Policy/);
+  assert.match(devices, /Offline — short-lived actions are unavailable/);
+  assert.match(store, /displayedAuditEvents/);
+  assert.match(security, /Receipts acknowledge endpoint acceptance, not completion/);
+});
+
 test("local Markdown links resolve inside the repository", async () => {
   const markdownFiles = await walk(root, ".md");
   const missing = [];
@@ -291,7 +322,7 @@ test("CI is least-privilege, cancellable, pinned, and short-retention", async ()
   assert.doesNotMatch(workflow, /pull_request_target/);
 });
 
-test("Stage 05 CI verifies the fresh default install before child customization", async () => {
+test("Stage 06 CI verifies the fresh default install before child customization", async () => {
   const workflow = await read(".github/workflows/stage-03-macos.yml");
   const parentInstall = workflow.indexOf("- name: Install default parent choice");
   const childInstall = workflow.indexOf("- name: Install, diagnose, and uninstall child choice");
@@ -329,8 +360,8 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–05 are merged; the approved STAGE-05 candidate is `0\.5\.0-rc\.9`/);
-  assert.match(readme, /unread counters/);
+  assert.match(readme, /Stages 00–05 are merged; STAGE-06 `0\.6\.0-rc\.1` is ready for developer testing/);
+  assert.match(readme, /locally enforces/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });

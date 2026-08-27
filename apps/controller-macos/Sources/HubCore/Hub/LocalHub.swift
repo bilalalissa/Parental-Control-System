@@ -32,6 +32,7 @@ public struct LocalHubStatus: Codable, Equatable, Sendable {
   public let browserTabs: [HubBrowserTab]
   public let browserConfigurations: [BrowserConfiguration]
   public let moreTimeRequests: [MoreTimeRequestRecord]
+  public let auditRecords: [HubAuditRecord]
   public let storage: HubStorageSummary
 
   public init(
@@ -45,6 +46,7 @@ public struct LocalHubStatus: Codable, Equatable, Sendable {
     browserTabs: [HubBrowserTab] = [],
     browserConfigurations: [BrowserConfiguration] = [],
     moreTimeRequests: [MoreTimeRequestRecord] = [],
+    auditRecords: [HubAuditRecord] = [],
     storage: HubStorageSummary = HubStorageSummary(
       activityRecords: 0, chatMessages: 0, queuedEnvelopes: 0)
   ) {
@@ -58,6 +60,7 @@ public struct LocalHubStatus: Codable, Equatable, Sendable {
     self.browserTabs = browserTabs
     self.browserConfigurations = browserConfigurations
     self.moreTimeRequests = moreTimeRequests
+    self.auditRecords = auditRecords
     self.storage = storage
   }
 }
@@ -194,6 +197,7 @@ public final class LocalHub: @unchecked Sendable {
       browserTabs: try database.browserTabs(),
       browserConfigurations: try database.browserConfigurations(),
       moreTimeRequests: try database.moreTimeRequests(),
+      auditRecords: try database.audit(),
       storage: try database.storageSummary())
   }
 
@@ -293,6 +297,89 @@ public final class LocalHub: @unchecked Sendable {
         detail: configuration.enabled
           ? "Browser title/origin sharing enabled; \(configuration.retentionDays)-day retention"
           : "Browser sharing disabled and retained tab metadata removed"))
+    publishStatus()
+  }
+
+  @discardableResult
+  public func applyPolicy(_ policy: ParentalControlPolicy) throws -> ParentalControlPolicy {
+    guard let device = try database.device(id: policy.deviceID), !device.isRevoked else {
+      throw LocalHubError.unknownDevice
+    }
+    guard device.capabilities.contains("signed-policy") else {
+      throw LocalHubError.unexpectedMessage
+    }
+    let signed = try controllerIdentity.sign(policy: policy)
+    let encoded = try PolicyCodec.encoder().encode(signed)
+    let envelope = try controllerIdentity.sign(
+      deviceID: "controller", sequence: nextControllerSequence(), type: .policyApply,
+      payload: [
+        "targetDeviceId": .string(policy.deviceID),
+        "policy": .string(encoded.base64EncodedString()),
+      ], lifetime: 30 * 86_400)
+    try sendOrQueue(envelope, deviceID: policy.deviceID, lifetime: 30 * 86_400)
+    try database.appendAudit(
+      HubAuditRecord(
+        event: "policy.applied", deviceID: policy.deviceID,
+        detail: "Signed policy version \(policy.version); default \(policy.defaultAction.rawValue)")
+    )
+    publishStatus()
+    return signed
+  }
+
+  @discardableResult
+  public func sendImmediateAction(
+    deviceID: String, action: PolicyAction, confirmed: Bool, now: Date = Date()
+  ) throws -> UUID {
+    guard let device = try database.device(id: deviceID), !device.isRevoked else {
+      throw LocalHubError.unknownDevice
+    }
+    guard action != .warningOnly, device.capabilities.contains(action.rawValue) else {
+      throw LocalHubError.unexpectedMessage
+    }
+    if [.logoff, .restart, .shutdown].contains(action), !confirmed {
+      throw LocalHubError.unexpectedMessage
+    }
+    let type: ProtocolMessageType
+    switch action {
+    case .lock: type = .actionLock
+    case .logoff: type = .actionLogoff
+    case .restart: type = .actionRestart
+    case .shutdown: type = .actionShutdown
+    case .warningOnly: throw LocalHubError.unexpectedMessage
+    }
+    let expiresAt = now.addingTimeInterval(120)
+    let envelope = try controllerIdentity.sign(
+      deviceID: "controller", sequence: nextControllerSequence(), type: type,
+      payload: [
+        "targetDeviceId": .string(deviceID),
+        "commandExpiresAt": .string(ISO8601DateFormatter().string(from: expiresAt)),
+      ], now: now, lifetime: 120)
+    try sendOrQueue(envelope, deviceID: deviceID, lifetime: 120)
+    try database.appendAudit(
+      HubAuditRecord(
+        event: "action.\(action.rawValue)", deviceID: deviceID,
+        detail: "Authenticated allowlisted action queued; confirmation=\(confirmed)"))
+    publishStatus()
+    return envelope.id
+  }
+
+  public func rotateAdultVerifier(
+    deviceID: String, salt: String, digest: String
+  ) throws {
+    guard let device = try database.device(id: deviceID), !device.isRevoked,
+      device.capabilities.contains("adult-override"), !salt.isEmpty, !digest.isEmpty
+    else { throw LocalHubError.unknownDevice }
+    let envelope = try controllerIdentity.sign(
+      deviceID: "controller", sequence: nextControllerSequence(), type: .adultVerifierRotate,
+      payload: [
+        "targetDeviceId": .string(deviceID), "salt": .string(String(salt.prefix(128))),
+        "digest": .string(String(digest.prefix(128))),
+      ], lifetime: 30 * 86_400)
+    try sendOrQueue(envelope, deviceID: deviceID, lifetime: 30 * 86_400)
+    try database.appendAudit(
+      HubAuditRecord(
+        event: "adult-verifier.rotated", deviceID: deviceID,
+        detail: "Rate-limited adult verifier rotated; code omitted"))
     publishStatus()
   }
 
@@ -554,6 +641,10 @@ public final class LocalHub: @unchecked Sendable {
       else { throw LocalHubError.unexpectedMessage }
       try database.appendReceipt(
         ReceiptRecord(deviceID: device.id, originalMessageID: original, state: state))
+      try database.appendAudit(
+        HubAuditRecord(
+          event: "command.receipt", deviceID: device.id,
+          detail: "Authenticated command receipt: \(String(state.prefix(40))); content omitted"))
       if let deliveryState = ChatDeliveryState(rawValue: state) {
         try database.updateChatState(id: original, state: deliveryState)
       } else if state == "accepted" {
@@ -562,7 +653,9 @@ public final class LocalHub: @unchecked Sendable {
       try database.updateSeen(
         deviceID: device.id, sequence: envelope.sequence,
         snapshotVersion: device.snapshotVersion)
-    case .activityConfiguration, .browserConfiguration, .snapshotRequest:
+    case .activityConfiguration, .browserConfiguration, .snapshotRequest, .policyApply,
+      .policyQuery, .actionLock, .actionLogoff, .actionRestart, .actionShutdown, .bonusGrant,
+      .bonusRevoke, .adultVerifierRotate:
       throw LocalHubError.unexpectedMessage
     }
     try sendReceipt(for: envelope, state: "accepted", to: peer, deviceID: device.id)

@@ -2,6 +2,16 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.0-rc.1 — 2026-08-26
+
+Status: **STAGE-06 ready for developer test**
+
+- Adds canonical Ed25519-signed per-device schedules with deterministic IANA-time-zone evaluation, precedence golden tests, version replay/tamper rejection, and root-protected offline persistence.
+- Adds bounded warnings and grace, daily active-session quota, bonus revisions, protected six-digit adult override with three-attempt/five-minute lockout, clock-change fail-closed behavior, and sleep/reboot continuity.
+- Adds allowlisted Lock, Log Out, Restart, and Shut Down requests with capability checks, expiry, receipts, content-free audit records, parent confirmation for high-impact actions, and no force behavior.
+- Adds visible parent schedule/action controls and a read-only child policy/override view. Lock preserves applications; loginwindow confirmation dialogs preserve macOS unsaved-work handling for logoff/restart/shutdown.
+- Retains the Stage-05 visible extension and packages a current-version companion ZIP for clean-install developer testing; no browser permissions or collection scope changed.
+
 ## 0.5.0-rc.9 — 2026-08-26
 
 Status: **STAGE-05 merged after developer physical retest and approval**

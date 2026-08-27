@@ -9,6 +9,7 @@ public final class EndpointAgent: @unchecked Sendable {
   private let log: BoundedLog
   private let identity: Ed25519Identity
   private let pairedControllerPort: UInt16
+  private let policyRuntime: EndpointPolicyRuntime?
   private let onEstablishedConnectionLoss: @Sendable () -> Void
   private var replay = ReplayProtector()
   private let delta = DeltaSnapshotTracker()
@@ -25,7 +26,7 @@ public final class EndpointAgent: @unchecked Sendable {
   public init(
     store: ProtectedConfigurationStore, repository: EndpointStatusRepository, log: BoundedLog,
     keychain: KeychainStore = KeychainStore(service: "com.bilalalissa.ParentalControlAgent.device"),
-    suppliedIdentity: Ed25519Identity? = nil,
+    suppliedIdentity: Ed25519Identity? = nil, policyRuntime: EndpointPolicyRuntime? = nil,
     pairedControllerPort: UInt16 = SecureWebSocketServer.parentControlPort,
     onEstablishedConnectionLoss: @escaping @Sendable () -> Void = {}
   ) throws {
@@ -33,6 +34,7 @@ public final class EndpointAgent: @unchecked Sendable {
     self.repository = repository
     self.log = log
     self.pairedControllerPort = pairedControllerPort
+    self.policyRuntime = policyRuntime
     self.onEstablishedConnectionLoss = onEstablishedConnectionLoss
     let configuration = try store.load()
     repository.configureActivity(
@@ -114,6 +116,9 @@ public final class EndpointAgent: @unchecked Sendable {
         .string("network-metadata"), .string("health"), .string("delta-snapshot"),
         .string("receipt"), .string("app-activity"), .string("chat"),
         .string("browser-tabs"), .string("request-more-time"), .string("notifications"),
+        .string("signed-policy"), .string("offline-enforcement"), .string("policy-warning"),
+        .string("lock"), .string("logoff"), .string("restart"), .string("shutdown"),
+        .string("adult-override"), .string("bonus-time"),
       ]),
     ]
     if let code = configuration.invitation?.code, !code.isEmpty {
@@ -175,6 +180,20 @@ public final class EndpointAgent: @unchecked Sendable {
         try receiveActivityConfiguration(envelope)
       case .browserConfiguration:
         try receiveBrowserConfiguration(envelope)
+      case .policyApply, .bonusGrant, .bonusRevoke:
+        try receivePolicy(envelope, controllerKey: controllerKey)
+      case .actionLock:
+        try receiveImmediateAction(envelope, action: .lock)
+      case .actionLogoff:
+        try receiveImmediateAction(envelope, action: .logoff)
+      case .actionRestart:
+        try receiveImmediateAction(envelope, action: .restart)
+      case .actionShutdown:
+        try receiveImmediateAction(envelope, action: .shutdown)
+      case .adultVerifierRotate:
+        try receiveAdultVerifier(envelope)
+      case .policyQuery:
+        try sendPolicyReceipt(for: envelope.id, state: "queried")
       case .activityUpdate, .browserUpdate, .requestMoreTime, .capabilityAnnounce,
         .snapshotResponse:
         break
@@ -197,6 +216,13 @@ public final class EndpointAgent: @unchecked Sendable {
     refreshed.browserCollectionEnabled = former.browserCollectionEnabled
     refreshed.browserRetentionDays = former.browserRetentionDays
     refreshed.browserTabs = former.browserTabs
+    refreshed.policyVersion = former.policyVersion
+    refreshed.policyDecision = former.policyDecision
+    refreshed.policyAction = former.policyAction
+    refreshed.policyReason = former.policyReason
+    refreshed.policyLastEvaluatedAt = former.policyLastEvaluatedAt
+    refreshed.policyClockTrusted = former.policyClockTrusted
+    refreshed.adultOverrideUntil = former.adultOverrideUntil
     repository.update { $0 = refreshed }
     let networks: [JSONValue] = refreshed.networks.map { network in
       .object([
@@ -216,6 +242,10 @@ public final class EndpointAgent: @unchecked Sendable {
       "consoleUser": refreshed.consoleUser.map(JSONValue.string) ?? .null,
       "networks": .array(networks), "daemonHealthy": .bool(true),
       "helperHealthy": .bool(refreshed.helperHealthy),
+      "policyVersion": refreshed.policyVersion.map { .integer(Int64(clamping: $0)) } ?? .null,
+      "policyDecision": refreshed.policyDecision.map { .string($0.rawValue) } ?? .null,
+      "policyAction": refreshed.policyAction.map { .string($0.rawValue) } ?? .null,
+      "policyClockTrusted": .bool(refreshed.policyClockTrusted),
     ]
     let update = delta.delta(for: snapshot)
     let envelope = try identity.sign(
@@ -350,12 +380,67 @@ public final class EndpointAgent: @unchecked Sendable {
         : "Browser metadata disabled and cleared")
   }
 
+  private func receivePolicy(_ envelope: ProtocolEnvelope, controllerKey: Data) throws {
+    guard let policyRuntime,
+      let encoded = envelope.payload["policy"]?.stringValue,
+      let data = Data(base64Encoded: encoded)
+    else { throw EndpointAgentError.invalidMessage }
+    let policy = try PolicyCodec.decoder().decode(ParentalControlPolicy.self, from: data)
+    try policyRuntime.install(
+      policy, controllerPublicKey: controllerKey, expectedKeyID: envelope.auth.keyID)
+    let snapshot = policyRuntime.snapshot()
+    repository.update {
+      $0.policyVersion = policy.version
+      $0.policyClockTrusted = snapshot.1.clockTrusted
+      $0.adultOverrideUntil = snapshot.1.adultOverrideUntil
+    }
+    try sendPolicyReceipt(for: envelope.id, state: "policy-installed")
+    log.write(
+      event: "policy.installed", detail: "Installed signed policy version \(policy.version)")
+  }
+
+  private func receiveImmediateAction(
+    _ envelope: ProtocolEnvelope, action: PolicyAction
+  ) throws {
+    let configuration = try store.load()
+    guard let policyRuntime,
+      envelope.payload["targetDeviceId"]?.stringValue == configuration.deviceID,
+      let expiresText = envelope.payload["commandExpiresAt"]?.stringValue,
+      let expiresAt = ISO8601DateFormatter().date(from: expiresText)
+    else { throw EndpointAgentError.invalidMessage }
+    try policyRuntime.setImmediateAction(action, expiresAt: expiresAt)
+    try sendPolicyReceipt(for: envelope.id, state: "action-accepted")
+    log.write(event: "policy.immediate", detail: "Accepted allowlisted action \(action.rawValue)")
+  }
+
+  private func receiveAdultVerifier(_ envelope: ProtocolEnvelope) throws {
+    let configuration = try store.load()
+    guard let policyRuntime,
+      envelope.payload["targetDeviceId"]?.stringValue == configuration.deviceID,
+      let salt = envelope.payload["salt"]?.stringValue,
+      let digest = envelope.payload["digest"]?.stringValue
+    else { throw EndpointAgentError.invalidMessage }
+    try policyRuntime.configureAdultVerifier(AdultCodeVerifier(salt: salt, digest: digest))
+    try sendPolicyReceipt(for: envelope.id, state: "adult-verifier-installed")
+    log.write(event: "policy.adult-verifier", detail: "Rotated adult verifier")
+  }
+
   private func sendReceipt(for originalID: UUID, state: ChatDeliveryState) throws {
     let configuration = try store.load()
     let receipt = try identity.sign(
       deviceID: configuration.deviceID, sequence: store.nextSequence(), type: .receipt,
       payload: [
         "originalMessageId": .string(originalID.uuidString), "state": .string(state.rawValue),
+      ])
+    try send(receipt)
+  }
+
+  private func sendPolicyReceipt(for originalID: UUID, state: String) throws {
+    let configuration = try store.load()
+    let receipt = try identity.sign(
+      deviceID: configuration.deviceID, sequence: store.nextSequence(), type: .receipt,
+      payload: [
+        "originalMessageId": .string(originalID.uuidString), "state": .string(state),
       ])
     try send(receipt)
   }

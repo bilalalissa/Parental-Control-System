@@ -30,6 +30,7 @@ enum RestrictionAction: String, CaseIterable, Codable, Identifiable, Sendable {
   case warningOnly
   case lock
   case logoff
+  case restart
   case shutdown
 
   var id: String { rawValue }
@@ -39,6 +40,7 @@ enum RestrictionAction: String, CaseIterable, Codable, Identifiable, Sendable {
     case .warningOnly: "Warn only"
     case .lock: "Lock"
     case .logoff: "Log out"
+    case .restart: "Restart"
     case .shutdown: "Shut down"
     }
   }
@@ -78,16 +80,49 @@ struct ScheduleDraft: Codable, Equatable, Sendable {
   var timezone: String
   var dailyQuotaMinutes: Int
   var warningMinutes: Int
+  var bonusMinutes: Int
+  var gracePeriodSeconds: Int
   var action: RestrictionAction
   var windows: [WeeklyWindow]
+
+  init(
+    timezone: String, dailyQuotaMinutes: Int, warningMinutes: Int, bonusMinutes: Int,
+    gracePeriodSeconds: Int, action: RestrictionAction, windows: [WeeklyWindow]
+  ) {
+    self.timezone = timezone
+    self.dailyQuotaMinutes = dailyQuotaMinutes
+    self.warningMinutes = warningMinutes
+    self.bonusMinutes = bonusMinutes
+    self.gracePeriodSeconds = gracePeriodSeconds
+    self.action = action
+    self.windows = windows
+  }
 
   static let standard = ScheduleDraft(
     timezone: TimeZone.current.identifier,
     dailyQuotaMinutes: 120,
     warningMinutes: 5,
+    bonusMinutes: 0,
+    gracePeriodSeconds: 60,
     action: .lock,
     windows: Weekday.allCases.map { WeeklyWindow(day: $0, isEnabled: $0.rawValue < 5) }
   )
+
+  private enum CodingKeys: String, CodingKey {
+    case timezone, dailyQuotaMinutes, warningMinutes, bonusMinutes, gracePeriodSeconds, action,
+      windows
+  }
+
+  init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    timezone = try values.decode(String.self, forKey: .timezone)
+    dailyQuotaMinutes = try values.decode(Int.self, forKey: .dailyQuotaMinutes)
+    warningMinutes = try values.decode(Int.self, forKey: .warningMinutes)
+    bonusMinutes = try values.decodeIfPresent(Int.self, forKey: .bonusMinutes) ?? 0
+    gracePeriodSeconds = try values.decodeIfPresent(Int.self, forKey: .gracePeriodSeconds) ?? 60
+    action = try values.decode(RestrictionAction.self, forKey: .action)
+    windows = try values.decode([WeeklyWindow].self, forKey: .windows)
+  }
 }
 
 enum ScheduleValidationIssue: Equatable, Sendable {

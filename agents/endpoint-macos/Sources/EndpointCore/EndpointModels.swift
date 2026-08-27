@@ -52,6 +52,13 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var browserCollectionEnabled: Bool
   public var browserRetentionDays: Int
   public var browserTabs: [EndpointBrowserTab]
+  public var policyVersion: UInt64?
+  public var policyDecision: PolicyDecisionKind?
+  public var policyAction: PolicyAction?
+  public var policyReason: String?
+  public var policyLastEvaluatedAt: Date?
+  public var policyClockTrusted: Bool
+  public var adultOverrideUntil: Date?
   public var collectedAt: Date
 
   public init(
@@ -74,7 +81,10 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     applications: [EndpointApplicationActivity] = [],
     browserCollectionEnabled: Bool = false,
     browserRetentionDays: Int = 7,
-    browserTabs: [EndpointBrowserTab] = [],
+    browserTabs: [EndpointBrowserTab] = [], policyVersion: UInt64? = nil,
+    policyDecision: PolicyDecisionKind? = nil, policyAction: PolicyAction? = nil,
+    policyReason: String? = nil, policyLastEvaluatedAt: Date? = nil,
+    policyClockTrusted: Bool = true, adultOverrideUntil: Date? = nil,
     collectedAt: Date = Date()
   ) {
     self.deviceID = deviceID
@@ -97,6 +107,13 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     self.browserCollectionEnabled = browserCollectionEnabled
     self.browserRetentionDays = max(1, min(browserRetentionDays, 30))
     self.browserTabs = Array(browserTabs.prefix(128))
+    self.policyVersion = policyVersion
+    self.policyDecision = policyDecision
+    self.policyAction = policyAction
+    self.policyReason = policyReason.map { String($0.prefix(500)) }
+    self.policyLastEvaluatedAt = policyLastEvaluatedAt
+    self.policyClockTrusted = policyClockTrusted
+    self.adultOverrideUntil = adultOverrideUntil
     self.collectedAt = collectedAt
   }
 }
@@ -261,6 +278,16 @@ public struct EndpointRuntimeState: Codable, Equatable, Sendable {
   public init(messages: [EndpointChatMessage], outbound: [EndpointOutboundItem]) {
     self.messages = Array(messages.suffix(200))
     self.outbound = Array(outbound.suffix(100))
+  }
+}
+
+public struct EndpointAdultOverrideRequest: Codable, Equatable, Sendable {
+  public let code: String
+  public let minutes: TimeInterval
+
+  public init(code: String, minutes: Int = 15) {
+    self.code = String(code.filter(\.isNumber).prefix(8))
+    self.minutes = TimeInterval(max(1, min(minutes, 60)))
   }
 }
 

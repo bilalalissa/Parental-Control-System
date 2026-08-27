@@ -1,7 +1,9 @@
 import AppKit
+import CryptoKit
 import Foundation
 import HubCore
 import Observation
+import Security
 import UserNotifications
 
 @MainActor
@@ -12,7 +14,9 @@ final class ControllerStore {
   var chatMessages: [ChatMessage]
   var schedule: ScheduleDraft
   var scheduleIssues: [ScheduleValidationIssue] = []
-  var scheduleStatusMessage = "This is a local preview. No endpoint policy is sent in Stage 01."
+  var scheduleStatusMessage = "Choose a paired macOS device, then sign and apply its schedule."
+  var adultOverrideCode: String?
+  var policyActionStatusMessage: String?
   var databaseStatusMessage: String?
   var storageSnapshot: StorageSnapshot
   var hubStatus: LocalHubStatus?
@@ -69,6 +73,21 @@ final class ControllerStore {
 
   var pairedDevices: [HubDeviceRecord] {
     hubStatus?.devices.filter { !$0.isRevoked } ?? []
+  }
+
+  var displayedAuditEvents: [AuditEvent] {
+    let hubEvents = (hubStatus?.auditRecords ?? []).map { record in
+      let severity: AuditSeverity =
+        record.event.contains("rejected") || record.event.contains("shutdown")
+        ? .warning
+        : (record.event.contains("action") || record.event.contains("policy")
+          ? .notice : .information)
+      return AuditEvent(
+        id: record.id, timestamp: record.timestamp,
+        title: record.event.replacingOccurrences(of: ".", with: " ").capitalized,
+        detail: record.detail, severity: severity)
+    }
+    return Array((hubEvents + auditEvents).sorted { $0.timestamp > $1.timestamp }.prefix(50))
   }
 
   var pairingInvitationToken: String? {
@@ -292,10 +311,96 @@ final class ControllerStore {
     do {
       try database.saveSchedule(schedule)
       storageSnapshot = try database.storageSnapshot()
-      scheduleStatusMessage = "Saved locally as a preview. No endpoint policy was sent."
+      guard let device = selectedPairedDevice else {
+        scheduleStatusMessage = "Saved locally. Pair and select a macOS child device to apply it."
+        return
+      }
+      scheduleStatusMessage = "Signing policy for \(device.name)…"
+      publishPolicy(to: device.id)
     } catch {
       scheduleStatusMessage = "The schedule could not be saved: \(error)"
     }
+  }
+
+  func grantBonus(deviceID: String, minutes: Int) {
+    schedule.bonusMinutes = max(0, min(1_440, schedule.bonusMinutes + minutes))
+    do { try database.saveSchedule(schedule) } catch {
+      scheduleStatusMessage = "Bonus time could not be saved: \(error)"
+      return
+    }
+    publishPolicy(to: deviceID)
+  }
+
+  func sendImmediateAction(deviceID: String, action: PolicyAction, confirmed: Bool) {
+    policyActionStatusMessage = "Sending authenticated \(action.rawValue) request…"
+    Task {
+      do {
+        applyHubStatus(
+          try await hubClient.sendAction(
+            deviceID: deviceID, action: action, confirmed: confirmed))
+        policyActionStatusMessage =
+          action == .lock
+          ? "Lock request sent. Apps remain open and unsaved work is not discarded."
+          : "\(action.rawValue.capitalized) request sent with a macOS confirmation dialog."
+      } catch {
+        policyActionStatusMessage = "Action was not sent: \(error)"
+      }
+    }
+  }
+
+  private func publishPolicy(to deviceID: String) {
+    guard let policy = makePolicy(deviceID: deviceID) else {
+      scheduleStatusMessage = "The schedule could not be converted to a signed policy."
+      return
+    }
+    let code = generateAdultCode()
+    let salt = UUID().uuidString
+    let digest = Data(
+      SHA256.hash(data: Data("adult-code|\(salt)|\(code)".utf8))
+    ).base64EncodedString()
+    Task {
+      do {
+        applyHubStatus(try await hubClient.applyPolicy(policy))
+        applyHubStatus(
+          try await hubClient.rotateAdultVerifier(
+            deviceID: deviceID, salt: salt, digest: digest))
+        adultOverrideCode = code
+        scheduleStatusMessage =
+          "Signed policy version \(policy.version) queued for the selected device."
+      } catch {
+        scheduleStatusMessage = "The signed policy could not be applied: \(error)"
+      }
+    }
+  }
+
+  private func makePolicy(deviceID: String) -> ParentalControlPolicy? {
+    let windows = schedule.windows.filter(\.isEnabled).compactMap { window -> PolicyWeeklyWindow? in
+      guard let day = PolicyWeekday(rawValue: window.day.title) else { return nil }
+      return PolicyWeeklyWindow(day: day, start: window.startLabel, end: window.endLabel)
+    }
+    guard let action = PolicyAction(rawValue: schedule.action.rawValue), !windows.isEmpty else {
+      return nil
+    }
+    let version = UInt64(max(1, (Date().timeIntervalSince1970 * 1_000).rounded()))
+    return ParentalControlPolicy(
+      version: version, deviceID: deviceID, timezone: schedule.timezone,
+      effectiveAt: Date(), expiresAt: Date().addingTimeInterval(366 * 86_400),
+      defaultAction: action,
+      warningOffsetsMinutes: Array(Set([schedule.warningMinutes, 5, 1])).sorted(by: >),
+      gracePeriodSeconds: schedule.gracePeriodSeconds, weeklyAllowed: windows,
+      dailyQuotaMinutes: schedule.dailyQuotaMinutes, bonusMinutes: schedule.bonusMinutes,
+      childExplanation: "Available during family-approved hours; ask a parent for more time.",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+  }
+
+  private func generateAdultCode() -> String {
+    var random: UInt32 = 0
+    if SecRandomCopyBytes(kSecRandomDefault, MemoryLayout.size(ofValue: random), &random)
+      != errSecSuccess
+    {
+      random = UInt32(Date().timeIntervalSince1970) ^ UInt32.random(in: 0...UInt32.max)
+    }
+    return String(format: "%06u", random % 1_000_000)
   }
 
   func refreshStorageSnapshot() {

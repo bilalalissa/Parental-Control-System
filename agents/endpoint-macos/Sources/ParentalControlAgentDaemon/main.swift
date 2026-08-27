@@ -12,10 +12,16 @@ enum DaemonMain {
       initial: DeviceSnapshotCollector.collect(deviceID: configuration.deviceID),
       persistenceURL: root.appendingPathComponent("runtime-queue.json"))
     let log = BoundedLog(directory: root.appendingPathComponent("Logs", isDirectory: true))
+    let policyRuntime = EndpointPolicyRuntime(
+      root: root, deviceID: configuration.deviceID,
+      controllerPublicKey: configuration.pairedController?.controllerPublicKey
+        ?? configuration.invitation?.controllerPublicKey)
+    let policyScheduler = EndpointPolicyScheduler(
+      runtime: policyRuntime, repository: repository, log: log)
     let service =
       arguments.noXPC
       ? nil
-      : EndpointXPCService(repository: repository) { detail in
+      : EndpointXPCService(repository: repository, policyRuntime: policyRuntime) { detail in
         log.write(event: "xpc.rejected", detail: detail)
       }
     service?.resume()
@@ -23,8 +29,9 @@ enum DaemonMain {
 
     let retry = EndpointDaemonRetryLoop(
       store: store, repository: repository, log: log,
-      keychainService: arguments.keychainService)
+      policyRuntime: policyRuntime, keychainService: arguments.keychainService)
     retry.start()
+    policyScheduler.start()
 
     signal(SIGTERM, SIG_IGN)
     signal(SIGINT, SIG_IGN)
@@ -41,6 +48,7 @@ enum DaemonMain {
     semaphore.wait()
     _ = signals
     retry.stop()
+    policyScheduler.stop()
     service?.invalidate()
     log.write(event: "daemon.stopped", detail: "Normal shutdown")
   }
@@ -50,6 +58,7 @@ private final class EndpointDaemonRetryLoop: @unchecked Sendable {
   private let store: ProtectedConfigurationStore
   private let repository: EndpointStatusRepository
   private let log: BoundedLog
+  private let policyRuntime: EndpointPolicyRuntime
   private let keychainService: String
   private let queue = DispatchQueue(label: "parental-control.endpoint.retry")
   private let timer: DispatchSourceTimer
@@ -59,11 +68,13 @@ private final class EndpointDaemonRetryLoop: @unchecked Sendable {
 
   init(
     store: ProtectedConfigurationStore, repository: EndpointStatusRepository, log: BoundedLog,
+    policyRuntime: EndpointPolicyRuntime,
     keychainService: String
   ) {
     self.store = store
     self.repository = repository
     self.log = log
+    self.policyRuntime = policyRuntime
     self.keychainService = keychainService
     timer = DispatchSource.makeTimerSource(queue: queue)
   }
@@ -113,6 +124,7 @@ private final class EndpointDaemonRetryLoop: @unchecked Sendable {
       let next = try EndpointAgent(
         store: store, repository: repository, log: log,
         keychain: KeychainStore(service: keychainService),
+        policyRuntime: policyRuntime,
         onEstablishedConnectionLoss: { [weak self] in self?.connectionLost() })
       agent = next
       try next.start()
@@ -135,6 +147,80 @@ private final class EndpointDaemonRetryLoop: @unchecked Sendable {
 
   private func schedule(after delay: TimeInterval) {
     timer.schedule(deadline: .now() + delay)
+  }
+}
+
+private final class EndpointPolicyScheduler: @unchecked Sendable {
+  private let runtime: EndpointPolicyRuntime
+  private let repository: EndpointStatusRepository
+  private let log: BoundedLog
+  private let queue = DispatchQueue(label: "parental-control.endpoint.policy")
+  private let timer = DispatchSource.makeTimerSource()
+  private var running = false
+
+  init(
+    runtime: EndpointPolicyRuntime, repository: EndpointStatusRepository, log: BoundedLog
+  ) {
+    self.runtime = runtime
+    self.repository = repository
+    self.log = log
+  }
+
+  func start() {
+    guard !running else { return }
+    running = true
+    timer.setEventHandler { [weak self] in self?.evaluate() }
+    timer.schedule(deadline: .now(), repeating: 15)
+    timer.activate()
+  }
+
+  func stop() {
+    guard running else { return }
+    running = false
+    timer.setEventHandler {}
+    timer.cancel()
+  }
+
+  private func evaluate() {
+    let current = repository.status()
+    let events = runtime.tick(sessionActive: current.sessionState == .active)
+    let snapshot = runtime.snapshot()
+    repository.update {
+      $0.policyVersion = snapshot.0?.version
+      $0.policyDecision = snapshot.2?.decision
+      $0.policyAction = snapshot.2?.action
+      $0.policyReason = snapshot.2?.reason
+      $0.policyLastEvaluatedAt = Date()
+      $0.policyClockTrusted = snapshot.1.clockTrusted
+      $0.adultOverrideUntil = snapshot.1.adultOverrideUntil
+    }
+    for event in events {
+      let userInfo: [String: String]
+      switch event {
+      case .warning(let minutes, let action, let explanation):
+        userInfo = [
+          "kind": "warning", "minutes": "\(minutes)", "action": action.rawValue,
+          "explanation": explanation,
+        ]
+        log.write(
+          event: "policy.warning", detail: "Warning \(minutes) minutes before \(action.rawValue)")
+      case .enforce(let action, let explanation):
+        userInfo = [
+          "kind": "enforce", "action": action.rawValue, "explanation": explanation,
+        ]
+        log.write(
+          event: "policy.enforce", detail: "Requested allowlisted action \(action.rawValue)")
+      case .clockChangeDetected:
+        userInfo = [
+          "kind": "clock-change", "action": PolicyAction.lock.rawValue,
+          "explanation": "Clock adjustment detected; reconnect to refresh policy.",
+        ]
+        log.write(event: "policy.clock-change", detail: "Wall clock continuity check failed")
+      }
+      DistributedNotificationCenter.default().postNotificationName(
+        Notification.Name("com.bilalalissa.ParentalControlAgent.policy-event"), object: nil,
+        userInfo: userInfo, deliverImmediately: true)
+    }
   }
 }
 

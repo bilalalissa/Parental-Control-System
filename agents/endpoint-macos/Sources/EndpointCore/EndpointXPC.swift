@@ -22,6 +22,7 @@ public enum EndpointMachService {
   func sendChat(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
   func markChatRead(withReply reply: @escaping (Bool, String?) -> Void)
   func requestMoreTime(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
+  func submitAdultCode(_ payload: Data, withReply reply: @escaping (Data?, String?) -> Void)
 }
 
 public enum XPCAuthorization {
@@ -29,7 +30,7 @@ public enum XPCAuthorization {
     guard
       [
         "status", "dashboard", "session-update", "activity-update", "browser-configuration",
-        "browser-update", "send-chat", "mark-chat-read", "time-request",
+        "browser-update", "send-chat", "mark-chat-read", "time-request", "adult-code",
       ]
       .contains(operation)
     else { return false }
@@ -428,10 +429,15 @@ public final class EndpointStatusRepository: @unchecked Sendable {
 
 private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked Sendable {
   let repository: EndpointStatusRepository
+  let policyRuntime: EndpointPolicyRuntime?
   let uid: uid_t
   let identifier: String
-  init(repository: EndpointStatusRepository, uid: uid_t, identifier: String) {
+  init(
+    repository: EndpointStatusRepository, policyRuntime: EndpointPolicyRuntime?, uid: uid_t,
+    identifier: String
+  ) {
     self.repository = repository
+    self.policyRuntime = policyRuntime
     self.uid = uid
     self.identifier = identifier
   }
@@ -569,6 +575,30 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
       reply(true, nil)
     } catch { reply(false, "invalid time request") }
   }
+
+  func submitAdultCode(_ payload: Data, withReply reply: @escaping (Data?, String?) -> Void) {
+    guard
+      XPCAuthorization.allows(
+        uid: uid, signingIdentifier: identifier, operation: "adult-code")
+    else {
+      reply(nil, "unauthorized")
+      return
+    }
+    guard let policyRuntime else {
+      reply(nil, "policy unavailable")
+      return
+    }
+    do {
+      let request = try JSONDecoder.endpoint.decode(
+        EndpointAdultOverrideRequest.self, from: payload)
+      let until = try policyRuntime.submitAdultCode(request.code, duration: request.minutes * 60)
+      reply(try JSONEncoder.endpoint.encode(until), nil)
+    } catch EndpointPolicyError.adultCodeLocked {
+      reply(nil, "Too many attempts. Try again in five minutes.")
+    } catch {
+      reply(nil, "The adult code was not accepted.")
+    }
+  }
 }
 
 public struct EndpointChatRequest: Codable, Equatable, Sendable {
@@ -594,12 +624,14 @@ public struct EndpointMoreTimeRequest: Codable, Equatable, Sendable {
 public final class EndpointXPCService: NSObject, NSXPCListenerDelegate, @unchecked Sendable {
   private let listener: NSXPCListener
   private let repository: EndpointStatusRepository
+  private let policyRuntime: EndpointPolicyRuntime?
   private let rejectionHandler: @Sendable (String) -> Void
   public init(
-    repository: EndpointStatusRepository,
+    repository: EndpointStatusRepository, policyRuntime: EndpointPolicyRuntime? = nil,
     rejectionHandler: @escaping @Sendable (String) -> Void = { _ in }
   ) {
     self.repository = repository
+    self.policyRuntime = policyRuntime
     self.rejectionHandler = rejectionHandler
     listener = NSXPCListener(machServiceName: EndpointMachService.name)
     super.init()
@@ -621,7 +653,7 @@ public final class EndpointXPCService: NSObject, NSXPCListenerDelegate, @uncheck
     }
     connection.exportedInterface = NSXPCInterface(with: EndpointXPCProtocol.self)
     connection.exportedObject = EndpointXPCObject(
-      repository: repository, uid: uid, identifier: identifier)
+      repository: repository, policyRuntime: policyRuntime, uid: uid, identifier: identifier)
     connection.resume()
     return true
   }
@@ -774,6 +806,25 @@ public final class EndpointXPCClient: @unchecked Sendable {
         accepted
           ? completion(.success(()))
           : completion(.failure(EndpointXPCError.remote(error ?? "rejected")))
+      }
+    } catch { completion(.failure(error)) }
+  }
+
+  public func submitAdultCode(
+    _ request: EndpointAdultOverrideRequest,
+    completion: @escaping @Sendable (Result<Date, Error>) -> Void
+  ) {
+    do {
+      let data = try JSONEncoder.endpoint.encode(request)
+      let proxy =
+        connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
+        as? EndpointXPCProtocol
+      proxy?.submitAdultCode(data) { data, error in
+        do {
+          if let error { throw EndpointXPCError.remote(error) }
+          guard let data else { throw EndpointXPCError.malformed }
+          completion(.success(try JSONDecoder.endpoint.decode(Date.self, from: data)))
+        } catch { completion(.failure(error)) }
       }
     } catch { completion(.failure(error)) }
   }

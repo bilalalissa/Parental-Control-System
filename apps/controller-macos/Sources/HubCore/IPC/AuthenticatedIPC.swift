@@ -13,6 +13,9 @@ public enum IPCCommand: String, Codable, Sendable {
   case configureActivity
   case configureBrowser
   case markChatRead
+  case applyPolicy
+  case sendAction
+  case rotateAdultVerifier
   case shutdown
 }
 

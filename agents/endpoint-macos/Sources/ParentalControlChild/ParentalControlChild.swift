@@ -61,6 +61,9 @@ final class ChildDashboardModel: NSObject, ObservableObject {
     center.addObserver(
       self, selector: #selector(chatChanged),
       name: Notification.Name("com.bilalalissa.ParentalControlAgent.chat-changed"), object: nil)
+    center.addObserver(
+      self, selector: #selector(policyEvent(_:)),
+      name: Notification.Name("com.bilalalissa.ParentalControlAgent.policy-event"), object: nil)
     refresh()
     timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
       Task { @MainActor in self?.refresh() }
@@ -70,6 +73,27 @@ final class ChildDashboardModel: NSObject, ObservableObject {
   deinit { DistributedNotificationCenter.default().removeObserver(self) }
 
   @objc private func chatChanged() { refresh() }
+
+  @objc private func policyEvent(_ notification: Notification) {
+    let info = notification.userInfo
+    let kind = info?["kind"] as? String ?? "policy"
+    let explanation = info?["explanation"] as? String ?? "Your family policy changed."
+    let content = UNMutableNotificationContent()
+    if kind == "warning", let minutes = info?["minutes"] as? String {
+      content.title = "Time warning"
+      content.body = "A restriction starts in about \(minutes) minute(s). \(explanation)"
+    } else if kind == "clock-change" {
+      content.title = "Clock adjustment detected"
+      content.body = explanation
+    } else {
+      content.title = "Family restriction active"
+      content.body = explanation
+    }
+    content.sound = .default
+    UNUserNotificationCenter.current().add(
+      UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    refresh()
+  }
 
   func refresh() {
     client.fetchDashboard { [weak self] result in
@@ -146,6 +170,22 @@ final class ChildDashboardModel: NSObject, ObservableObject {
       }
     }
   }
+
+  func submitAdultCode(_ code: String, minutes: Int = 15) {
+    client.submitAdultCode(EndpointAdultOverrideRequest(code: code, minutes: minutes)) {
+      [weak self] result in
+      Task { @MainActor in
+        switch result {
+        case .success(let until):
+          self?.actionMessage =
+            "Adult override active until \(until.formatted(date: .omitted, time: .shortened))."
+        case .failure(let error):
+          self?.actionMessage = String(describing: error)
+        }
+        self?.refresh()
+      }
+    }
+  }
 }
 
 extension Result {
@@ -160,6 +200,7 @@ struct ChildDashboard: View {
   @State private var draft = ""
   @State private var requestMinutes = 15
   @State private var requestNote = ""
+  @State private var adultCode = ""
   @State private var selectedTab = 0
 
   var body: some View {
@@ -236,8 +277,39 @@ struct ChildDashboard: View {
         row("Tab retention", "\(status.browserRetentionDays) days on parent controller")
       }
       GroupBox("Schedule") {
-        Text("No schedule enforcement is configured in Stage 05.")
-          .frame(maxWidth: .infinity, alignment: .leading).padding(6)
+        VStack(alignment: .leading, spacing: 8) {
+          if let version = status.policyVersion {
+            LabeledContent("Signed policy", value: "Version \(version)")
+            LabeledContent(
+              "Current decision", value: status.policyDecision?.rawValue.capitalized ?? "Pending")
+            LabeledContent(
+              "Restriction", value: status.policyAction?.rawValue.capitalized ?? "None")
+            Text(status.policyReason ?? "The policy is evaluated locally, including while offline.")
+              .font(.caption).foregroundStyle(.secondary)
+            if let until = status.adultOverrideUntil, until > Date() {
+              Label(
+                "Adult override until \(until.formatted(date: .omitted, time: .shortened))",
+                systemImage: "checkmark.shield")
+            }
+            HStack {
+              SecureField("Adult code", text: $adultCode)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 180)
+              Button("Allow 15 Minutes") {
+                model.submitAdultCode(adultCode)
+                adultCode = ""
+              }
+              .disabled(adultCode.filter(\.isNumber).count < 4)
+            }
+            Text(
+              "Three failed attempts trigger a five-minute lockout. Settings are read-only here."
+            )
+            .font(.caption2).foregroundStyle(.secondary)
+          } else {
+            Text("Waiting for a signed family schedule from the parent controller.")
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading).padding(6)
       }
       Spacer()
     }.padding(.top, 14)
@@ -300,7 +372,7 @@ struct ChildDashboard: View {
         requestNote = ""
       }.buttonStyle(.borderedProminent)
       Text(
-        "A request is not an automatic time grant. Schedule enforcement begins in a later stage."
+        "A request is not an automatic time grant. Your parent must approve bonus time."
       )
       .font(.caption).foregroundStyle(.secondary)
     }.formStyle(.grouped)

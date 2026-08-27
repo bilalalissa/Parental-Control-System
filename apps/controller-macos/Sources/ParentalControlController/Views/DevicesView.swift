@@ -100,6 +100,7 @@ private struct PairedDeviceDetailView: View {
 
   @State private var retentionDays: Int
   @State private var browserRetentionDays: Int
+  @State private var pendingHighImpactAction: PolicyAction?
 
   init(
     device: HubDeviceRecord, configuration: ActivityConfiguration,
@@ -128,6 +129,7 @@ private struct PairedDeviceDetailView: View {
       VStack(alignment: .leading, spacing: 20) {
         deviceHeader
         capabilitySection
+        immediateActionsSection
         activitySection
         browserSection
         requestSection
@@ -139,6 +141,25 @@ private struct PairedDeviceDetailView: View {
     .onChange(of: configuration.retentionDays) { _, days in retentionDays = days }
     .onChange(of: browserConfiguration.retentionDays) { _, days in browserRetentionDays = days }
     .accessibilityIdentifier(AccessibilityID.deviceDetail.rawValue)
+    .confirmationDialog(
+      "Confirm \(pendingHighImpactAction?.rawValue ?? "action")",
+      isPresented: Binding(
+        get: { pendingHighImpactAction != nil },
+        set: { if !$0 { pendingHighImpactAction = nil } }),
+      titleVisibility: .visible
+    ) {
+      if let action = pendingHighImpactAction {
+        Button("Send \(action.rawValue.capitalized) Request", role: .destructive) {
+          store.sendImmediateAction(deviceID: device.id, action: action, confirmed: true)
+          pendingHighImpactAction = nil
+        }
+        Button("Cancel", role: .cancel) { pendingHighImpactAction = nil }
+      }
+    } message: {
+      Text(
+        "macOS will show its own confirmation and preserve app save prompts. The child can cancel; this app never force-quits applications."
+      )
+    }
   }
 
   private var deviceHeader: some View {
@@ -203,6 +224,40 @@ private struct PairedDeviceDetailView: View {
               .padding(.vertical, 6)
               .background(ControlTheme.success.opacity(0.10), in: Capsule())
           }
+        }
+      }
+    }
+  }
+
+  private var immediateActionsSection: some View {
+    SectionCard {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Immediate actions").font(ControlTheme.sectionTitle)
+        Text(
+          "Commands are signed, expire after two minutes, are capability-checked, and generate receipts and audit records. Lock is the safe default."
+        )
+        .font(.caption).foregroundStyle(.secondary)
+        HStack {
+          Button("Lock Screen") {
+            store.sendImmediateAction(deviceID: device.id, action: .lock, confirmed: true)
+          }
+          .disabled(device.state() != .online || !device.capabilities.contains("lock"))
+          Menu("More Actions") {
+            Button("Log Out…") { pendingHighImpactAction = .logoff }
+              .disabled(device.state() != .online || !device.capabilities.contains("logoff"))
+            Button("Restart…") { pendingHighImpactAction = .restart }
+              .disabled(device.state() != .online || !device.capabilities.contains("restart"))
+            Button("Shut Down…") { pendingHighImpactAction = .shutdown }
+              .disabled(device.state() != .online || !device.capabilities.contains("shutdown"))
+          }
+          Spacer()
+          if device.state() != .online {
+            Label("Offline — short-lived actions are unavailable", systemImage: "wifi.slash")
+              .font(.caption).foregroundStyle(.secondary)
+          }
+        }
+        if let status = store.policyActionStatusMessage {
+          Text(status).font(.caption).foregroundStyle(.secondary)
         }
       }
     }
@@ -362,11 +417,17 @@ private struct PairedDeviceDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
           Text("Recent time requests").font(ControlTheme.sectionTitle)
           ForEach(requests.prefix(3)) { request in
-            Label(
-              "Requested \(request.requestedMinutes) minutes · \(request.createdAt.formatted(date: .omitted, time: .shortened))",
-              systemImage: "hourglass.badge.plus"
-            )
-            .font(.caption)
+            HStack {
+              Label(
+                "Requested \(request.requestedMinutes) minutes · \(request.createdAt.formatted(date: .omitted, time: .shortened))",
+                systemImage: "hourglass.badge.plus"
+              )
+              .font(.caption)
+              Spacer()
+              Button("Grant") {
+                store.grantBonus(deviceID: device.id, minutes: request.requestedMinutes)
+              }
+            }
           }
         }
       }

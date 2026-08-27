@@ -1,5 +1,6 @@
 import AVFoundation
 import AppKit
+import CoreServices
 import EndpointCore
 import Foundation
 
@@ -19,6 +20,10 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       self, selector: #selector(inactive), name: NSWorkspace.sessionDidResignActiveNotification,
       object: nil)
     center.addObserver(
+      self, selector: #selector(inactive), name: NSWorkspace.willSleepNotification, object: nil)
+    center.addObserver(
+      self, selector: #selector(active), name: NSWorkspace.didWakeNotification, object: nil)
+    center.addObserver(
       self, selector: #selector(applicationsChanged),
       name: NSWorkspace.didLaunchApplicationNotification, object: nil)
     center.addObserver(
@@ -30,6 +35,9 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     DistributedNotificationCenter.default().addObserver(
       self, selector: #selector(chatReceived),
       name: Notification.Name("com.bilalalissa.ParentalControlAgent.chat-received"), object: nil)
+    DistributedNotificationCenter.default().addObserver(
+      self, selector: #selector(policyEvent(_:)),
+      name: Notification.Name("com.bilalalissa.ParentalControlAgent.policy-event"), object: nil)
     report(.active)
     reportApplications()
     primeMessages()
@@ -53,6 +61,43 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     // helper. Use the ordinary sound-effects path; the visible child app owns notification UI.
     NSSound.beep()
     speakNewAnnouncements()
+  }
+  @objc private func policyEvent(_ notification: Notification) {
+    guard let kind = notification.userInfo?["kind"] as? String else { return }
+    NSSound.beep()
+    guard kind == "enforce",
+      let action = notification.userInfo?["action"] as? String
+    else { return }
+    perform(action)
+  }
+
+  private func perform(_ action: String) {
+    switch action {
+    case "warningOnly":
+      return
+    case "lock":
+      // macOS has no general public Lock Screen API. Starting the system screen saver preserves
+      // the user's password-delay setting and never terminates apps or risks unsaved work.
+      let url = URL(fileURLWithPath: "/System/Library/CoreServices/ScreenSaverEngine.app")
+      NSWorkspace.shared.openApplication(at: url, configuration: .init())
+    case "logoff":
+      sendLoginWindowEvent(AEEventID(kAELogOut))
+    case "restart":
+      sendLoginWindowEvent(AEEventID(kAEShowRestartDialog))
+    case "shutdown":
+      sendLoginWindowEvent(AEEventID(kAEShowShutdownDialog))
+    default:
+      return
+    }
+  }
+
+  private func sendLoginWindowEvent(_ eventID: AEEventID) {
+    let target = NSAppleEventDescriptor(bundleIdentifier: "com.apple.loginwindow")
+    let event = NSAppleEventDescriptor(
+      eventClass: AEEventClass(kCoreEventClass), eventID: eventID,
+      targetDescriptor: target, returnID: AEReturnID(kAutoGenerateReturnID),
+      transactionID: AETransactionID(kAnyTransactionID))
+    _ = try? event.sendEvent(options: [.defaultOptions, .alwaysInteract], timeout: 30)
   }
   private func primeMessages() {
     client.fetchDashboard { [weak self] result in

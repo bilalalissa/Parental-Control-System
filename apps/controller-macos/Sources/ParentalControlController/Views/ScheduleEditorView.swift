@@ -9,9 +9,19 @@ struct ScheduleEditorView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         ScreenHeader(
-          title: "Schedule preview",
-          subtitle: "Validate a local draft before policy transport and enforcement exist."
+          title: "Signed family schedule",
+          subtitle: "The selected Mac verifies, stores, and enforces this policy while offline."
         )
+
+        if let device = store.selectedPairedDevice {
+          Label("Target: \(device.name)", systemImage: "checkmark.shield")
+            .foregroundStyle(.secondary)
+        } else {
+          Label(
+            "Pair and select a macOS child device first", systemImage: "exclamationmark.triangle"
+          )
+          .foregroundStyle(.orange)
+        }
 
         SectionCard {
           VStack(alignment: .leading, spacing: 14) {
@@ -38,6 +48,22 @@ struct ScheduleEditorView: View {
                 value: $store.schedule.warningMinutes,
                 in: 1...60
               )
+            }
+
+            HStack {
+              Text("Approved bonus time")
+              Spacer()
+              Stepper(
+                "\(store.schedule.bonusMinutes) minutes",
+                value: $store.schedule.bonusMinutes, in: 0...1440, step: 5)
+            }
+
+            HStack {
+              Text("Grace period")
+              Spacer()
+              Stepper(
+                "\(store.schedule.gracePeriodSeconds) seconds",
+                value: $store.schedule.gracePeriodSeconds, in: 0...900, step: 15)
             }
 
             Picker("Default restriction", selection: $store.schedule.action) {
@@ -86,14 +112,29 @@ struct ScheduleEditorView: View {
           }
         }
 
+        if let code = store.adultOverrideCode {
+          SectionCard {
+            VStack(alignment: .leading, spacing: 8) {
+              Label("Local adult override", systemImage: "key.fill").font(.headline)
+              Text(code).font(.system(.title, design: .monospaced, weight: .bold)).textSelection(
+                .enabled)
+              Text(
+                "Enter this code on the child Mac for a 15-minute override. It is replaced whenever you apply a new policy. Three failed attempts cause a five-minute lockout."
+              )
+              .font(.caption).foregroundStyle(.secondary)
+            }
+          }
+        }
+
         HStack {
           Label(store.scheduleStatusMessage, systemImage: "internaldrive")
             .font(.callout)
             .foregroundStyle(.secondary)
           Spacer()
-          Button("Validate and Save Preview") {
+          Button("Sign and Apply Policy") {
             store.validateAndSaveSchedule()
           }
+          .disabled(store.selectedPairedDevice == nil)
           .buttonStyle(.borderedProminent)
           .accessibilityIdentifier(AccessibilityID.scheduleSave.rawValue)
         }
