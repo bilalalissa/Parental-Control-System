@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.5.0-rc.8 — 2026-08-26
 
-Status: **STAGE-05 changes being verified**
+Status: **STAGE-05 ready for developer retest**
 
 - Delivers incoming child-chat feedback through the visible child app's ordinary macOS notification banner and default system sound while silently priming existing history and leaving the stable raw LaunchAgent free of notification-center calls.
 - Gives application and retained browser-tab observations independent bounded vertical scrolling with visible indicators instead of truncating each list to eight rows.
