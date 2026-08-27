@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–04 are merged; STAGE-05 `0.5.0-rc.9` is ready for developer retest.** It consolidates real paired devices into one controller list and applies one accessible dark editorial visual language to the Parent Controller, visible Child app, and browser extension. It retains the Stage-05 visible Chrome/Edge/Arc extension, bounded tab-title/origin sharing, activity alerts, chat notifications and unread counters, message receipts/mutations, local spoken announcements, reliable helper health, and bounded Keychain behavior. Policy enforcement remains excluded. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–04 are merged; STAGE-05 `0.5.0-rc.9` is approved and awaiting an explicit merge command.** It consolidates real paired devices into one controller list and applies one accessible dark editorial visual language to the Parent Controller, visible Child app, and browser extension. It retains the Stage-05 visible Chrome/Edge/Arc extension, bounded tab-title/origin sharing, activity alerts, chat notifications and unread counters, message receipts/mutations, local spoken announcements, reliable helper health, and bounded Keychain behavior. Policy enforcement remains excluded. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 

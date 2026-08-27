@@ -4,12 +4,13 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.5.0-rc.9 — 2026-08-26
 
-Status: **STAGE-05 ready for developer retest**
+Status: **STAGE-05 approved after developer physical retest**
 
 - Replaces the legacy synthetic-device sidebar plus separate bottom paired-device panel with one canonical real paired-device sidebar/detail workflow.
 - Removes only the exact fixed Stage-01 preview rows from upgraded controller databases; synthetic fixtures remain available to tests and explicit mock tooling.
 - Adds one native `DesignSystem` target shared by the Parent Controller and visible Child app, with near-black navy surfaces, warm coral emphasis, monospaced editorial headings, restrained borders, and preserved native accessibility behavior.
 - Applies the corresponding self-contained visual language to the visible Chromium extension popup without changing its permissions, collection, identity, or privacy behavior.
+- Developer physical retest passed and `0.5.0-rc.9` received exact Stage-05 approval.
 
 ## 0.5.0-rc.8 — 2026-08-26
 

@@ -2,7 +2,7 @@
 
 - Version: `0.5.0-rc.9`
 - Branch: `stage/05-chromium-extension`
-- Status: `READY_FOR_RETEST`
+- Status: `APPROVED`
 - Platform: Chrome, Microsoft Edge, and Arc on a universal macOS child endpoint; Parent Controller on Apple silicon; macOS 14 or newer
 
 ## Objective and scope
@@ -50,6 +50,7 @@ Excluded: Safari, browser history, page/document contents, full URLs or paths, q
 | Bundle/package | Strict nested Apple Development app/helper signatures with Team ID `23B5VSH5UY`, stable designated requirements, package payload/native manifests, Arc postinstall path, embedded `0.5.0-rc.9` build `5009`, source commit `100d56b4cca7`, and SHA-256 passed. The product PKG remains unsigned and not notarized. |
 | Universal binaries | Child app, daemon, login helper, typed control tool, and browser host each report `x86_64 arm64`. |
 | GitHub Actions | Commit `5ff875769af8` passed [macOS 15 repository tests, formatting, the 36-test controller/hub and 12-test endpoint suites, ad-hoc CI packaging, universal-slice checks, selectable choices, fresh default-parent installation, child installation/status/helper-survival/uninstallation, seven-day artifact upload, and scoped cleanup](https://github.com/bilalalissa/Parental-Control-System/actions/runs/33035646872). Supporting [POSIX/Windows cleanup](https://github.com/bilalalissa/Parental-Control-System/actions/runs/33035646925) and secret-scanning checks also passed. |
+| Developer physical retest | Developer reported `PASS` and issued exact approval `APPROVED: STAGE-05 0.5.0-rc.9`. |
 
 The final package was not installed over the developer Mac's existing approved parent installation. A fresh macOS CI runner performs the disposable default-parent and child install/uninstall checks. No claim is made for Intel execution or physical Chrome/Edge/Arc behavior until developer evidence is available.
 
