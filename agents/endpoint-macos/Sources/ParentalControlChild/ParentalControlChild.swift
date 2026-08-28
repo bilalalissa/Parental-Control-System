@@ -284,6 +284,19 @@ struct ChildDashboard: View {
               "Current decision", value: status.policyDecision?.rawValue.capitalized ?? "Pending")
             LabeledContent(
               "Restriction", value: status.policyAction?.rawValue.capitalized ?? "None")
+            if status.policyDecision == .allow, let restrictionAt = status.policyNextRestrictionAt {
+              TimelineView(.periodic(from: .now, by: 1)) { context in
+                LabeledContent(
+                  "Next restriction",
+                  value: Self.countdown(until: restrictionAt, now: context.date)
+                )
+                .monospacedDigit()
+              }
+            } else if status.policyDecision == .block {
+              LabeledContent("Countdown", value: "Restriction active")
+            } else {
+              LabeledContent("Next restriction", value: "Not within the next 8 days")
+            }
             Text(status.policyReason ?? "The policy is evaluated locally, including while offline.")
               .font(.caption).foregroundStyle(.secondary)
             if let until = status.adultOverrideUntil, until > Date() {
@@ -422,6 +435,16 @@ struct ChildDashboard: View {
     case "failed": "exclamationmark.triangle"
     default: "questionmark.circle"
     }
+  }
+
+  static func countdown(until date: Date, now: Date = Date()) -> String {
+    let total = max(0, Int(date.timeIntervalSince(now).rounded(.down)))
+    let days = total / 86_400
+    let hours = (total % 86_400) / 3_600
+    let minutes = (total % 3_600) / 60
+    let seconds = total % 60
+    if days > 0 { return String(format: "%dd %02d:%02d:%02d", days, hours, minutes, seconds) }
+    return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
   }
 }
 

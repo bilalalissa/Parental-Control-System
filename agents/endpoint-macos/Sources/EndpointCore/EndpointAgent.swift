@@ -221,6 +221,7 @@ public final class EndpointAgent: @unchecked Sendable {
     refreshed.policyAction = former.policyAction
     refreshed.policyReason = former.policyReason
     refreshed.policyLastEvaluatedAt = former.policyLastEvaluatedAt
+    refreshed.policyNextRestrictionAt = former.policyNextRestrictionAt
     refreshed.policyClockTrusted = former.policyClockTrusted
     refreshed.adultOverrideUntil = former.adultOverrideUntil
     repository.update { $0 = refreshed }
@@ -245,6 +246,9 @@ public final class EndpointAgent: @unchecked Sendable {
       "policyVersion": refreshed.policyVersion.map { .integer(Int64(clamping: $0)) } ?? .null,
       "policyDecision": refreshed.policyDecision.map { .string($0.rawValue) } ?? .null,
       "policyAction": refreshed.policyAction.map { .string($0.rawValue) } ?? .null,
+      "policyNextRestrictionAt": refreshed.policyNextRestrictionAt.map {
+        .string(ISO8601DateFormatter().string(from: $0))
+      } ?? .null,
       "policyClockTrusted": .bool(refreshed.policyClockTrusted),
     ]
     let update = delta.delta(for: snapshot)

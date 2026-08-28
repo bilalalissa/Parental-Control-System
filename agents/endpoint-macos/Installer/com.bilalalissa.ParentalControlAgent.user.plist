@@ -4,7 +4,7 @@
   <key>Label</key><string>com.bilalalissa.ParentalControlAgent.user</string>
   <key>ProgramArguments</key><array><string>/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlAgentUser</string></array>
   <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>10</integer>
   <key>LimitLoadToSessionType</key><string>Aqua</string>
   <key>ProcessType</key><string>Interactive</string>

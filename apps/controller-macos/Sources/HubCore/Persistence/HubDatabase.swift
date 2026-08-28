@@ -84,7 +84,8 @@ public final class HubDatabase: @unchecked Sendable {
           last_seen REAL NOT NULL,
           last_sequence INTEGER NOT NULL DEFAULT 0,
           snapshot_version INTEGER NOT NULL DEFAULT 0,
-          revoked INTEGER NOT NULL DEFAULT 0 CHECK(revoked IN (0, 1))
+          revoked INTEGER NOT NULL DEFAULT 0 CHECK(revoked IN (0, 1)),
+          network_interfaces_json TEXT NOT NULL DEFAULT '[]'
       );
       CREATE TABLE IF NOT EXISTS hub_audit(
           id TEXT PRIMARY KEY,
@@ -180,16 +181,24 @@ public final class HubDatabase: @unchecked Sendable {
     try execute(
       "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(4, strftime('%s','now'));"
     )
+    try? execute(
+      "ALTER TABLE paired_devices ADD COLUMN network_interfaces_json TEXT NOT NULL DEFAULT '[]';"
+    )
+    try execute(
+      "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(5, strftime('%s','now'));"
+    )
   }
 
   public func upsertDevice(_ device: HubDeviceRecord) throws {
     let capabilities = try json(device.capabilities)
+    let networkInterfaces = try json(device.networkInterfaces ?? [])
     try run(
       """
       INSERT INTO paired_devices(
           id, name, platform, key_id, public_key, capabilities_json,
-          paired_at, last_seen, last_sequence, snapshot_version, revoked
-      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          paired_at, last_seen, last_sequence, snapshot_version, revoked,
+          network_interfaces_json
+      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
           name=excluded.name,
           platform=excluded.platform,
@@ -199,7 +208,12 @@ public final class HubDatabase: @unchecked Sendable {
           last_seen=excluded.last_seen,
           last_sequence=MAX(paired_devices.last_sequence, excluded.last_sequence),
           snapshot_version=MAX(paired_devices.snapshot_version, excluded.snapshot_version),
-          revoked=excluded.revoked;
+          revoked=excluded.revoked,
+          network_interfaces_json=CASE
+            WHEN excluded.network_interfaces_json = '[]'
+            THEN paired_devices.network_interfaces_json
+            ELSE excluded.network_interfaces_json
+          END;
       """,
       [
         .text(device.id), .text(device.name), .text(device.platform), .text(device.keyID),
@@ -209,6 +223,7 @@ public final class HubDatabase: @unchecked Sendable {
         .integer(Int64(clamping: device.lastSequence)),
         .integer(Int64(clamping: device.snapshotVersion)),
         .integer(device.isRevoked ? 1 : 0),
+        .text(networkInterfaces),
       ])
   }
 
@@ -223,7 +238,8 @@ public final class HubDatabase: @unchecked Sendable {
     let sql =
       """
       SELECT id, name, platform, key_id, public_key, capabilities_json,
-             paired_at, last_seen, last_sequence, snapshot_version, revoked
+             paired_at, last_seen, last_sequence, snapshot_version, revoked,
+             network_interfaces_json
       FROM paired_devices
       \(includeRevoked ? "" : "WHERE revoked = 0")
       ORDER BY name;
@@ -237,6 +253,10 @@ public final class HubDatabase: @unchecked Sendable {
         let capabilityData = text(statement, 5).data(using: .utf8)
       else { throw HubDatabaseError.decode("device key or capabilities") }
       let capabilities = try decoder.decode([String].self, from: capabilityData)
+      let networkInterfaces =
+        text(statement, 11).data(using: .utf8).flatMap {
+          try? decoder.decode([HubNetworkInterface].self, from: $0)
+        } ?? []
       result.append(
         HubDeviceRecord(
           id: text(statement, 0),
@@ -249,7 +269,8 @@ public final class HubDatabase: @unchecked Sendable {
           lastSeen: Date(timeIntervalSince1970: sqlite3_column_double(statement, 7)),
           lastSequence: UInt64(max(0, sqlite3_column_int64(statement, 8))),
           snapshotVersion: UInt64(max(0, sqlite3_column_int64(statement, 9))),
-          isRevoked: sqlite3_column_int(statement, 10) == 1
+          isRevoked: sqlite3_column_int(statement, 10) == 1,
+          networkInterfaces: networkInterfaces
         ))
     }
     return result
@@ -272,6 +293,14 @@ public final class HubDatabase: @unchecked Sendable {
         .integer(Int64(now.timeIntervalSince1970)), .integer(Int64(clamping: sequence)),
         .integer(Int64(clamping: snapshotVersion)), .text(deviceID),
       ])
+  }
+
+  public func saveNetworkInterfaces(
+    _ interfaces: [HubNetworkInterface], deviceID: String
+  ) throws {
+    try run(
+      "UPDATE paired_devices SET network_interfaces_json = ? WHERE id = ? AND revoked = 0;",
+      [.text(try json(Array(interfaces.prefix(8)))), .text(deviceID)])
   }
 
   public func revoke(deviceID: String) throws {
@@ -715,6 +744,15 @@ public final class HubDatabase: @unchecked Sendable {
           state: state))
     }
     return result
+  }
+
+  public func acknowledgeMoreTimeRequest(id: UUID, deviceID: String) throws {
+    try run(
+      "UPDATE more_time_requests SET state = ? WHERE id = ? AND device_id = ? AND state = ?;",
+      [
+        .text(MoreTimeRequestState.acknowledged.rawValue), .text(id.uuidString), .text(deviceID),
+        .text(MoreTimeRequestState.pending.rawValue),
+      ])
   }
 
   public func pruneActivity(now: Date) throws {

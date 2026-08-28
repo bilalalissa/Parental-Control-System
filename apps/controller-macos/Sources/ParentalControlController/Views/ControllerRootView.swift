@@ -22,7 +22,10 @@ struct ControllerRootView: View {
               Label(section.title, systemImage: section.systemImage)
               Spacer(minLength: 4)
               if section == .chat, store.unreadChatCount > 0 {
-                UnreadChatBadge(count: store.unreadChatCount)
+                SidebarCountBadge(count: store.unreadChatCount, label: "Unread messages")
+              } else if section == .devices, store.pendingTimeRequestCount > 0 {
+                SidebarCountBadge(
+                  count: store.pendingTimeRequestCount, label: "Pending time requests")
               }
             }
             .tag(section)
@@ -95,8 +98,9 @@ struct ControllerRootView: View {
   }
 }
 
-private struct UnreadChatBadge: View {
+private struct SidebarCountBadge: View {
   let count: Int
+  let label: String
 
   var body: some View {
     Text(count > 99 ? "99+" : "\(count)")
@@ -105,7 +109,7 @@ private struct UnreadChatBadge: View {
       .padding(.horizontal, 6)
       .padding(.vertical, 2)
       .background(ControlTheme.accent, in: Capsule())
-      .accessibilityLabel("Unread messages")
+      .accessibilityLabel(label)
       .accessibilityValue("\(count)")
   }
 }

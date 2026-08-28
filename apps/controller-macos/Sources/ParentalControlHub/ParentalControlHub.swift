@@ -99,6 +99,12 @@ enum ParentalControlHubMain {
           let audience = ChatAudience(rawValue: audienceText)
         else { throw AuthenticatedIPCError.remote("Chat receipt payload is incomplete") }
         try hub.markChatRead(deviceID: try requiredDeviceID(request), audience: audience)
+      case .acknowledgeTimeRequest:
+        guard let requestText = request.payload["requestId"]?.stringValue,
+          let requestID = UUID(uuidString: requestText)
+        else { throw AuthenticatedIPCError.remote("Time request identifier is incomplete") }
+        try hub.acknowledgeTimeRequest(
+          id: requestID, deviceID: try requiredDeviceID(request))
       case .applyPolicy:
         guard let value = request.payload["policy"]?.stringValue,
           let data = Data(base64Encoded: value),

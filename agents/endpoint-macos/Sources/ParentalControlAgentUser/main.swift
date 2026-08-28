@@ -4,6 +4,7 @@ import CoreFoundation
 import CoreServices
 import EndpointCore
 import Foundation
+import HubCore
 
 private func policyWakeCallback(
   _: CFNotificationCenter?, observer: UnsafeMutableRawPointer?, _: CFNotificationName?,
@@ -17,12 +18,18 @@ private func policyWakeCallback(
 final class SessionReporter: NSObject, @unchecked Sendable {
   private let client = EndpointXPCClient()
   private var timer: Timer?
+  private var countdownTimer: Timer?
   private var currentState: EndpointSessionState = .active
   private let speechSynthesizer = AVSpeechSynthesizer()
   private var knownParentMessageIDs: Set<UUID> = []
   private var messagesPrimed = false
   private var policyBanner: NSPanel?
-  func start() {
+  private var statusItem: NSStatusItem?
+  private var countdownMenuItem: NSMenuItem?
+  private var nextRestrictionAt: Date?
+  private var currentDecision: PolicyDecisionKind?
+  @MainActor func start() {
+    configureStatusItem()
     let center = NSWorkspace.shared.notificationCenter
     center.addObserver(
       self, selector: #selector(active), name: NSWorkspace.sessionDidBecomeActiveNotification,
@@ -57,10 +64,15 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     reportApplications()
     primeMessages()
     claimPolicyEvents()
-    timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+    refreshPolicyCountdown()
+    timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
       guard let self else { return }
       report(currentState)
       claimPolicyEvents()
+      refreshPolicyCountdown()
+    }
+    countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+      Task { @MainActor in self?.renderStatusItem() }
     }
   }
   deinit {
@@ -72,7 +84,10 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   }
 
   fileprivate func policyEventsAvailable() {
-    DispatchQueue.main.async { [weak self] in self?.claimPolicyEvents() }
+    DispatchQueue.main.async { [weak self] in
+      self?.claimPolicyEvents()
+      self?.refreshPolicyCountdown()
+    }
   }
   @objc private func active() {
     currentState = .active
@@ -161,8 +176,84 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       guard let self, let panel, self.policyBanner === panel else { return }
       panel.orderOut(nil)
       self.policyBanner = nil
-      NSApplication.shared.setActivationPolicy(.prohibited)
     }
+  }
+
+  @MainActor private func configureStatusItem() {
+    NSApplication.shared.setActivationPolicy(.accessory)
+    let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    item.button?.image = NSImage(
+      systemSymbolName: "checkmark.shield", accessibilityDescription: "Parental control active")
+    item.button?.toolTip = "Parental control is active in the background"
+    let menu = NSMenu()
+    let active = NSMenuItem(title: "Parental control active", action: nil, keyEquivalent: "")
+    active.isEnabled = false
+    menu.addItem(active)
+    let countdown = NSMenuItem(title: "Checking family schedule…", action: nil, keyEquivalent: "")
+    countdown.isEnabled = false
+    menu.addItem(countdown)
+    menu.addItem(.separator())
+    let open = NSMenuItem(
+      title: "Open Parental Control", action: #selector(openChildApp), keyEquivalent: "")
+    open.target = self
+    menu.addItem(open)
+    item.menu = menu
+    countdownMenuItem = countdown
+    statusItem = item
+    renderStatusItem()
+  }
+
+  @objc private func openChildApp() {
+    let appURL = URL(fileURLWithPath: "/Applications/Parental Control Child.app")
+    NSWorkspace.shared.openApplication(at: appURL, configuration: .init())
+  }
+
+  private func refreshPolicyCountdown() {
+    client.fetchStatus { [weak self] result in
+      guard let self, case .success(let status) = result else { return }
+      DispatchQueue.main.async {
+        self.nextRestrictionAt = status.policyNextRestrictionAt
+        self.currentDecision = status.policyDecision
+        self.renderStatusItem()
+      }
+    }
+  }
+
+  @MainActor private func renderStatusItem(now: Date = Date()) {
+    guard let button = statusItem?.button else { return }
+    if currentDecision == .block {
+      button.image = NSImage(
+        systemSymbolName: "lock.fill", accessibilityDescription: "Family restriction active")
+      button.title = " Restricted"
+      button.toolTip = "A family restriction is active"
+      countdownMenuItem?.title = "Restriction active"
+      return
+    }
+    guard let nextRestrictionAt, nextRestrictionAt > now else {
+      button.image = NSImage(
+        systemSymbolName: "checkmark.shield", accessibilityDescription: "Parental control active")
+      button.title = ""
+      button.toolTip = "Parental control is active in the background"
+      countdownMenuItem?.title = "No restriction within 8 days"
+      return
+    }
+    let remaining = Self.shortCountdown(until: nextRestrictionAt, now: now)
+    button.image = NSImage(
+      systemSymbolName: "hourglass", accessibilityDescription: "Time until family restriction")
+    button.title = " \(remaining)"
+    button.toolTip = "Next family restriction in \(remaining)"
+    countdownMenuItem?.title = "Next restriction in \(remaining)"
+  }
+
+  private static func shortCountdown(until date: Date, now: Date) -> String {
+    let total = max(0, Int(date.timeIntervalSince(now).rounded(.down)))
+    let days = total / 86_400
+    let hours = (total % 86_400) / 3_600
+    let minutes = (total % 3_600) / 60
+    let seconds = total % 60
+    if days > 0 { return "\(days)d \(hours)h" }
+    if hours > 0 { return String(format: "%d:%02d:%02d", hours, minutes, seconds) }
+    return String(format: "%02d:%02d", minutes, seconds)
   }
 
   private func perform(_ action: String) {
@@ -251,6 +342,6 @@ final class SessionReporter: NSObject, @unchecked Sendable {
 }
 
 let reporter = SessionReporter()
-reporter.start()
-NSApplication.shared.setActivationPolicy(.prohibited)
+MainActor.assumeIsolated { reporter.start() }
+NSApplication.shared.setActivationPolicy(.accessory)
 NSApplication.shared.run()

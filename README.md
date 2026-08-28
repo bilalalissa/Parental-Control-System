@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–05 are merged; STAGE-06 `0.6.0-rc.2` is ready for developer retesting.** This replacement candidate makes daemon-to-session warning/action delivery durable, executes accepted direct actions promptly, and turns approved time requests into bounded allow intervals. The macOS child locally enforces its paired controller's verified, persisted signed schedule while offline. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–05 are merged; STAGE-06 `0.6.0-rc.3` is ready for developer retesting.** This replacement candidate adds pending-request badges, a visible live restriction countdown, sanitized private-LAN interface details, and standard-user background/tamper hardening while the child locally enforces the signed offline policy. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 

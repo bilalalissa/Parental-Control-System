@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06-macos-policy-enforcement");
-  assert.equal(active[0].version, "0.6.0-rc.2");
+  assert.equal(active[0].version, "0.6.0-rc.3");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -57,7 +57,7 @@ test("Stage 04 keeps the visible helper alive and refreshes its launch registrat
     read("agents/endpoint-macos/Installer/postinstall"),
   ]);
   assert.match(launchAgent, /<key>KeepAlive<\/key>/);
-  assert.match(launchAgent, /<key>SuccessfulExit<\/key><false\/>/);
+  assert.match(launchAgent, /<key>KeepAlive<\/key><true\/>/);
   assert.match(postinstall, /for attempt in 1 2 3/);
   assert.match(postinstall, /launchctl bootstrap "gui\/\$CONSOLE_UID"/);
   assert.match(postinstall, /launchctl kickstart -k "\$USER_SERVICE"/);
@@ -158,7 +158,7 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /configuration\.browser \|\| browser/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ParentalControlBrowserSharing-0\.6\.0-rc\.2\.zip/);
+  assert.match(packager, /ParentalControlBrowserSharing-0\.6\.0-rc\.3\.zip/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
   assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
@@ -194,7 +194,8 @@ test("Stage 05 chat feedback uses system-controlled audio, unread badges, and ex
   assert.match(childApp, /result\.isSuccess \{ NSSound\.beep\(\) \}/);
   assert.match(childApp, /badge: model\.unreadMessageCount/);
   assert.match(childApp, /ChildTabButton/);
-  assert.match(root, /UnreadChatBadge\(count: store\.unreadChatCount\)/);
+  assert.match(root, /SidebarCountBadge\(count: store\.unreadChatCount/);
+  assert.match(root, /SidebarCountBadge\([\s\S]*store\.pendingTimeRequestCount/);
   assert.match(chat, /markVisibleMessagesRead/);
   assert.match(chat, /editParentChatMessage/);
   assert.match(chat, /deleteParentChatMessage/);
@@ -360,7 +361,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–05 are merged; STAGE-06 `0\.6\.0-rc\.2` is ready for developer retesting/);
+  assert.match(readme, /Stages 00–05 are merged; STAGE-06 `0\.6\.0-rc\.3` is ready for developer retesting/);
   assert.match(readme, /locally enforces/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);

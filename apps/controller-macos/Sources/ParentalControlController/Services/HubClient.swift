@@ -166,6 +166,14 @@ final class HubClient {
       payload: ["audience": .string(audience.rawValue)])
   }
 
+  func acknowledgeTimeRequest(
+    requestID: UUID, deviceID: String
+  ) async throws -> LocalHubStatus? {
+    try await request(
+      .acknowledgeTimeRequest, deviceID: deviceID,
+      payload: ["requestId": .string(requestID.uuidString)])
+  }
+
   func applyPolicy(_ policy: ParentalControlPolicy) async throws -> LocalHubStatus? {
     let data = try PolicyCodec.encoder().encode(policy)
     return try await request(

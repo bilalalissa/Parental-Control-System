@@ -25,6 +25,7 @@ final class ControllerStore {
   var chatStatusMessage: String?
   var activityStatusMessage: String?
   var browserStatusMessage: String?
+  var resolvingTimeRequestIDs: Set<UUID> = []
 
   private let database: ControllerDatabase
   private let hubClient = HubClient()
@@ -69,6 +70,15 @@ final class ControllerStore {
 
   var unreadChatCount: Int {
     hubStatus?.chatMessages.filter(\.isUnreadForParent).count ?? 0
+  }
+
+  var pendingTimeRequestCount: Int {
+    hubStatus?.moreTimeRequests.filter { $0.state == .pending }.count ?? 0
+  }
+
+  func pendingTimeRequestCount(deviceID: String) -> Int {
+    hubStatus?.moreTimeRequests.filter { $0.deviceID == deviceID && $0.state == .pending }.count
+      ?? 0
   }
 
   var pairedDevices: [HubDeviceRecord] {
@@ -322,13 +332,16 @@ final class ControllerStore {
     }
   }
 
-  func grantBonus(deviceID: String, minutes: Int) {
-    schedule.approveRequestedTime(minutes: minutes)
+  func grantBonus(request: MoreTimeRequestRecord) {
+    guard request.state == .pending, !resolvingTimeRequestIDs.contains(request.id) else { return }
+    resolvingTimeRequestIDs.insert(request.id)
+    schedule.approveRequestedTime(minutes: request.requestedMinutes)
     do { try database.saveSchedule(schedule) } catch {
+      resolvingTimeRequestIDs.remove(request.id)
       scheduleStatusMessage = "Bonus time could not be saved: \(error)"
       return
     }
-    publishPolicy(to: deviceID)
+    publishPolicy(to: request.deviceID, resolvingRequest: request)
   }
 
   func sendImmediateAction(deviceID: String, action: PolicyAction, confirmed: Bool) {
@@ -348,8 +361,11 @@ final class ControllerStore {
     }
   }
 
-  private func publishPolicy(to deviceID: String) {
+  private func publishPolicy(
+    to deviceID: String, resolvingRequest: MoreTimeRequestRecord? = nil
+  ) {
     guard let policy = makePolicy(deviceID: deviceID) else {
+      if let resolvingRequest { resolvingTimeRequestIDs.remove(resolvingRequest.id) }
       scheduleStatusMessage = "The schedule could not be converted to a signed policy."
       return
     }
@@ -364,10 +380,17 @@ final class ControllerStore {
         applyHubStatus(
           try await hubClient.rotateAdultVerifier(
             deviceID: deviceID, salt: salt, digest: digest))
+        if let resolvingRequest {
+          applyHubStatus(
+            try await hubClient.acknowledgeTimeRequest(
+              requestID: resolvingRequest.id, deviceID: resolvingRequest.deviceID))
+          resolvingTimeRequestIDs.remove(resolvingRequest.id)
+        }
         adultOverrideCode = code
         scheduleStatusMessage =
           "Signed policy version \(policy.version) queued for the selected device."
       } catch {
+        if let resolvingRequest { resolvingTimeRequestIDs.remove(resolvingRequest.id) }
         scheduleStatusMessage = "The signed policy could not be applied: \(error)"
       }
     }

@@ -201,6 +201,18 @@ public final class LocalHub: @unchecked Sendable {
       storage: try database.storageSummary())
   }
 
+  public func acknowledgeTimeRequest(id: UUID, deviceID: String) throws {
+    guard let device = try database.device(id: deviceID), !device.isRevoked else {
+      throw LocalHubError.unknownDevice
+    }
+    try database.acknowledgeMoreTimeRequest(id: id, deviceID: deviceID)
+    try database.appendAudit(
+      HubAuditRecord(
+        event: "time.request.acknowledged", deviceID: deviceID,
+        detail: "Parent resolved a bounded time request"))
+    publishStatus()
+  }
+
   @discardableResult
   public func sendChat(
     deviceID: String, text: String, audience: ChatAudience = .direct,
@@ -537,6 +549,26 @@ public final class LocalHub: @unchecked Sendable {
         snapshotVersion: device.snapshotVersion)
     case .snapshotResponse:
       let version = UInt64(max(0, envelope.payload["snapshotVersion"]?.integerValue ?? 0))
+      if case .object(let changed) = envelope.payload["changed"],
+        case .array(let values) = changed["networks"]
+      {
+        let interfaces = values.prefix(16).compactMap { value -> HubNetworkInterface? in
+          guard case .object(let item) = value,
+            let interface = item["interface"]?.stringValue,
+            case .array(let rawAddresses) = item["addresses"]
+          else { return nil }
+          return HubNetworkInterface(
+            interface: interface,
+            addresses: rawAddresses.compactMap(\.stringValue),
+            macAddress: item["macAddress"]?.stringValue,
+            observedAt: envelope.sentAt)
+        }
+        try database.saveNetworkInterfaces(interfaces, deviceID: device.id)
+      } else if case .object(let changed) = envelope.payload["changed"],
+        changed["networks"] == .null
+      {
+        try database.saveNetworkInterfaces([], deviceID: device.id)
+      }
       try database.updateSeen(
         deviceID: device.id, sequence: envelope.sequence, snapshotVersion: version)
       try database.appendAudit(

@@ -48,13 +48,51 @@ struct PairingAndPersistenceTests {
         ))
       try database.updateSeen(
         deviceID: "mock-one", sequence: 7, snapshotVersion: 3, now: pairedAt.addingTimeInterval(1))
+      let interface = try #require(
+        HubNetworkInterface(
+          interface: "en0",
+          addresses: ["192.168.1.12", "8.8.8.8", "fe80::1234%en0"],
+          macAddress: "aa-bb-cc-dd-ee-ff", observedAt: pairedAt))
+      try database.saveNetworkInterfaces([interface], deviceID: "mock-one")
     }
     let reopened = try HubDatabase(path: fixture.path)
     let persistedDevice = try reopened.device(id: "mock-one")
     let device = try #require(persistedDevice)
     #expect(device.lastSequence == 7)
     #expect(device.snapshotVersion == 3)
+    #expect(device.networkInterfaces?.first?.addresses == ["192.168.1.12", "fe80::1234"])
+    #expect(device.networkInterfaces?.first?.macAddress == "AA:BB:CC:DD:EE:FF")
     #expect(device.state(now: pairedAt.addingTimeInterval(80)) == .offline)
+  }
+
+  @Test("network metadata excludes public, virtual, and zero-address identifiers")
+  func sanitizedNetworkMetadata() {
+    #expect(
+      HubNetworkInterface(
+        interface: "utun4", addresses: ["10.0.0.4"], macAddress: "AA:BB:CC:DD:EE:FF")
+        == nil)
+    #expect(
+      HubNetworkInterface(
+        interface: "en0", addresses: ["8.8.8.8"], macAddress: "00:00:00:00:00:00")
+        == nil)
+    let value = HubNetworkInterface(
+      interface: "en1", addresses: ["10.0.0.4", "2001:4860:4860::8888"],
+      macAddress: "01:23:45:67:89:ab")
+    #expect(value?.addresses == ["10.0.0.4"])
+    #expect(value?.macAddress == "01:23:45:67:89:AB")
+  }
+
+  @Test("resolved time requests stop contributing to pending badges")
+  func timeRequestAcknowledgement() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let database = try HubDatabase(path: fixture.path)
+    let request = MoreTimeRequestRecord(
+      deviceID: "child-request", requestedMinutes: 20, note: "Synthetic request")
+    try database.appendMoreTimeRequest(request)
+    #expect(try database.moreTimeRequests().filter { $0.state == .pending }.count == 1)
+    try database.acknowledgeMoreTimeRequest(id: request.id, deviceID: request.deviceID)
+    #expect(try database.moreTimeRequests().first?.state == .acknowledged)
   }
 
   @Test("audit, outbound queues, and receipts stay bounded")

@@ -201,6 +201,35 @@ struct EndpointPolicyRuntimeTests {
     #expect(restored.snapshot().1.clockTrusted)
   }
 
+  @Test("projected restriction countdown follows schedule and pauses quota while inactive")
+  func projectedRestrictionCountdown() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let start = Date(timeIntervalSince1970: 1_800_000_000)
+    let quotaPolicy = ParentalControlPolicy(
+      version: 1, deviceID: "child-policy-test", timezone: "UTC",
+      effectiveAt: Date(timeIntervalSince1970: 1_700_000_000),
+      expiresAt: Date(timeIntervalSince1970: 2_100_000_000), defaultAction: .lock,
+      weeklyAllowed: PolicyWeekday.allCases.map {
+        PolicyWeeklyWindow(day: $0, start: "00:00", end: "23:59")
+      }, dailyQuotaMinutes: 20, childExplanation: "Synthetic countdown",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.install(
+      identity.sign(policy: quotaPolicy), controllerPublicKey: identity.publicKeyData)
+    _ = runtime.tick(now: start, uptime: 100, sessionActive: true)
+    let activeRestriction = try #require(
+      runtime.projectedRestrictionDate(now: start, sessionActive: true))
+    #expect(activeRestriction == start.addingTimeInterval(20 * 60))
+    #expect(
+      runtime.projectedRestrictionDate(
+        now: start, sessionActive: false, horizonMinutes: 20) == nil)
+    let inactiveRestriction = try #require(
+      runtime.projectedRestrictionDate(now: start, sessionActive: false))
+    #expect(inactiveRestriction > activeRestriction)
+  }
+
   private func policy(version: UInt64) -> ParentalControlPolicy {
     ParentalControlPolicy(
       version: version, deviceID: "child-policy-test", timezone: "UTC",

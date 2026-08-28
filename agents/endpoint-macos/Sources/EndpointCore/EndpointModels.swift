@@ -57,6 +57,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var policyAction: PolicyAction?
   public var policyReason: String?
   public var policyLastEvaluatedAt: Date?
+  public var policyNextRestrictionAt: Date?
   public var policyClockTrusted: Bool
   public var adultOverrideUntil: Date?
   public var collectedAt: Date
@@ -84,7 +85,8 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     browserTabs: [EndpointBrowserTab] = [], policyVersion: UInt64? = nil,
     policyDecision: PolicyDecisionKind? = nil, policyAction: PolicyAction? = nil,
     policyReason: String? = nil, policyLastEvaluatedAt: Date? = nil,
-    policyClockTrusted: Bool = true, adultOverrideUntil: Date? = nil,
+    policyNextRestrictionAt: Date? = nil, policyClockTrusted: Bool = true,
+    adultOverrideUntil: Date? = nil,
     collectedAt: Date = Date()
   ) {
     self.deviceID = deviceID
@@ -112,6 +114,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     self.policyAction = policyAction
     self.policyReason = policyReason.map { String($0.prefix(500)) }
     self.policyLastEvaluatedAt = policyLastEvaluatedAt
+    self.policyNextRestrictionAt = policyNextRestrictionAt
     self.policyClockTrusted = policyClockTrusted
     self.adultOverrideUntil = adultOverrideUntil
     self.collectedAt = collectedAt
@@ -339,7 +342,8 @@ public enum DeviceSnapshotCollector {
     while let item = cursor?.pointee {
       defer { cursor = item.ifa_next }
       let name = String(cString: item.ifa_name)
-      guard name != "lo0", (item.ifa_flags & UInt32(IFF_UP)) != 0, let address = item.ifa_addr
+      guard HubNetworkInterface.isPhysicalInterface(name),
+        (item.ifa_flags & UInt32(IFF_UP)) != 0, let address = item.ifa_addr
       else { continue }
       let family = Int32(address.pointee.sa_family)
       var current = values[name] ?? ([], nil)
@@ -352,22 +356,28 @@ public enum DeviceSnapshotCollector {
           let decoded = String(
             decoding: host.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
           let text = decoded.split(separator: "%", maxSplits: 1).first.map(String.init) ?? ""
-          if !text.isEmpty { current.addresses.insert(text) }
+          if let localAddress = HubNetworkInterface.sanitizedLocalAddress(text) {
+            current.addresses.insert(localAddress)
+          }
         }
       } else if family == AF_LINK {
         let link = UnsafeRawPointer(address).assumingMemoryBound(to: sockaddr_dl.self).pointee
         if link.sdl_alen == 6 {
-          let base = withUnsafePointer(to: link.sdl_data) { pointer in
-            UnsafeRawPointer(pointer).advanced(by: Int(link.sdl_nlen)).assumingMemoryBound(
-              to: UInt8.self)
+          let candidate = withUnsafeBytes(of: link.sdl_data) { bytes in
+            let start = Int(link.sdl_nlen)
+            guard start + 6 <= bytes.count else { return nil as String? }
+            return bytes[start..<(start + 6)].map {
+              String(format: "%02X", $0)
+            }.joined(separator: ":")
           }
-          current.mac = (0..<6).map { String(format: "%02X", base[$0]) }.joined(separator: ":")
+          current.mac = candidate.flatMap(HubNetworkInterface.normalizedMAC)
         }
       }
       values[name] = current
     }
-    return values.sorted(by: { $0.key < $1.key }).prefix(16).map {
-      NetworkMetadata(
+    return values.sorted(by: { $0.key < $1.key }).prefix(8).compactMap {
+      guard !$0.value.addresses.isEmpty || $0.value.mac != nil else { return nil }
+      return NetworkMetadata(
         interface: $0.key, addresses: Array($0.value.addresses).sorted().prefix(8).map { $0 },
         macAddress: $0.value.mac)
     }

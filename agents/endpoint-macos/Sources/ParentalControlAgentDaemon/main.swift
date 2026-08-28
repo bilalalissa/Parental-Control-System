@@ -183,14 +183,19 @@ private final class EndpointPolicyScheduler: @unchecked Sendable {
 
   private func evaluate() {
     let current = repository.status()
-    let events = runtime.tick(sessionActive: current.sessionState == .active)
+    let now = Date()
+    let sessionActive = current.sessionState == .active
+    let events = runtime.tick(now: now, sessionActive: sessionActive)
     let snapshot = runtime.snapshot()
+    let nextRestriction = runtime.projectedRestrictionDate(
+      now: now, sessionActive: sessionActive)
     repository.update {
       $0.policyVersion = snapshot.0?.version
       $0.policyDecision = snapshot.2?.decision
       $0.policyAction = snapshot.2?.action
       $0.policyReason = snapshot.2?.reason
-      $0.policyLastEvaluatedAt = Date()
+      $0.policyLastEvaluatedAt = now
+      $0.policyNextRestrictionAt = nextRestriction
       $0.policyClockTrusted = snapshot.1.clockTrusted
       $0.adultOverrideUntil = snapshot.1.adultOverrideUntil
     }

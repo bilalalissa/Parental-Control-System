@@ -6,6 +6,67 @@ public enum HubDeviceState: String, Codable, Sendable {
   case revoked
 }
 
+public struct HubNetworkInterface: Codable, Equatable, Identifiable, Sendable {
+  public var id: String { interface }
+  public let interface: String
+  public let addresses: [String]
+  public let macAddress: String?
+  public let observedAt: Date
+
+  public init?(
+    interface: String, addresses: [String], macAddress: String?, observedAt: Date = Date()
+  ) {
+    let boundedInterface = String(interface.prefix(16))
+    guard Self.isPhysicalInterface(boundedInterface) else { return nil }
+    let localAddresses = Array(
+      Set(addresses.compactMap(Self.sanitizedLocalAddress))
+    ).sorted().prefix(8).map { $0 }
+    let normalizedMAC = macAddress.flatMap(Self.normalizedMAC)
+    guard !localAddresses.isEmpty || normalizedMAC != nil else { return nil }
+    self.interface = boundedInterface
+    self.addresses = localAddresses
+    self.macAddress = normalizedMAC
+    self.observedAt = observedAt
+  }
+
+  public static func isPhysicalInterface(_ value: String) -> Bool {
+    guard value.hasPrefix("en"), !value.dropFirst(2).isEmpty else { return false }
+    return value.dropFirst(2).allSatisfy(\.isNumber)
+  }
+
+  public static func sanitizedLocalAddress(_ value: String) -> String? {
+    let address = value.split(separator: "%", maxSplits: 1).first.map(String.init) ?? ""
+    let ipv4 = address.split(separator: ".", omittingEmptySubsequences: false)
+    if ipv4.count == 4,
+      let octets = Optional(ipv4.compactMap { UInt8($0) }), octets.count == 4,
+      octets[0] == 10
+        || (octets[0] == 172 && (16...31).contains(octets[1]))
+        || (octets[0] == 192 && octets[1] == 168)
+        || (octets[0] == 169 && octets[1] == 254)
+    {
+      return address
+    }
+    let lower = address.lowercased()
+    guard lower.contains(":") else { return nil }
+    if lower.hasPrefix("fc") || lower.hasPrefix("fd")
+      || lower.hasPrefix("fe8") || lower.hasPrefix("fe9")
+      || lower.hasPrefix("fea") || lower.hasPrefix("feb")
+    {
+      return lower
+    }
+    return nil
+  }
+
+  public static func normalizedMAC(_ value: String) -> String? {
+    let parts = value.replacingOccurrences(of: "-", with: ":").split(separator: ":")
+    guard parts.count == 6,
+      parts.allSatisfy({ $0.count == 2 && UInt8($0, radix: 16) != nil })
+    else { return nil }
+    let normalized = parts.map { $0.uppercased() }.joined(separator: ":")
+    return normalized == "00:00:00:00:00:00" ? nil : normalized
+  }
+}
+
 public struct HubDeviceRecord: Codable, Equatable, Identifiable, Sendable {
   public let id: String
   public let name: String
@@ -18,6 +79,7 @@ public struct HubDeviceRecord: Codable, Equatable, Identifiable, Sendable {
   public let lastSequence: UInt64
   public let snapshotVersion: UInt64
   public let isRevoked: Bool
+  public let networkInterfaces: [HubNetworkInterface]?
 
   public init(
     id: String,
@@ -30,7 +92,8 @@ public struct HubDeviceRecord: Codable, Equatable, Identifiable, Sendable {
     lastSeen: Date,
     lastSequence: UInt64 = 0,
     snapshotVersion: UInt64 = 0,
-    isRevoked: Bool = false
+    isRevoked: Bool = false,
+    networkInterfaces: [HubNetworkInterface]? = nil
   ) {
     self.id = id
     self.name = name
@@ -43,6 +106,7 @@ public struct HubDeviceRecord: Codable, Equatable, Identifiable, Sendable {
     self.lastSequence = lastSequence
     self.snapshotVersion = snapshotVersion
     self.isRevoked = isRevoked
+    self.networkInterfaces = networkInterfaces.map { Array($0.prefix(8)) }
   }
 
   public func state(now: Date = Date(), offlineAfter: TimeInterval = 75) -> HubDeviceState {

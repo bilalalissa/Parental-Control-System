@@ -205,8 +205,17 @@ struct EndpointCoreTests {
     #expect(value.deviceID == "synthetic-device")
     #expect(!value.operatingSystem.isEmpty)
     #expect(!value.architecture.isEmpty)
-    #expect(value.networks.count <= 16)
+    #expect(value.networks.count <= 8)
     #expect(value.networks.allSatisfy { $0.addresses.count <= 8 })
+    #expect(value.networks.allSatisfy { HubNetworkInterface.isPhysicalInterface($0.interface) })
+    #expect(
+      value.networks.flatMap(\.addresses).allSatisfy {
+        HubNetworkInterface.sanitizedLocalAddress($0) != nil
+      })
+    #expect(
+      value.networks.compactMap(\.macAddress).allSatisfy {
+        HubNetworkInterface.normalizedMAC($0) != nil
+      })
   }
 
   @Test("protected configuration is mode 0700 with mode 0600 contents")

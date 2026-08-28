@@ -10,8 +10,11 @@ struct DevicesView: View {
       List(selection: Bindable(store).selectedDeviceID) {
         Section("Paired devices") {
           ForEach(store.pairedDevices) { device in
-            PairedDeviceSidebarRow(device: device)
-              .tag(device.id)
+            PairedDeviceSidebarRow(
+              device: device,
+              pendingRequestCount: store.pendingTimeRequestCount(deviceID: device.id)
+            )
+            .tag(device.id)
           }
         }
       }
@@ -58,6 +61,7 @@ struct DevicesView: View {
 
 private struct PairedDeviceSidebarRow: View {
   let device: HubDeviceRecord
+  let pendingRequestCount: Int
 
   var body: some View {
     HStack(spacing: 10) {
@@ -74,6 +78,17 @@ private struct PairedDeviceSidebarRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         }
+      }
+      Spacer(minLength: 4)
+      if pendingRequestCount > 0 {
+        Text(pendingRequestCount > 99 ? "99+" : "\(pendingRequestCount)")
+          .font(.caption2.bold())
+          .foregroundStyle(.white)
+          .padding(.horizontal, 6)
+          .padding(.vertical, 2)
+          .background(ControlTheme.accent, in: Capsule())
+          .accessibilityLabel("Pending time requests")
+          .accessibilityValue("\(pendingRequestCount)")
       }
     }
     .padding(.vertical, 3)
@@ -128,6 +143,7 @@ private struct PairedDeviceDetailView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         deviceHeader
+        networkSection
         capabilitySection
         immediateActionsSection
         activitySection
@@ -209,6 +225,46 @@ private struct PairedDeviceDetailView: View {
     .padding(.horizontal, 10)
     .padding(.vertical, 5)
     .background(color.opacity(0.12), in: Capsule())
+  }
+
+  private var networkSection: some View {
+    SectionCard {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Local network interfaces").font(ControlTheme.sectionTitle)
+        Text(
+          "Private or link-local addresses from physical interfaces only. MAC addresses are informational and are never used for pairing or identity."
+        )
+        .font(.caption).foregroundStyle(.secondary)
+        let interfaces = device.networkInterfaces ?? []
+        if interfaces.isEmpty {
+          Label(
+            "No physical-interface LAN metadata is currently available.",
+            systemImage: "network.slash"
+          )
+          .font(.caption).foregroundStyle(.secondary)
+        } else {
+          Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 7) {
+            ForEach(interfaces) { interface in
+              GridRow {
+                Text(interface.interface).font(.caption.monospaced().weight(.semibold))
+                VStack(alignment: .leading, spacing: 2) {
+                  ForEach(interface.addresses, id: \.self) { address in
+                    Text(address).font(.caption.monospaced()).textSelection(.enabled)
+                  }
+                  if interface.addresses.isEmpty {
+                    Text("IP unavailable").font(.caption).foregroundStyle(.secondary)
+                  }
+                }
+                Text(interface.macAddress ?? "MAC unavailable")
+                  .font(.caption.monospaced())
+                  .foregroundStyle(interface.macAddress == nil ? .secondary : .primary)
+                  .textSelection(.enabled)
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   private var capabilitySection: some View {
@@ -424,8 +480,16 @@ private struct PairedDeviceDetailView: View {
               )
               .font(.caption)
               Spacer()
-              Button("Grant") {
-                store.grantBonus(deviceID: device.id, minutes: request.requestedMinutes)
+              if request.state == .pending {
+                Button(
+                  store.resolvingTimeRequestIDs.contains(request.id) ? "Granting…" : "Grant"
+                ) {
+                  store.grantBonus(request: request)
+                }
+                .disabled(store.resolvingTimeRequestIDs.contains(request.id))
+              } else {
+                Label("Resolved", systemImage: "checkmark.circle.fill")
+                  .font(.caption).foregroundStyle(ControlTheme.success)
               }
             }
           }

@@ -2,6 +2,16 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.0-rc.3 — 2026-08-27
+
+Status: **STAGE-06 ready for developer retest**
+
+- Adds Devices and per-device pending-time-request badges that clear only after the controller queues a signed grant and acknowledges the request.
+- Adds a live child restriction countdown in the visible app and a persistent, visible menu-bar helper; the existing generic pre-enforcement panel remains in place.
+- Shows only bounded private/link-local addresses and available non-zero MAC addresses from physical `enN` interfaces, stored locally and labeled informational rather than identity.
+- Keeps the visible login helper alive in the graphical session and makes the installed child bundle root-owned and non-writable by standard users; an authorized administrator can still uninstall it.
+- Defers app/site blocking and timed internet pausing because those are separately approved, higher-impact enforcement features.
+
 ## 0.6.0-rc.2 — 2026-08-27
 
 Status: **STAGE-06 ready for developer retest**

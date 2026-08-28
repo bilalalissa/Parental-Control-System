@@ -211,6 +211,35 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
     return (policy, current, lastDecision)
   }
 
+  public func projectedRestrictionDate(
+    now: Date = Date(), sessionActive: Bool, horizonMinutes: Int = 8 * 24 * 60
+  ) -> Date? {
+    lock.lock()
+    defer { lock.unlock() }
+    guard let policy else { return nil }
+    let boundedHorizon = max(1, min(horizonMinutes, 8 * 24 * 60))
+    let initialMinutes = Int(state.activeUseSeconds / 60)
+    let overrideUntil = state.adultOverrideUntil
+    let current = PolicyEvaluator.evaluate(
+      policy,
+      input: PolicyEvaluationInput(
+        at: now, activeUseMinutes: initialMinutes,
+        adultOverrideActive: overrideUntil.map { $0 > now } ?? false))
+    guard current.decision == .allow else { return nil }
+    for minute in 1...boundedHorizon {
+      let future = now.addingTimeInterval(TimeInterval(minute * 60))
+      let projectedActiveSeconds =
+        state.activeUseSeconds + (sessionActive ? TimeInterval(minute * 60) : 0)
+      let decision = PolicyEvaluator.evaluate(
+        policy,
+        input: PolicyEvaluationInput(
+          at: future, activeUseMinutes: Int(projectedActiveSeconds / 60),
+          adultOverrideActive: overrideUntil.map { $0 > future } ?? false))
+      if decision.decision == .block { return future }
+    }
+    return nil
+  }
+
   public func claimUserEvents(limit: Int = 16) -> [EndpointPolicyEvent] {
     lock.lock()
     defer { lock.unlock() }
