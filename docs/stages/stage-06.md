@@ -51,6 +51,7 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 - `ParentalControlSystem-0.6.0-rc.3.pkg`: SHA-256 `c49dcd41a13e7b4afc470f56538faac33f0ceaf3a3763448b440122f8aff54a8`; contained apps/helpers are ad-hoc signed; the product package is unsigned and not notarized.
 - `ParentalControlBrowserSharing-0.6.0-rc.3.zip`: SHA-256 `c59ba729fda1a455298f87cf976c1f3b613d988a4e36c83a060fa7c3f2056f99`; ZIP integrity and its exact eight expected extension files passed; it contains no signing-key file extensions.
 - An isolated unpaired RC3 daemon smoke run completed normally in 6.11 seconds with 0.01 seconds user CPU and 0.01 seconds system CPU. The sandbox did not expose peak-RSS statistics; the temporary root was removed immediately.
+- GitHub macOS CI run `33141714497` passed in 3m09s, independently repeating repository/Swift tests and lint, building the selectable package, checking universal slices and choices, clean-installing the default Parent, clean-installing/diagnosing/uninstalling the customized Child, uploading the bounded candidate set, and cleaning generated output.
 - Physical-device installation, policy timing, warning UI, OS confirmation dialogs, sleep/reboot, and offline enforcement remain developer-test evidence and are not claimed by local automation.
 
 ## Clean-install developer checklist
