@@ -92,6 +92,18 @@ struct EndpointCoreTests {
       })
     #expect(try database.chatMessages().contains { !$0.isFromParent && $0.text == "Child reply" })
     #expect(try database.moreTimeRequests().first?.requestedMinutes == 20)
+    if let request = try database.moreTimeRequests().first {
+      try hub.resolveTimeRequest(
+        id: request.id, deviceID: configuration.deviceID, decision: .rejected)
+      let resolutionDeadline = Date().addingTimeInterval(3)
+      while Date() < resolutionDeadline,
+        repository.dashboard().latestTimeRequest?.state != .rejected
+      {
+        Thread.sleep(forTimeInterval: 0.02)
+      }
+      #expect(repository.dashboard().latestTimeRequest?.state == .rejected)
+      #expect(policyRuntime.claimUserEvents().contains(.timeRequestRejected(minutes: 20)))
+    }
     try hub.editParentChatMessage(id: parentMessageID, text: "Corrected family announcement")
     let editDeadline = Date().addingTimeInterval(3)
     while Date() < editDeadline,
@@ -189,14 +201,23 @@ struct EndpointCoreTests {
   func boundedWakeReconnect() {
     var policy = EndpointReconnectPolicy()
 
-    #expect(policy.timerFired(connectionState: .online) == .wait(60))
+    #expect(policy.timerFired(connectionState: .online) == .wait(15))
     #expect(policy.establishedConnectionLost() == 0)
     #expect(policy.timerFired(connectionState: .offline) == .connect(retryAfter: 2))
     #expect(policy.timerFired(connectionState: .connecting) == .connect(retryAfter: 2))
     #expect(policy.timerFired(connectionState: .offline) == .connect(retryAfter: 2))
     #expect(policy.timerFired(connectionState: .offline) == .wait(60))
     #expect(policy.timerFired(connectionState: .offline) == .connect(retryAfter: 2))
-    #expect(policy.timerFired(connectionState: .online) == .wait(60))
+    #expect(policy.timerFired(connectionState: .online) == .wait(15))
+    let now = Date()
+    #expect(
+      policy.timerFired(
+        connectionState: .online, lastControllerContact: now.addingTimeInterval(-91), now: now)
+        == .reconnect)
+    #expect(
+      policy.timerFired(
+        connectionState: .online, lastControllerContact: now.addingTimeInterval(10), now: now)
+        == .reconnect)
   }
 
   @Test("device snapshots are bounded and contain truthful platform data")
@@ -216,6 +237,16 @@ struct EndpointCoreTests {
       value.networks.compactMap(\.macAddress).allSatisfy {
         HubNetworkInterface.normalizedMAC($0) != nil
       })
+  }
+
+  @Test("session activation is reported only on a real transition")
+  func sessionActivationTransition() {
+    let repository = EndpointStatusRepository(
+      initial: DeviceSnapshotCollector.collect(deviceID: "synthetic-session"))
+    #expect(repository.applySession(SessionUpdate(state: .active, consoleUser: "child")))
+    #expect(!repository.applySession(SessionUpdate(state: .active, consoleUser: "child")))
+    #expect(!repository.applySession(SessionUpdate(state: .inactive, consoleUser: "child")))
+    #expect(repository.applySession(SessionUpdate(state: .active, consoleUser: "child")))
   }
 
   @Test("protected configuration is mode 0700 with mode 0600 contents")

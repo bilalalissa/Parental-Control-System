@@ -202,14 +202,33 @@ public final class LocalHub: @unchecked Sendable {
   }
 
   public func acknowledgeTimeRequest(id: UUID, deviceID: String) throws {
+    try resolveTimeRequest(id: id, deviceID: deviceID, decision: .approved)
+  }
+
+  public func resolveTimeRequest(
+    id: UUID, deviceID: String, decision: MoreTimeRequestState
+  ) throws {
     guard let device = try database.device(id: deviceID), !device.isRevoked else {
       throw LocalHubError.unknownDevice
     }
-    try database.acknowledgeMoreTimeRequest(id: id, deviceID: deviceID)
+    guard decision == .approved || decision == .rejected,
+      let request = try database.moreTimeRequests().first(where: {
+        $0.id == id && $0.deviceID == deviceID && $0.state == .pending
+      })
+    else { throw LocalHubError.unexpectedMessage }
+    let envelope = try controllerIdentity.sign(
+      deviceID: "controller", sequence: nextControllerSequence(), type: .resolveMoreTime,
+      payload: [
+        "targetDeviceId": .string(deviceID), "requestId": .string(id.uuidString),
+        "decision": .string(decision.rawValue),
+        "minutes": .integer(Int64(request.requestedMinutes)),
+      ], lifetime: 7 * 86_400)
+    try sendOrQueue(envelope, deviceID: deviceID, lifetime: 7 * 86_400)
+    try database.resolveMoreTimeRequest(id: id, deviceID: deviceID, state: decision)
     try database.appendAudit(
       HubAuditRecord(
-        event: "time.request.acknowledged", deviceID: deviceID,
-        detail: "Parent resolved a bounded time request"))
+        event: "time.request.\(decision.rawValue)", deviceID: deviceID,
+        detail: "Parent \(decision.rawValue) a bounded time request"))
     publishStatus()
   }
 
@@ -685,7 +704,8 @@ public final class LocalHub: @unchecked Sendable {
       try database.updateSeen(
         deviceID: device.id, sequence: envelope.sequence,
         snapshotVersion: device.snapshotVersion)
-    case .activityConfiguration, .browserConfiguration, .snapshotRequest, .policyApply,
+    case .activityConfiguration, .browserConfiguration, .snapshotRequest, .resolveMoreTime,
+      .policyApply,
       .policyQuery, .actionLock, .actionLogoff, .actionRestart, .actionShutdown, .bonusGrant,
       .bonusRevoke, .adultVerifierRotate:
       throw LocalHubError.unexpectedMessage

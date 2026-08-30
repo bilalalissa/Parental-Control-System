@@ -12,6 +12,7 @@ public enum ProtocolMessageType: String, Codable, CaseIterable, Sendable {
   case chatMessage = "chat.message"
   case chatMutation = "chat.mutation"
   case requestMoreTime = "time.request"
+  case resolveMoreTime = "time.request-resolution"
   case policyApply = "policy.apply"
   case policyQuery = "policy.query"
   case actionLock = "action.lock"

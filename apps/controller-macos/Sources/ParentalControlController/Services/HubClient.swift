@@ -174,6 +174,17 @@ final class HubClient {
       payload: ["requestId": .string(requestID.uuidString)])
   }
 
+  func resolveTimeRequest(
+    requestID: UUID, deviceID: String, decision: MoreTimeRequestState
+  ) async throws -> LocalHubStatus? {
+    try await request(
+      .resolveTimeRequest, deviceID: deviceID,
+      payload: [
+        "requestId": .string(requestID.uuidString),
+        "decision": .string(decision.rawValue),
+      ])
+  }
+
   func applyPolicy(_ policy: ParentalControlPolicy) async throws -> LocalHubStatus? {
     let data = try PolicyCodec.encoder().encode(policy)
     return try await request(

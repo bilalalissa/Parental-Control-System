@@ -94,6 +94,7 @@ public enum EndpointPolicyEvent: Codable, Equatable, Sendable {
   case enforce(action: PolicyAction, explanation: String)
   case clockChangeDetected
   case bonusGranted(minutes: Int, until: Date)
+  case timeRequestRejected(minutes: Int)
 }
 
 public final class EndpointPolicyRuntime: @unchecked Sendable {
@@ -160,6 +161,24 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
     state.failedAdultAttempts = []
     state.adultCodeLockedUntil = nil
     try persistLocked()
+  }
+
+  public func recordRejectedTimeRequest(minutes: Int) {
+    lock.lock()
+    defer { lock.unlock() }
+    enqueueUserEventsLocked([.timeRequestRejected(minutes: max(5, min(minutes, 240)))])
+    try? persistLocked()
+  }
+
+  /// A lock does not prevent an authorized macOS login. Re-arm the current restriction when a
+  /// standard child session becomes active so an unlock outside the allowed window is visibly
+  /// warned/enforced again through the same allowlisted lock path.
+  public func rearmRestrictionForActiveSession() {
+    lock.lock()
+    defer { lock.unlock() }
+    guard state.restrictionBeganAt != nil, state.restrictionEnforced == true else { return }
+    state.restrictionEnforced = false
+    try? persistLocked()
   }
 
   @discardableResult

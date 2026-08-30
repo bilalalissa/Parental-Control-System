@@ -1,3 +1,4 @@
+import DesignSystem
 import SwiftUI
 
 struct ControllerSettingsView: View {
@@ -26,6 +27,13 @@ struct ControllerSettingsView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
           }
+        }
+
+        Section("Appearance") {
+          ControlAppearancePicker()
+          Text("System follows the Mac appearance; Light and Dark remain fixed for this app.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
 
         Section("Safety") {

@@ -102,10 +102,23 @@ private final class EndpointDaemonRetryLoop: @unchecked Sendable {
 
   private func timerFired() {
     guard running else { return }
-    switch policy.timerFired(connectionState: repository.status().connectionState) {
+    let status = repository.status()
+    switch policy.timerFired(
+      connectionState: status.connectionState,
+      lastControllerContact: status.lastControllerContact)
+    {
     case .connect(let retryAfter):
       connect()
       schedule(after: retryAfter)
+    case .reconnect:
+      log.write(
+        event: "connection.stale",
+        detail: "Controller contact exceeded the bounded heartbeat window; reconnecting")
+      agent?.stop()
+      agent = nil
+      repository.update { if $0.connectionState != .unpaired { $0.connectionState = .offline } }
+      connect()
+      schedule(after: policy.shortDelay)
     case .wait(let delay):
       schedule(after: delay)
     }
@@ -211,6 +224,10 @@ private final class EndpointPolicyScheduler: @unchecked Sendable {
         log.write(event: "policy.clock-change", detail: "Wall clock continuity check failed")
       case .bonusGranted:
         log.write(event: "policy.bonus", detail: "Parent-approved bonus time installed")
+      case .timeRequestRejected(let minutes):
+        log.write(
+          event: "time.request.rejected",
+          detail: "Parent rejected a bounded \(minutes)-minute request")
       }
     }
     if !events.isEmpty { EndpointPolicyWake.post() }

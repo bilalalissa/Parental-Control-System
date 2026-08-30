@@ -165,6 +165,10 @@ struct EndpointPolicyRuntimeTests {
         .contains(.enforce(action: .lock, explanation: "Synthetic bedtime")))
     #expect(
       restored.tick(now: start.addingTimeInterval(61), uptime: 161, sessionActive: true).isEmpty)
+    restored.rearmRestrictionForActiveSession()
+    #expect(
+      restored.tick(now: start.addingTimeInterval(62), uptime: 162, sessionActive: true)
+        .contains(.enforce(action: .lock, explanation: "Synthetic bedtime")))
 
     let rebooted = EndpointPolicyRuntime(
       root: root, deviceID: "child-policy-test", controllerPublicKey: identity.publicKeyData)

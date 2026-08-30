@@ -244,10 +244,42 @@ public struct EndpointChatMessage: Codable, Equatable, Identifiable, Sendable {
 public struct EndpointDashboardSnapshot: Codable, Equatable, Sendable {
   public let status: EndpointStatus
   public let messages: [EndpointChatMessage]
+  public let latestTimeRequest: EndpointTimeRequest?
 
-  public init(status: EndpointStatus, messages: [EndpointChatMessage]) {
+  public init(
+    status: EndpointStatus, messages: [EndpointChatMessage],
+    latestTimeRequest: EndpointTimeRequest? = nil
+  ) {
     self.status = status
     self.messages = Array(messages.suffix(200))
+    self.latestTimeRequest = latestTimeRequest
+  }
+}
+
+public enum EndpointTimeRequestState: String, Codable, Sendable {
+  case pending
+  case approved
+  case rejected
+}
+
+public struct EndpointTimeRequest: Codable, Equatable, Identifiable, Sendable {
+  public let id: UUID
+  public let requestedMinutes: Int
+  public let note: String
+  public let createdAt: Date
+  public var state: EndpointTimeRequestState
+  public var resolvedAt: Date?
+
+  public init(
+    id: UUID = UUID(), requestedMinutes: Int, note: String, createdAt: Date = Date(),
+    state: EndpointTimeRequestState = .pending, resolvedAt: Date? = nil
+  ) {
+    self.id = id
+    self.requestedMinutes = max(5, min(requestedMinutes, 240))
+    self.note = String(note.prefix(500))
+    self.createdAt = createdAt
+    self.state = state
+    self.resolvedAt = resolvedAt
   }
 }
 
@@ -277,10 +309,15 @@ public struct EndpointOutboundItem: Codable, Equatable, Identifiable, Sendable {
 public struct EndpointRuntimeState: Codable, Equatable, Sendable {
   public let messages: [EndpointChatMessage]
   public let outbound: [EndpointOutboundItem]
+  public let latestTimeRequest: EndpointTimeRequest?
 
-  public init(messages: [EndpointChatMessage], outbound: [EndpointOutboundItem]) {
+  public init(
+    messages: [EndpointChatMessage], outbound: [EndpointOutboundItem],
+    latestTimeRequest: EndpointTimeRequest? = nil
+  ) {
     self.messages = Array(messages.suffix(200))
     self.outbound = Array(outbound.suffix(100))
+    self.latestTimeRequest = latestTimeRequest
   }
 }
 

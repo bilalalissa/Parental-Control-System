@@ -134,6 +134,12 @@ final class SessionReporter: NSObject, @unchecked Sendable {
         message:
           "\(minutes) minute\(minutes == 1 ? "" : "s") approved, until \(until.formatted(date: .omitted, time: .shortened))."
       )
+    case .timeRequestRejected(let minutes):
+      showPolicyBanner(
+        title: "More time not approved",
+        message:
+          "Your request for \(minutes) minutes was not approved. The current family schedule remains active."
+      )
     }
   }
 

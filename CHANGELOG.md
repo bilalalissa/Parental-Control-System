@@ -2,6 +2,16 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.0-rc.4 — 2026-08-30
+
+Status: **STAGE-06 implementing developer retest candidate**
+
+- Coalesces repeated child time requests so only the newest pending request contributes to the Devices badge, and adds explicit authenticated approval or rejection with durable child-visible status.
+- Ages presence defensively, rejects implausible future timestamps, and makes the endpoint reconnect after stale controller contact instead of remaining attached to a dead connection.
+- Re-arms an active signed schedule restriction when the graphical child session becomes active after login or unlock; the app does not replace or bypass macOS login authentication.
+- Adds system-adaptive Light and Dark appearances with explicit System, Light, and Dark choices in both visible apps.
+- Continues to defer app/site/IP filtering and timed Internet pause until a separately approved privileged filtering design includes authorization, recovery, audit, and controller-connectivity safeguards.
+
 ## 0.6.0-rc.3 — 2026-08-27
 
 Status: **STAGE-06 ready for developer retest**

@@ -105,6 +105,15 @@ enum ParentalControlHubMain {
         else { throw AuthenticatedIPCError.remote("Time request identifier is incomplete") }
         try hub.acknowledgeTimeRequest(
           id: requestID, deviceID: try requiredDeviceID(request))
+      case .resolveTimeRequest:
+        guard let requestText = request.payload["requestId"]?.stringValue,
+          let requestID = UUID(uuidString: requestText),
+          let decisionText = request.payload["decision"]?.stringValue,
+          let decision = MoreTimeRequestState(rawValue: decisionText),
+          decision == .approved || decision == .rejected
+        else { throw AuthenticatedIPCError.remote("Time request resolution is incomplete") }
+        try hub.resolveTimeRequest(
+          id: requestID, deviceID: try requiredDeviceID(request), decision: decision)
       case .applyPolicy:
         guard let value = request.payload["policy"]?.stringValue,
           let data = Data(base64Encoded: value),

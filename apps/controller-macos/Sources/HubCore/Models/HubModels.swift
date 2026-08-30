@@ -109,9 +109,13 @@ public struct HubDeviceRecord: Codable, Equatable, Identifiable, Sendable {
     self.networkInterfaces = networkInterfaces.map { Array($0.prefix(8)) }
   }
 
-  public func state(now: Date = Date(), offlineAfter: TimeInterval = 75) -> HubDeviceState {
+  public func state(
+    now: Date = Date(), offlineAfter: TimeInterval = 75,
+    toleratedFutureSkew: TimeInterval = 5
+  ) -> HubDeviceState {
     if isRevoked { return .revoked }
-    return now.timeIntervalSince(lastSeen) <= offlineAfter ? .online : .offline
+    let age = now.timeIntervalSince(lastSeen)
+    return age >= -toleratedFutureSkew && age <= offlineAfter ? .online : .offline
   }
 }
 
@@ -308,7 +312,13 @@ public struct BrowserConfiguration: Codable, Equatable, Sendable {
 
 public enum MoreTimeRequestState: String, Codable, Sendable {
   case pending
+  case approved
+  case rejected
+  case superseded
+  /// Read compatibility for Stage 06 RC3 databases.
   case acknowledged
+
+  public var isApproved: Bool { self == .approved || self == .acknowledged }
 }
 
 public struct MoreTimeRequestRecord: Codable, Equatable, Identifiable, Sendable {

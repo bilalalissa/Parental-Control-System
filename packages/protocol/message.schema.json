@@ -52,6 +52,7 @@
         "chat.message",
         "chat.mutation",
         "time.request",
+        "time.request-resolution",
         "action.lock",
         "action.unlock-temporary",
         "action.logoff",

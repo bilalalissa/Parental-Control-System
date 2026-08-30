@@ -41,6 +41,7 @@ final class ChildAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
 final class ChildDashboardModel: NSObject, ObservableObject {
   @Published var status: EndpointStatus?
   @Published var messages: [EndpointChatMessage] = []
+  @Published var latestTimeRequest: EndpointTimeRequest?
   @Published var error = "Connecting to the protected endpoint service…"
   @Published var actionMessage = ""
   private let client = EndpointXPCClient()
@@ -105,6 +106,19 @@ final class ChildDashboardModel: NSObject, ObservableObject {
               in: value.messages) ?? []
           self?.status = value.status
           self?.messages = value.messages
+          if self?.latestTimeRequest?.state != value.latestTimeRequest?.state,
+            let request = value.latestTimeRequest
+          {
+            switch request.state {
+            case .pending:
+              self?.actionMessage = "Waiting for your parent to review the request."
+            case .approved:
+              self?.actionMessage = "Your parent approved \(request.requestedMinutes) minutes."
+            case .rejected:
+              self?.actionMessage = "Your parent did not approve this time request."
+            }
+          }
+          self?.latestTimeRequest = value.latestTimeRequest
           self?.error = ""
           if !newParentMessages.isEmpty {
             self?.notifyAboutIncomingMessages(count: newParentMessages.count)
@@ -167,6 +181,7 @@ final class ChildDashboardModel: NSObject, ObservableObject {
         self?.actionMessage =
           result.isSuccess
           ? "Request queued for your parent." : "Request could not be queued."
+        if result.isSuccess { self?.refresh() }
       }
     }
   }
@@ -378,12 +393,32 @@ struct ChildDashboard: View {
 
   private var requestView: some View {
     Form {
+      if let request = model.latestTimeRequest {
+        LabeledContent("Latest request") {
+          Label(
+            request.state.rawValue.capitalized,
+            systemImage: request.state == .approved
+              ? "checkmark.circle.fill"
+              : (request.state == .rejected ? "xmark.circle.fill" : "clock.fill")
+          )
+          .foregroundStyle(
+            request.state == .approved
+              ? ControlTheme.success
+              : (request.state == .rejected ? ControlTheme.accent : .secondary))
+        }
+        Text(
+          "\(request.requestedMinutes) minutes · \(request.createdAt.formatted(date: .omitted, time: .shortened))"
+        )
+        .font(.caption).foregroundStyle(.secondary)
+      }
       Stepper("Request \(requestMinutes) minutes", value: $requestMinutes, in: 5...240, step: 5)
       TextField("Optional note", text: $requestNote)
       Button("Send Request") {
         model.requestTime(minutes: requestMinutes, note: requestNote)
         requestNote = ""
-      }.buttonStyle(.borderedProminent)
+      }
+      .buttonStyle(.borderedProminent)
+      .disabled(model.latestTimeRequest?.state == .pending)
       Text(
         "A request is not an automatic time grant. Your parent must approve bonus time."
       )
@@ -403,6 +438,11 @@ struct ChildDashboard: View {
           Text(
             "No command lines, window or document contents, file contents, screenshots, keystrokes, passwords, clipboard, camera, microphone, private tabs, URL query strings/fragments, page content, forms, cookies, or network traffic."
           ).frame(maxWidth: .infinity, alignment: .leading).padding(6)
+        }
+        GroupBox("Appearance") {
+          ControlAppearancePicker()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(6)
         }
         Label(
           status.activityCollectionEnabled

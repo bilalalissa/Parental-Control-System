@@ -344,6 +344,22 @@ final class ControllerStore {
     publishPolicy(to: request.deviceID, resolvingRequest: request)
   }
 
+  func rejectBonus(request: MoreTimeRequestRecord) {
+    guard request.state == .pending, !resolvingTimeRequestIDs.contains(request.id) else { return }
+    resolvingTimeRequestIDs.insert(request.id)
+    Task {
+      do {
+        applyHubStatus(
+          try await hubClient.resolveTimeRequest(
+            requestID: request.id, deviceID: request.deviceID, decision: .rejected))
+        scheduleStatusMessage = "The time request was rejected and the child was notified."
+      } catch {
+        scheduleStatusMessage = "The time request could not be rejected: \(error)"
+      }
+      resolvingTimeRequestIDs.remove(request.id)
+    }
+  }
+
   func sendImmediateAction(deviceID: String, action: PolicyAction, confirmed: Bool) {
     policyActionStatusMessage = "Sending authenticated \(action.rawValue) request…"
     Task {
@@ -382,13 +398,16 @@ final class ControllerStore {
             deviceID: deviceID, salt: salt, digest: digest))
         if let resolvingRequest {
           applyHubStatus(
-            try await hubClient.acknowledgeTimeRequest(
-              requestID: resolvingRequest.id, deviceID: resolvingRequest.deviceID))
+            try await hubClient.resolveTimeRequest(
+              requestID: resolvingRequest.id, deviceID: resolvingRequest.deviceID,
+              decision: .approved))
           resolvingTimeRequestIDs.remove(resolvingRequest.id)
         }
         adultOverrideCode = code
         scheduleStatusMessage =
-          "Signed policy version \(policy.version) queued for the selected device."
+          resolvingRequest == nil
+          ? "Signed policy version \(policy.version) queued for the selected device."
+          : "More time approved; the signed policy and child status update were queued."
       } catch {
         if let resolvingRequest { resolvingTimeRequestIDs.remove(resolvingRequest.id) }
         scheduleStatusMessage = "The signed policy could not be applied: \(error)"

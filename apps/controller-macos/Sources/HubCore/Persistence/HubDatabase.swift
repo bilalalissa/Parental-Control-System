@@ -187,6 +187,21 @@ public final class HubDatabase: @unchecked Sendable {
     try execute(
       "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(5, strftime('%s','now'));"
     )
+    // RC3 allowed several actionable requests from one child to accumulate. Keep the newest
+    // request actionable and retain older records as bounded, non-actionable history.
+    try execute(
+      """
+      UPDATE more_time_requests AS older
+      SET state = 'superseded'
+      WHERE state = 'pending' AND EXISTS(
+          SELECT 1 FROM more_time_requests AS newer
+          WHERE newer.device_id = older.device_id AND newer.state = 'pending'
+            AND (newer.created_at > older.created_at
+              OR (newer.created_at = older.created_at AND newer.rowid > older.rowid))
+      );
+      INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at)
+          VALUES(6, strftime('%s','now'));
+      """)
   }
 
   public func upsertDevice(_ device: HubDeviceRecord) throws {
@@ -702,6 +717,12 @@ public final class HubDatabase: @unchecked Sendable {
 
   public func appendMoreTimeRequest(_ request: MoreTimeRequestRecord) throws {
     try run(
+      "UPDATE more_time_requests SET state = ? WHERE device_id = ? AND state = ?;",
+      [
+        .text(MoreTimeRequestState.superseded.rawValue), .text(request.deviceID),
+        .text(MoreTimeRequestState.pending.rawValue),
+      ])
+    try run(
       """
       INSERT OR REPLACE INTO more_time_requests(
           id, device_id, requested_minutes, note, created_at, state
@@ -746,13 +767,22 @@ public final class HubDatabase: @unchecked Sendable {
     return result
   }
 
-  public func acknowledgeMoreTimeRequest(id: UUID, deviceID: String) throws {
+  public func resolveMoreTimeRequest(
+    id: UUID, deviceID: String, state: MoreTimeRequestState
+  ) throws {
+    guard state == .approved || state == .rejected else {
+      throw HubDatabaseError.decode("time request resolution")
+    }
     try run(
       "UPDATE more_time_requests SET state = ? WHERE id = ? AND device_id = ? AND state = ?;",
       [
-        .text(MoreTimeRequestState.acknowledged.rawValue), .text(id.uuidString), .text(deviceID),
+        .text(state.rawValue), .text(id.uuidString), .text(deviceID),
         .text(MoreTimeRequestState.pending.rawValue),
       ])
+  }
+
+  public func acknowledgeMoreTimeRequest(id: UUID, deviceID: String) throws {
+    try resolveMoreTimeRequest(id: id, deviceID: deviceID, state: .approved)
   }
 
   public func pruneActivity(now: Date) throws {

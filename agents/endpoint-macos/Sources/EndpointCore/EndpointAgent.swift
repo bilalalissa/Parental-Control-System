@@ -116,6 +116,7 @@ public final class EndpointAgent: @unchecked Sendable {
         .string("network-metadata"), .string("health"), .string("delta-snapshot"),
         .string("receipt"), .string("app-activity"), .string("chat"),
         .string("browser-tabs"), .string("request-more-time"), .string("notifications"),
+        .string("time-request-resolution"),
         .string("signed-policy"), .string("offline-enforcement"), .string("policy-warning"),
         .string("lock"), .string("logoff"), .string("restart"), .string("shutdown"),
         .string("adult-override"), .string("bonus-time"),
@@ -176,6 +177,8 @@ public final class EndpointAgent: @unchecked Sendable {
         try receiveChat(envelope)
       case .chatMutation:
         try receiveChatMutation(envelope)
+      case .resolveMoreTime:
+        try receiveTimeRequestResolution(envelope)
       case .activityConfiguration:
         try receiveActivityConfiguration(envelope)
       case .browserConfiguration:
@@ -402,6 +405,30 @@ public final class EndpointAgent: @unchecked Sendable {
     EndpointPolicyWake.post()
     log.write(
       event: "policy.installed", detail: "Installed signed policy version \(policy.version)")
+  }
+
+  private func receiveTimeRequestResolution(_ envelope: ProtocolEnvelope) throws {
+    let configuration = try store.load()
+    guard envelope.payload["targetDeviceId"]?.stringValue == configuration.deviceID,
+      let requestText = envelope.payload["requestId"]?.stringValue,
+      let requestID = UUID(uuidString: requestText),
+      let decisionText = envelope.payload["decision"]?.stringValue,
+      let decision = EndpointTimeRequestState(rawValue: decisionText),
+      decision == .approved || decision == .rejected,
+      let rawMinutes = envelope.payload["minutes"]?.integerValue
+    else { throw EndpointAgentError.invalidMessage }
+    let minutes = max(5, min(Int(rawMinutes), 240))
+    guard repository.resolveMoreTime(id: requestID, state: decision, minutes: minutes) else {
+      throw EndpointAgentError.invalidMessage
+    }
+    if decision == .rejected {
+      policyRuntime?.recordRejectedTimeRequest(minutes: minutes)
+      EndpointPolicyWake.post()
+    }
+    try sendPolicyReceipt(for: envelope.id, state: "time-request-\(decision.rawValue)")
+    log.write(
+      event: "time.request.\(decision.rawValue)",
+      detail: "Parent \(decision.rawValue) a bounded time request")
   }
 
   private func receiveImmediateAction(

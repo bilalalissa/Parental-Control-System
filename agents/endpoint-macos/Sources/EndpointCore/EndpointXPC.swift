@@ -188,6 +188,7 @@ public final class EndpointStatusRepository: @unchecked Sendable {
   private var helperLastSeen: Date?
   private var messages: [EndpointChatMessage] = []
   private var outbound: [EndpointOutboundItem] = []
+  private var latestTimeRequest: EndpointTimeRequest?
   private let persistenceURL: URL?
   public init(initial: EndpointStatus, persistenceURL: URL? = nil) {
     value = initial
@@ -198,6 +199,7 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     {
       messages = Array(persisted.messages.suffix(200))
       outbound = Array(persisted.outbound.suffix(100))
+      latestTimeRequest = persisted.latestTimeRequest
     }
   }
   public func status() -> EndpointStatus {
@@ -212,14 +214,17 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     defer { lock.unlock() }
     transform(&value)
   }
-  public func applySession(_ update: SessionUpdate) {
+  @discardableResult
+  public func applySession(_ update: SessionUpdate) -> Bool {
     lock.lock()
     defer { lock.unlock() }
+    let becameActive = update.state == .active && value.sessionState != .active
     value.sessionState = update.state
     value.consoleUser = update.consoleUser.map { String($0.prefix(128)) }
     value.helperHealthy = true
     value.collectedAt = Date()
     helperLastSeen = Date()
+    return becameActive
   }
 
   public func applyActivity(_ update: EndpointActivityUpdate) {
@@ -329,7 +334,8 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     }
     var current = value
     current.helperHealthy = helperLastSeen.map { Date().timeIntervalSince($0) <= 90 } ?? false
-    return EndpointDashboardSnapshot(status: current, messages: messages)
+    return EndpointDashboardSnapshot(
+      status: current, messages: messages, latestTimeRequest: latestTimeRequest)
   }
 
   @discardableResult
@@ -376,11 +382,15 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     persistLocked()
   }
 
-  public func queueMoreTime(minutes: Int, note: String) {
+  @discardableResult
+  public func queueMoreTime(minutes: Int, note: String) -> UUID {
     lock.lock()
     defer { lock.unlock() }
+    let request = EndpointTimeRequest(requestedMinutes: minutes, note: note)
+    latestTimeRequest = request
     outbound.append(
       EndpointOutboundItem(
+        id: request.id,
         kind: .requestMoreTime,
         payload: [
           "minutes": .integer(Int64(max(5, min(minutes, 240)))),
@@ -388,6 +398,27 @@ public final class EndpointStatusRepository: @unchecked Sendable {
         ]))
     trimOutbound()
     persistLocked()
+    return request.id
+  }
+
+  @discardableResult
+  public func resolveMoreTime(
+    id: UUID, state: EndpointTimeRequestState, minutes: Int, resolvedAt: Date = Date()
+  ) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    if latestTimeRequest == nil || latestTimeRequest?.state != .pending {
+      latestTimeRequest = EndpointTimeRequest(
+        id: id, requestedMinutes: minutes, note: "", createdAt: resolvedAt, state: state,
+        resolvedAt: resolvedAt)
+      persistLocked()
+      return true
+    }
+    guard latestTimeRequest?.id == id else { return false }
+    latestTimeRequest?.state = state
+    latestTimeRequest?.resolvedAt = resolvedAt
+    persistLocked()
+    return true
   }
 
   public func drainOutbound() -> [EndpointOutboundItem] {
@@ -437,7 +468,8 @@ public final class EndpointStatusRepository: @unchecked Sendable {
         at: directory, withIntermediateDirectories: true,
         attributes: [.posixPermissions: 0o700])
       try JSONEncoder.endpoint.encode(
-        EndpointRuntimeState(messages: messages, outbound: outbound)
+        EndpointRuntimeState(
+          messages: messages, outbound: outbound, latestTimeRequest: latestTimeRequest)
       ).write(to: persistenceURL, options: [.atomic])
       try FileManager.default.setAttributes(
         [.posixPermissions: 0o600], ofItemAtPath: persistenceURL.path)
@@ -496,7 +528,12 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
         reply(false, "expired update")
         return
       }
-      repository.applySession(update)
+      let becameActive = repository.applySession(update)
+      if becameActive, let policyRuntime {
+        policyRuntime.rearmRestrictionForActiveSession()
+        let events = policyRuntime.tick(now: update.observedAt, sessionActive: true)
+        if !events.isEmpty { EndpointPolicyWake.post() }
+      }
       reply(true, nil)
     } catch { reply(false, "invalid update") }
   }

@@ -481,15 +481,27 @@ private struct PairedDeviceDetailView: View {
               .font(.caption)
               Spacer()
               if request.state == .pending {
-                Button(
-                  store.resolvingTimeRequestIDs.contains(request.id) ? "Granting…" : "Grant"
-                ) {
-                  store.grantBonus(request: request)
+                HStack(spacing: 6) {
+                  Button(
+                    store.resolvingTimeRequestIDs.contains(request.id) ? "Resolving…" : "Approve"
+                  ) {
+                    store.grantBonus(request: request)
+                  }
+                  .disabled(store.resolvingTimeRequestIDs.contains(request.id))
+                  Button("Reject", role: .destructive) {
+                    store.rejectBonus(request: request)
+                  }
+                  .disabled(store.resolvingTimeRequestIDs.contains(request.id))
                 }
-                .disabled(store.resolvingTimeRequestIDs.contains(request.id))
               } else {
-                Label("Resolved", systemImage: "checkmark.circle.fill")
-                  .font(.caption).foregroundStyle(ControlTheme.success)
+                Label(
+                  request.state.isApproved ? "Approved" : request.state.rawValue.capitalized,
+                  systemImage: request.state.isApproved
+                    ? "checkmark.circle.fill" : "xmark.circle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(
+                  request.state.isApproved ? ControlTheme.success : ControlTheme.textMuted)
               }
             }
           }
