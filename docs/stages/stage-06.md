@@ -1,6 +1,6 @@
 # STAGE-06 — macOS policy enforcement
 
-- Version: `0.6.0-rc.4`
+- Version: `0.6.0-rc.5`
 - Branch: `stage/06-macos-policy-enforcement`
 - Status: `READY_FOR_RETEST`
 - Platform: Apple-silicon Parent Controller and universal Apple-silicon/Intel macOS Child Endpoint on macOS 14 or newer
@@ -33,6 +33,9 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 - rc.3 shows the pending-request count on the Parent Devices navigation item and on the requesting device. Granting is idempotently disabled while in flight, and the request is marked resolved only after the signed policy and adult-verifier operations succeed.
 - rc.4 coalesces repeated requests so only the newest request for a child remains pending. The parent can explicitly approve or reject it; either decision is signed, queued for offline delivery, clears the pending badge, and becomes durable visible state in the child app after delivery.
 - rc.4 bounds Online presence to a fresh authenticated observation, treats implausible future timestamps as Offline, and makes the endpoint replace a stale controller connection. Ordinary sleep ages to Offline; wake, controller restart, and LAN recovery trigger bounded reconnect attempts.
+- rc.5 publishes a controller-owned current-time sample every five seconds and uses it consistently for dashboard totals, device rows, detail badges, and action availability. A last-seen value therefore ages to Offline after 75 seconds even when the hub payload itself has not changed.
+- rc.5 migrates pending requests belonging to revoked, unpaired, or replaced device identities to non-actionable history. Global and per-device badges also intersect pending requests with the current active pairing set, so inaccessible historical rows cannot keep a badge visible.
+- rc.5 gives the Parent navigation sidebar and paired-device list explicit minimum, ideal, and maximum widths, preserves at least 520 points for device details, and raises the minimum window width to 1,080 points. Resizing stays flexible inside those bounds without hiding navigation labels or consuming the detail pane.
 - When a blocked signed schedule is active, rc.4 re-arms lock enforcement as a graphical child session becomes active after login or unlock. It does not replace macOS login-window authentication or claim to prevent an authorized administrator from signing in.
 - Both visible apps now offer System, Light, and Dark appearance choices. System follows the current macOS appearance; the existing dark editorial theme remains the default-compatible design rather than the only usable appearance.
 - rc.3 projects the next signed-policy restriction with active-session quota semantics. The child app displays a live one-second countdown; the visible login helper also provides a persistent menu-bar countdown outside the child app while retaining the existing generic pre-enforcement panel.
@@ -48,37 +51,39 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 
 ## Verification evidence
 
-- Controller/hub: 42 tests in 12 suites passed, including request coalescing/rejection, future-timestamp presence, LAN-metadata sanitization/persistence, policy precedence/signatures/warnings, authenticated IPC, TLS, persistence bounds, approved-time behavior, and existing Stage-05 regressions.
+- Controller/hub: 46 tests in 13 suites passed, including observable presence aging, active-pairing badge derivation, orphan-request migration/revocation, three-column width budgeting, request coalescing/rejection, future-timestamp presence, LAN-metadata sanitization/persistence, policy precedence/signatures/warnings, authenticated IPC, TLS, persistence bounds, approved-time behavior, and existing Stage-05 regressions.
 - Endpoint: 21 tests in 3 suites passed, including authenticated request rejection, stale-controller reconnect, schedule re-arm on session activation, projected countdown behavior, bounded physical-interface collection, real TLS policy delivery, protected cached-policy verification, tamper/version replay, durable warning/action handoff, direct action, grace, reboot, sleep/resume, adult-code lockout, and clock-change fail-closed behavior.
 - Full repository suite: 40 tests passed and the Windows-only cleanup test was skipped on macOS. Both Swift format linters, shell syntax, browser JavaScript syntax, JSON validation, launch-plist lint, `git diff --check`, and the bounded secret-pattern scan passed.
-- The retained PKG was expanded and its packaged Parent Controller and Child Endpoint passed deep/strict code-signature verification. Both embed version `0.6.0-rc.4`, build `6004`, and source commit `7a12cb51634c`. The parent executable is `arm64`; the child executable and its daemon, login helper, control tool, and browser native host are universal `x86_64 arm64`.
-- `ParentalControlSystem-0.6.0-rc.4.pkg`: SHA-256 `9da71f790ad0a05a373491e5d7b9c802c8a758a78b8a34befa441b0cfa25d067`; contained apps/helpers are ad-hoc signed; the product package is unsigned and not notarized.
-- `ParentalControlBrowserSharing-0.6.0-rc.4.zip`: SHA-256 `37d5001f465dfaab0f808b5bb3e6acb7e916e777f8239672bd283a40686e5011`; ZIP integrity and its exact eight expected extension files passed; it contains no signing-key file extensions.
-- An isolated unpaired RC4 daemon smoke run completed normally in 6.03 seconds with 0.00 seconds user CPU, 0.00 seconds system CPU, 14,811,136-byte maximum resident set size, and no swaps. Its temporary root was removed immediately.
-- GitHub macOS CI run `33314020621` passed in 3m00s, independently repeating repository/Swift tests and lint, building the selectable package, checking universal slices and choices, clean-installing the default Parent, clean-installing/diagnosing/uninstalling the customized Child, uploading the bounded candidate set, and cleaning generated output. Companion Stage-00 contract/POSIX/Windows cleanup run `33314020605` also passed.
+- The retained PKG was expanded and its packaged Parent Controller and Child Endpoint passed deep/strict code-signature verification. Both embed version `0.6.0-rc.5`, build `6005`, and source commit `8181611e2e09`. The parent executable is `arm64`; the child executable and its daemon, login helper, control tool, and browser native host are universal `x86_64 arm64`.
+- `ParentalControlSystem-0.6.0-rc.5.pkg`: SHA-256 `8f8889a11461490e1ea191cf2e06ee6513efae3c3d54d8b4d4d14a3f1405e073`; contained apps/helpers are ad-hoc signed; the product package is unsigned and not notarized.
+- `ParentalControlBrowserSharing-0.6.0-rc.5.zip`: SHA-256 `b15a051d3e571032dadb14e8d4c44303287520d21e44481e11fc65b8bf326654`; ZIP integrity and its exact eight expected extension files passed; it contains no signing-key file extensions.
+- The existing local hub database was inspected only through aggregate read-only queries: it contained four pending rows for no active paired identity and zero pending rows for the active pairing. This reproduced the stuck count without exposing device IDs or request contents; the rc.5 migration and store-level filter both have focused regressions.
+- The prior rc.4 isolated unpaired-daemon measurement remains the current Stage-06 runtime evidence: 6.03 seconds elapsed, 0.00 seconds user CPU, 0.00 seconds system CPU, 14,811,136-byte maximum resident set size, and no swaps. RC5 changes Parent derivation/layout and request cleanup rather than the endpoint heartbeat loop.
+- The existing draft pull request was updated by pushing source commit `8181611e2e09`; local GitHub CLI status lookup was unavailable because its configured API token is invalid, so no rc.5 CI result is claimed here.
 - Physical-device installation, policy timing, warning UI, OS confirmation dialogs, sleep/reboot, and offline enforcement remain developer-test evidence and are not claimed by local automation.
 
 ## Clean-install developer checklist
 
 1. Verify the supplied PKG and extension ZIP SHA-256 values before opening either artifact.
 2. On a parent Mac with no prior version, run the PKG with its default **Parent Controller** selection. On a child Mac with no prior version, run the same PKG, choose **Customize**, deselect Parent Controller, and select **Child Endpoint**.
-3. Open both visible apps and confirm version `0.6.0-rc.4`. On the child run `parental-control-agentctl status`; capture only health, connection, policy, and session fields—not device/network identifiers.
+3. Open both visible apps and confirm version `0.6.0-rc.5`. On the child run `parental-control-agentctl status`; capture only health, connection, policy, and session fields—not device/network identifiers.
 4. Pair once with a new one-time code. Confirm the child is Online, then select it in the parent's single Devices list.
 5. In Schedule choose a small test window that currently allows use, a 1-minute warning, a 15-second grace, and Lock. Choose **Sign and Apply Policy** and record the displayed adult override code privately.
 6. Adjust the test window so it ends within the next few minutes. Confirm the child shows a generic warning, then locks only after the configured grace. Confirm open apps/documents remain present after unlocking.
 7. Disconnect the parent from the LAN, leave the child running, and repeat an allowed-to-block transition. Confirm the cached policy still warns and locks. Reconnect afterward.
-8. From the child, request 15 minutes twice. Confirm only one request contributes to the Parent **Devices** and per-device badges. Approve the newest request; confirm the badge clears and the child shows Approved. Send a fresh request, reject it, and confirm the badge clears and the child shows Rejected. Repeat rejection once while the child is briefly offline and confirm the signed decision arrives after reconnect.
+8. After first launch, confirm any badge left by an old removed/replaced pairing disappears. From the active child, request 15 minutes twice. Confirm only one request contributes to the Parent **Devices** and per-device badges. Approve the newest request; confirm the badge clears and the child shows Approved. Send a fresh request, reject it, and confirm the badge clears and the child shows Rejected. Repeat rejection once while the child is briefly offline and confirm the signed decision arrives after reconnect.
 9. Set a restriction within a few minutes. Confirm the child app countdown changes once per second. Close the child app and confirm the visible menu-bar shield/hourglass remains, its countdown continues, and **Open Parental Control** reopens the app. Confirm the generic warning panel still appears before enforcement.
 10. In Parent Devices, confirm the child shows only physical `enN` interface rows with private/link-local IP addresses. If macOS exposes a non-zero interface MAC, confirm it appears as informational. Public addresses and `utun`/`awdl`/`llw` rows must not appear.
 11. From a standard child account, quit the visible child app and helper normally and confirm launchd restores the helper/menu item. Confirm the account cannot modify or remove the root-owned app bundle and cannot run the bundled uninstaller without administrator authorization. Do not test against an authorized administrator account.
 12. Enter a wrong adult code three times on the child. Confirm the fourth attempt reports a five-minute lockout. After the lockout, enter the current correct code and confirm a 15-minute override is shown; do not share the code in logs/screenshots.
 13. With the child Online, send **Lock Screen** and confirm it locks. For Log Out/Restart/Shut Down, verify only that the standard macOS confirmation dialog appears, then choose **Cancel** unless you have saved all work and intentionally want to continue.
-14. Put the child to sleep for at least two minutes. Confirm the Parent ages it to Offline without requiring navigation. Wake it and confirm it reconnects and returns Online. Restart the Parent while the child stays awake and confirm the child reconnects. Confirm no clock-tamper warning appears solely because of sleep. Reboot once and confirm the signed policy version remains present.
+14. With the Parent device row visible, disable the child's Wi-Fi or put it to sleep. Without navigating or clicking Refresh, confirm the Parent changes it to Offline within 90 seconds and keeps the last-seen time. Restore connectivity and confirm it returns Online. Restart the Parent while the child stays awake and confirm the child reconnects. Confirm no clock-tamper warning appears solely because of sleep. Reboot once and confirm the signed policy version remains present.
 15. While the signed schedule is blocked, unlock or sign in to the standard child account. Confirm the visible helper starts and re-applies Lock promptly. This validates post-login session enforcement, not replacement of the macOS login window.
 16. In Parent Settings and Child Privacy, select System, Light, and Dark in turn. Confirm Light is readable, Dark retains the approved theme, and System follows macOS.
 17. Change the wall clock only on a disposable test account/Mac, if safe. Confirm a clock warning and fail-closed restriction, restore automatic time, reconnect, and apply a new policy version. Skip this check if changing time would disrupt other software.
-18. Reconfirm Stage-05 chat, application-name sharing, and browser title/origin sharing. No new browser permission is expected.
-19. Run the bundled administrator uninstaller on the child and confirm the visible app, launch jobs, command tool, protected endpoint state/policy, logs, native-host manifests, and endpoint Keychain item are removed. Browser extension removal remains per browser profile.
+18. Resize the Parent window from its minimum to a larger size and drag both visible column dividers across their allowed ranges. Confirm navigation labels and badges remain visible, the paired-device list stays readable, the detail pane is never consumed, and cards do not overlap or clip horizontally.
+19. Reconfirm Stage-05 chat, application-name sharing, and browser title/origin sharing. No new browser permission is expected.
+20. Run the bundled administrator uninstaller on the child and confirm the visible app, launch jobs, command tool, protected endpoint state/policy, logs, native-host manifests, and endpoint Keychain item are removed. Browser extension removal remains per browser profile.
 
 ## Known limitations
 
@@ -92,7 +97,14 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 - The visible helper is a normal macOS LaunchAgent. KeepAlive restores ordinary termination, and root ownership prevents standard-user modification/uninstall, but the project does not claim kernel-level or MDM-grade tamper proofing.
 - MAC availability depends on macOS and the active interface. It is not a stable child identity and may be randomized, unavailable, or change across networks.
 - The countdown is a projection from the current signed policy, active-session state, quota, and override. A newer signed policy or a session-state change can legitimately move it.
-- App bundle-ID deny rules, browser-origin deny rules, IP filtering, and timed Internet pause are not in rc.4. Robust device-wide filtering requires separately approved privileged Network Extension design, system authorization, explicit recovery/fail-open behavior, signed expiry, audit, and preservation of controller/LAN and critical system connectivity. The visible browser extension alone cannot enforce device-wide network policy.
+- App bundle-ID deny rules, browser-origin deny rules, IP filtering, and timed Internet pause are not in rc.5. Robust device-wide filtering requires separately approved privileged Network Extension design, system authorization, explicit recovery/fail-open behavior, signed expiry, audit, and preservation of controller/LAN and critical system connectivity. The visible browser extension alone cannot enforce device-wide network policy.
+
+## Resource evidence for rc.5 retest
+
+- Free disk before work: 12 GiB. Repository: 24 MiB; retained rc.4 candidate set: 14 MiB.
+- The two temporary Debug SwiftPM trees peaked at 433 MiB combined. Release packaging, expansion, and verification stayed below that measured peak and used one shared 105 MiB derived-data tree.
+- Final cleanup removed both Debug trees, Release derived data, package staging, expanded verification payload, and `dist`. Free disk after cleanup is 14 GiB; repository/project-owned output is 24 MiB/14 MiB.
+- Retained output is only the current rc.5 PKG, extension ZIP, and their checksums. No simulator, emulator, VM, container, worktree, project-started process, or temporary verification tree remains. The pre-existing installed Parent Controller and hub processes were preserved because they belong to the developer's active installation, not this build run.
 
 ## Failure evidence to collect
 

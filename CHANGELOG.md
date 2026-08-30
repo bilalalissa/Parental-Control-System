@@ -2,6 +2,15 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.0-rc.5 — 2026-08-30
+
+Status: **STAGE-06 ready for developer retest**
+
+- Drives Parent presence from an observable five-second clock so a child with no fresh authenticated heartbeat ages from Online to Offline after the existing 75-second threshold without requiring navigation.
+- Migrates pending requests for revoked, unpaired, or replaced device identities to non-actionable history and defensively excludes them from global and per-device badges.
+- Bounds the Parent navigation sidebar, paired-device list, detail pane, and minimum window width so divider resizing preserves labels and cannot consume the detail pane.
+- Retains all rc.4 schedule, request-decision, reconnect, enforcement, and appearance behavior; no network-filtering or later-stage capability was added.
+
 ## 0.6.0-rc.4 — 2026-08-30
 
 Status: **STAGE-06 ready for developer retest**
