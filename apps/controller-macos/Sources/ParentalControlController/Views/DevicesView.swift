@@ -12,6 +12,7 @@ struct DevicesView: View {
           ForEach(store.pairedDevices) { device in
             PairedDeviceSidebarRow(
               device: device,
+              now: store.presenceNow,
               pendingRequestCount: store.pendingTimeRequestCount(deviceID: device.id)
             )
             .tag(device.id)
@@ -19,7 +20,11 @@ struct DevicesView: View {
         }
       }
       .listStyle(.sidebar)
-      .frame(minWidth: 230, idealWidth: 270, maxWidth: 330)
+      .frame(
+        minWidth: ControllerLayout.deviceListMinimum,
+        idealWidth: ControllerLayout.deviceListIdeal,
+        maxWidth: ControllerLayout.deviceListMaximum
+      )
       .overlay {
         if store.pairedDevices.isEmpty {
           ContentUnavailableView(
@@ -42,6 +47,7 @@ struct DevicesView: View {
             } ?? BrowserConfiguration(deviceID: device.id),
             browserTabs: store.hubStatus?.browserTabs.filter { $0.deviceID == device.id } ?? [],
             requests: store.hubStatus?.moreTimeRequests.filter { $0.deviceID == device.id } ?? [],
+            now: store.presenceNow,
             store: store
           )
           .id(device.id)
@@ -51,7 +57,12 @@ struct DevicesView: View {
             description: Text("Device details and privacy controls appear here."))
         }
       }
-      .frame(minWidth: 560, maxWidth: .infinity, maxHeight: .infinity)
+      .frame(
+        minWidth: ControllerLayout.deviceDetailMinimum,
+        maxWidth: .infinity,
+        maxHeight: .infinity
+      )
+      .layoutPriority(1)
       .background(ControlTheme.canvas)
     }
     .navigationTitle("Devices")
@@ -61,6 +72,7 @@ struct DevicesView: View {
 
 private struct PairedDeviceSidebarRow: View {
   let device: HubDeviceRecord
+  let now: Date
   let pendingRequestCount: Int
 
   var body: some View {
@@ -72,9 +84,9 @@ private struct PairedDeviceSidebarRow: View {
         Text(device.name).lineLimit(1)
         HStack(spacing: 5) {
           Circle()
-            .fill(device.state() == .online ? ControlTheme.success : ControlTheme.textMuted)
+            .fill(device.state(now: now) == .online ? ControlTheme.success : ControlTheme.textMuted)
             .frame(width: 6, height: 6)
-          Text(device.state() == .online ? "Online" : "Offline")
+          Text(device.state(now: now) == .online ? "Online" : "Offline")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
@@ -111,6 +123,7 @@ private struct PairedDeviceDetailView: View {
   let browserConfiguration: BrowserConfiguration
   let browserTabs: [HubBrowserTab]
   let requests: [MoreTimeRequestRecord]
+  let now: Date
   let store: ControllerStore
 
   @State private var retentionDays: Int
@@ -120,7 +133,8 @@ private struct PairedDeviceDetailView: View {
   init(
     device: HubDeviceRecord, configuration: ActivityConfiguration,
     activity: [HubAppActivity], browserConfiguration: BrowserConfiguration,
-    browserTabs: [HubBrowserTab], requests: [MoreTimeRequestRecord], store: ControllerStore
+    browserTabs: [HubBrowserTab], requests: [MoreTimeRequestRecord], now: Date,
+    store: ControllerStore
   ) {
     self.device = device
     self.configuration = configuration
@@ -128,6 +142,7 @@ private struct PairedDeviceDetailView: View {
     self.browserConfiguration = browserConfiguration
     self.browserTabs = browserTabs
     self.requests = requests
+    self.now = now
     self.store = store
     _retentionDays = State(initialValue: configuration.retentionDays)
     _browserRetentionDays = State(initialValue: browserConfiguration.retentionDays)
@@ -214,7 +229,7 @@ private struct PairedDeviceDetailView: View {
   }
 
   private var connectionBadge: some View {
-    let online = device.state() == .online
+    let online = device.state(now: now) == .online
     let color = online ? ControlTheme.success : ControlTheme.textMuted
     return HStack(spacing: 6) {
       Circle().fill(color).frame(width: 8, height: 8)
@@ -297,17 +312,20 @@ private struct PairedDeviceDetailView: View {
           Button("Lock Screen") {
             store.sendImmediateAction(deviceID: device.id, action: .lock, confirmed: true)
           }
-          .disabled(device.state() != .online || !device.capabilities.contains("lock"))
+          .disabled(device.state(now: now) != .online || !device.capabilities.contains("lock"))
           Menu("More Actions") {
             Button("Log Out…") { pendingHighImpactAction = .logoff }
-              .disabled(device.state() != .online || !device.capabilities.contains("logoff"))
+              .disabled(
+                device.state(now: now) != .online || !device.capabilities.contains("logoff"))
             Button("Restart…") { pendingHighImpactAction = .restart }
-              .disabled(device.state() != .online || !device.capabilities.contains("restart"))
+              .disabled(
+                device.state(now: now) != .online || !device.capabilities.contains("restart"))
             Button("Shut Down…") { pendingHighImpactAction = .shutdown }
-              .disabled(device.state() != .online || !device.capabilities.contains("shutdown"))
+              .disabled(
+                device.state(now: now) != .online || !device.capabilities.contains("shutdown"))
           }
           Spacer()
-          if device.state() != .online {
+          if device.state(now: now) != .online {
             Label("Offline — short-lived actions are unavailable", systemImage: "wifi.slash")
               .font(.caption).foregroundStyle(.secondary)
           }

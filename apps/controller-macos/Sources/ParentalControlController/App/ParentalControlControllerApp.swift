@@ -11,7 +11,7 @@ struct ParentalControlControllerApp: App {
   var body: some Scene {
     WindowGroup("Parental Control", id: "controller") {
       ControllerRootView(store: store)
-        .frame(minWidth: 980, minHeight: 650)
+        .frame(minWidth: ControllerLayout.minimumWindowWidth, minHeight: 650)
         .accessibilityIdentifier(AccessibilityID.mainWindow.rawValue)
         .controlTheme()
     }

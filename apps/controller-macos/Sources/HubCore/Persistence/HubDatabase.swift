@@ -202,6 +202,20 @@ public final class HubDatabase: @unchecked Sendable {
       INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at)
           VALUES(6, strftime('%s','now'));
       """)
+    // Requests belonging to a device that was revoked, unpaired, or re-paired under a new
+    // identity are history, not actionable work. Earlier RCs included those orphaned rows in
+    // the controller badge even though no visible device could resolve them.
+    try execute(
+      """
+      UPDATE more_time_requests AS request
+      SET state = 'superseded'
+      WHERE state = 'pending' AND NOT EXISTS(
+          SELECT 1 FROM paired_devices AS device
+          WHERE device.id = request.device_id AND device.revoked = 0
+      );
+      INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at)
+          VALUES(7, strftime('%s','now'));
+      """)
   }
 
   public func upsertDevice(_ device: HubDeviceRecord) throws {
@@ -321,6 +335,12 @@ public final class HubDatabase: @unchecked Sendable {
   public func revoke(deviceID: String) throws {
     try run("UPDATE paired_devices SET revoked = 1 WHERE id = ?;", [.text(deviceID)])
     try run("DELETE FROM outbound_queue WHERE device_id = ?;", [.text(deviceID)])
+    try run(
+      "UPDATE more_time_requests SET state = ? WHERE device_id = ? AND state = ?;",
+      [
+        .text(MoreTimeRequestState.superseded.rawValue), .text(deviceID),
+        .text(MoreTimeRequestState.pending.rawValue),
+      ])
   }
 
   public func unpair(deviceID: String) throws {
@@ -328,6 +348,12 @@ public final class HubDatabase: @unchecked Sendable {
     try run("DELETE FROM receipts WHERE device_id = ?;", [.text(deviceID)])
     try run("DELETE FROM browser_tabs WHERE device_id = ?;", [.text(deviceID)])
     try run("DELETE FROM browser_configuration WHERE device_id = ?;", [.text(deviceID)])
+    try run(
+      "UPDATE more_time_requests SET state = ? WHERE device_id = ? AND state = ?;",
+      [
+        .text(MoreTimeRequestState.superseded.rawValue), .text(deviceID),
+        .text(MoreTimeRequestState.pending.rawValue),
+      ])
     try run("DELETE FROM paired_devices WHERE id = ?;", [.text(deviceID)])
   }
 

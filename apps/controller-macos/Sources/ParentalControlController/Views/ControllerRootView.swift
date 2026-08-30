@@ -34,6 +34,11 @@ struct ControllerRootView: View {
         }
       }
       .listStyle(.sidebar)
+      .navigationSplitViewColumnWidth(
+        min: ControllerLayout.navigationSidebarMinimum,
+        ideal: ControllerLayout.navigationSidebarIdeal,
+        max: ControllerLayout.navigationSidebarMaximum
+      )
       .navigationTitle("Parental Control")
       .accessibilityIdentifier(AccessibilityID.sidebar.rawValue)
       .safeAreaInset(edge: .bottom) {
@@ -96,6 +101,20 @@ struct ControllerRootView: View {
       StorageView(store: store)
     }
   }
+}
+
+enum ControllerLayout {
+  static let minimumWindowWidth: CGFloat = 1_080
+  static let navigationSidebarMinimum: CGFloat = 210
+  static let navigationSidebarIdeal: CGFloat = 230
+  static let navigationSidebarMaximum: CGFloat = 280
+  static let deviceListMinimum: CGFloat = 240
+  static let deviceListIdeal: CGFloat = 275
+  static let deviceListMaximum: CGFloat = 330
+  static let deviceDetailMinimum: CGFloat = 520
+
+  static let requiredThreeColumnWidth =
+    navigationSidebarMinimum + deviceListMinimum + deviceDetailMinimum
 }
 
 private struct SidebarCountBadge: View {

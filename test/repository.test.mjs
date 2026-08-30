@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06-macos-policy-enforcement");
-  assert.equal(active[0].version, "0.6.0-rc.4");
+  assert.equal(active[0].version, "0.6.0-rc.5");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {

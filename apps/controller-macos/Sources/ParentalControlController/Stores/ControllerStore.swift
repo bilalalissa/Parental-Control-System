@@ -26,6 +26,7 @@ final class ControllerStore {
   var activityStatusMessage: String?
   var browserStatusMessage: String?
   var resolvingTimeRequestIDs: Set<UUID> = []
+  var presenceNow = Date()
 
   private let database: ControllerDatabase
   private let hubClient = HubClient()
@@ -65,24 +66,35 @@ final class ControllerStore {
     return pairedDevices.first { $0.id == selectedDeviceID }
   }
 
-  var onlineDeviceCount: Int { pairedDevices.filter { $0.state() == .online }.count }
-  var offlineDeviceCount: Int { pairedDevices.filter { $0.state() == .offline }.count }
+  var onlineDeviceCount: Int {
+    pairedDevices.filter { $0.state(now: presenceNow) == .online }.count
+  }
+  var offlineDeviceCount: Int {
+    pairedDevices.filter { $0.state(now: presenceNow) == .offline }.count
+  }
 
   var unreadChatCount: Int {
     hubStatus?.chatMessages.filter(\.isUnreadForParent).count ?? 0
   }
 
   var pendingTimeRequestCount: Int {
-    hubStatus?.moreTimeRequests.filter { $0.state == .pending }.count ?? 0
+    activePendingTimeRequests.count
   }
 
   func pendingTimeRequestCount(deviceID: String) -> Int {
-    hubStatus?.moreTimeRequests.filter { $0.deviceID == deviceID && $0.state == .pending }.count
-      ?? 0
+    activePendingTimeRequests.filter { $0.deviceID == deviceID }.count
   }
 
   var pairedDevices: [HubDeviceRecord] {
     hubStatus?.devices.filter { !$0.isRevoked } ?? []
+  }
+
+  private var activePendingTimeRequests: [MoreTimeRequestRecord] {
+    guard let hubStatus else { return [] }
+    let activeDeviceIDs = Set(hubStatus.devices.lazy.filter { !$0.isRevoked }.map(\.id))
+    return hubStatus.moreTimeRequests.filter {
+      $0.state == .pending && activeDeviceIDs.contains($0.deviceID)
+    }
   }
 
   var displayedAuditEvents: [AuditEvent] {
@@ -113,6 +125,7 @@ final class ControllerStore {
     hubRefreshTask = Task { [weak self] in
       guard let self else { return }
       do {
+        presenceNow = Date()
         applyHubStatus(try await hubClient.status())
         hubStatusMessage = "Local hub ready · TLS 1.3 · Authenticated IPC"
       } catch {
@@ -124,6 +137,7 @@ final class ControllerStore {
         try? await Task.sleep(for: .seconds(5))
         guard !Task.isCancelled else { break }
         do {
+          presenceNow = Date()
           let status = try await hubClient.statusIfRunning()
           // Presence is derived from lastSeen plus the current time. Publish every sample even
           // when the stored payload is equal so Online can age into Offline without a click.

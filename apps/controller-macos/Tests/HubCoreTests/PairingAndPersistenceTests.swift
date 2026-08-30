@@ -104,6 +104,36 @@ struct PairingAndPersistenceTests {
     #expect(try database.moreTimeRequests().filter { $0.state == .pending }.isEmpty)
   }
 
+  @Test("startup and device removal make orphaned time requests non-actionable")
+  func orphanedTimeRequestsAreSuperseded() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let orphan = MoreTimeRequestRecord(
+      deviceID: "removed-child", requestedMinutes: 15, note: "Synthetic orphan")
+    do {
+      let database = try HubDatabase(path: fixture.path)
+      try database.appendMoreTimeRequest(orphan)
+      #expect(try database.moreTimeRequests().first?.state == .pending)
+    }
+
+    let reopened = try HubDatabase(path: fixture.path)
+    #expect(try reopened.moreTimeRequests().first?.state == .superseded)
+
+    let identity = try Ed25519Identity(keyID: "request-owner")
+    let activeID = "active-child"
+    try reopened.upsertDevice(
+      HubDeviceRecord(
+        id: activeID, name: "Active Child", platform: "macOS", keyID: identity.keyID,
+        publicKey: identity.publicKeyData, capabilities: ["request-more-time"],
+        pairedAt: Date(), lastSeen: Date()))
+    let activeRequest = MoreTimeRequestRecord(
+      deviceID: activeID, requestedMinutes: 20, note: "Synthetic active request")
+    try reopened.appendMoreTimeRequest(activeRequest)
+    try reopened.revoke(deviceID: activeID)
+    #expect(
+      try reopened.moreTimeRequests().first { $0.id == activeRequest.id }?.state == .superseded)
+  }
+
   @Test("audit, outbound queues, and receipts stay bounded")
   func boundedPersistence() throws {
     let fixture = try TemporaryHubDatabase()
@@ -154,9 +184,13 @@ struct PairingAndPersistenceTests {
         deviceID: "mock-revoke",
         expiresAt: Date().addingTimeInterval(60),
         envelope: Data("receipt".utf8)))
+    let request = MoreTimeRequestRecord(
+      deviceID: "mock-revoke", requestedMinutes: 10, note: "Synthetic request")
+    try database.appendMoreTimeRequest(request)
     try database.revoke(deviceID: "mock-revoke")
     #expect(try database.device(id: "mock-revoke")?.isRevoked == true)
     #expect(try database.queued(deviceID: "mock-revoke").isEmpty)
+    #expect(try database.moreTimeRequests().first { $0.id == request.id }?.state == .superseded)
     try database.unpair(deviceID: "mock-revoke")
     #expect(try database.device(id: "mock-revoke") == nil)
   }
