@@ -2,7 +2,7 @@
 
 - Version: `0.6.0-rc.4`
 - Branch: `stage/06-macos-policy-enforcement`
-- Status: `IMPLEMENTING`
+- Status: `READY_FOR_RETEST`
 - Platform: Apple-silicon Parent Controller and universal Apple-silicon/Intel macOS Child Endpoint on macOS 14 or newer
 
 ## Objective, scope, and acceptance
@@ -50,7 +50,12 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 
 - Controller/hub: 42 tests in 12 suites passed, including request coalescing/rejection, future-timestamp presence, LAN-metadata sanitization/persistence, policy precedence/signatures/warnings, authenticated IPC, TLS, persistence bounds, approved-time behavior, and existing Stage-05 regressions.
 - Endpoint: 21 tests in 3 suites passed, including authenticated request rejection, stale-controller reconnect, schedule re-arm on session activation, projected countdown behavior, bounded physical-interface collection, real TLS policy delivery, protected cached-policy verification, tamper/version replay, durable warning/action handoff, direct action, grace, reboot, sleep/resume, adult-code lockout, and clock-change fail-closed behavior.
-- Full repository, package, signature, architecture, resource, and CI evidence will be recorded after the rc.4 source commit is built and verified. The rc.3 evidence below is superseded and will not be presented as rc.4 evidence.
+- Full repository suite: 40 tests passed and the Windows-only cleanup test was skipped on macOS. Both Swift format linters, shell syntax, browser JavaScript syntax, JSON validation, launch-plist lint, `git diff --check`, and the bounded secret-pattern scan passed.
+- The retained PKG was expanded and its packaged Parent Controller and Child Endpoint passed deep/strict code-signature verification. Both embed version `0.6.0-rc.4`, build `6004`, and source commit `7a12cb51634c`. The parent executable is `arm64`; the child executable and its daemon, login helper, control tool, and browser native host are universal `x86_64 arm64`.
+- `ParentalControlSystem-0.6.0-rc.4.pkg`: SHA-256 `9da71f790ad0a05a373491e5d7b9c802c8a758a78b8a34befa441b0cfa25d067`; contained apps/helpers are ad-hoc signed; the product package is unsigned and not notarized.
+- `ParentalControlBrowserSharing-0.6.0-rc.4.zip`: SHA-256 `37d5001f465dfaab0f808b5bb3e6acb7e916e777f8239672bd283a40686e5011`; ZIP integrity and its exact eight expected extension files passed; it contains no signing-key file extensions.
+- An isolated unpaired RC4 daemon smoke run completed normally in 6.03 seconds with 0.00 seconds user CPU, 0.00 seconds system CPU, 14,811,136-byte maximum resident set size, and no swaps. Its temporary root was removed immediately.
+- GitHub macOS CI run `33314020621` passed in 3m00s, independently repeating repository/Swift tests and lint, building the selectable package, checking universal slices and choices, clean-installing the default Parent, clean-installing/diagnosing/uninstalling the customized Child, uploading the bounded candidate set, and cleaning generated output. Companion Stage-00 contract/POSIX/Windows cleanup run `33314020605` also passed.
 - Physical-device installation, policy timing, warning UI, OS confirmation dialogs, sleep/reboot, and offline enforcement remain developer-test evidence and are not claimed by local automation.
 
 ## Clean-install developer checklist

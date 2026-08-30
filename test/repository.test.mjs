@@ -361,7 +361,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–05 are merged; STAGE-06 `0\.6\.0-rc\.4` is being prepared for developer retesting/);
+  assert.match(readme, /Stages 00–05 are merged; STAGE-06 `0\.6\.0-rc\.4` is ready for developer retesting/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);

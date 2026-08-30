@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–05 are merged; STAGE-06 `0.6.0-rc.4` is being prepared for developer retesting.** This replacement candidate adds explicit time-request approval/rejection, durable child request status, stale-presence recovery, schedule re-locking after login/unlock, and System/Light/Dark appearance while retaining the rc.3 countdown, network metadata, and standard-user hardening. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–05 are merged; STAGE-06 `0.6.0-rc.4` is ready for developer retesting.** This replacement candidate adds explicit time-request approval/rejection, durable child request status, stale-presence recovery, schedule re-locking after login/unlock, and System/Light/Dark appearance while retaining the rc.3 countdown, network metadata, and standard-user hardening. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 

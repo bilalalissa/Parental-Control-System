@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.6.0-rc.4 — 2026-08-30
 
-Status: **STAGE-06 implementing developer retest candidate**
+Status: **STAGE-06 ready for developer retest**
 
 - Coalesces repeated child time requests so only the newest pending request contributes to the Devices badge, and adds explicit authenticated approval or rejection with durable child-visible status.
 - Ages presence defensively, rejects implausible future timestamps, and makes the endpoint reconnect after stale controller contact instead of remaining attached to a dead connection.
