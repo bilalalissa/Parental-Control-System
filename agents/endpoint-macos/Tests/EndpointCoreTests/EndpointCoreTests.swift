@@ -197,6 +197,31 @@ struct EndpointCoreTests {
     #expect(EndpointAgent.connectionPort(for: EndpointConfiguration()) == nil)
   }
 
+  @Test("in-place upgrades preserve endpoint identity and pairing configuration")
+  func upgradePreservesPairingConfiguration() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+      UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let controller = PairingInvitation(
+      code: "", expiresAt: .distantFuture, host: "parent.local",
+      port: SecureWebSocketServer.parentControlPort,
+      certificateFingerprint: String(repeating: "a", count: 64),
+      controllerPublicKey: Data(repeating: 7, count: 32))
+    let original = EndpointConfiguration(
+      deviceID: "upgrade-stable-device", pairedController: controller, sequence: 42,
+      activityCollectionEnabled: true, activityRetentionDays: 7,
+      browserCollectionEnabled: true, browserRetentionDays: 7)
+    try ProtectedConfigurationStore(root: root).save(original)
+
+    // Reopening the store models a replacement package starting the new daemon against the
+    // existing protected Application Support directory. Upgrade must never mint a new device.
+    let reloaded = try ProtectedConfigurationStore(root: root).load()
+
+    #expect(reloaded == original)
+    #expect(reloaded.deviceID == "upgrade-stable-device")
+    #expect(reloaded.pairedController == controller)
+  }
+
   @Test("reconnects immediately after loss, then bounds short retries")
   func boundedWakeReconnect() {
     var policy = EndpointReconnectPolicy()

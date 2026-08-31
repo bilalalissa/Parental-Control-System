@@ -1,6 +1,6 @@
 # STAGE-06 — macOS policy enforcement
 
-- Version: `0.6.0-rc.5`
+- Version: `0.6.0-rc.6`
 - Branch: `stage/06-macos-policy-enforcement`
 - Status: `READY_FOR_RETEST`
 - Platform: Apple-silicon Parent Controller and universal Apple-silicon/Intel macOS Child Endpoint on macOS 14 or newer
@@ -36,6 +36,8 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 - rc.5 publishes a controller-owned current-time sample every five seconds and uses it consistently for dashboard totals, device rows, detail badges, and action availability. A last-seen value therefore ages to Offline after 75 seconds even when the hub payload itself has not changed.
 - rc.5 migrates pending requests belonging to revoked, unpaired, or replaced device identities to non-actionable history. Global and per-device badges also intersect pending requests with the current active pairing set, so inaccessible historical rows cannot keep a badge visible.
 - rc.5 gives the Parent navigation sidebar and paired-device list explicit minimum, ideal, and maximum widths, preserves at least 520 points for device details, and raises the minimum window width to 1,080 points. Resizing stays flexible inside those bounds without hiding navigation labels or consuming the detail pane.
+- rc.6 lets a child replace a still-pending time request instead of leaving the request control permanently disabled. The visible button becomes **Update Request**, while an in-flight guard prevents rapid duplicate XPC submissions; the parent's existing coalescing rule keeps only the newest request actionable.
+- rc.6 also makes the supported update path explicit: install the Child Endpoint component over the existing version without running the uninstaller. Protected configuration reopening and a disposable double-install check verify that the endpoint device identifier is retained. The visible uninstaller continues to remove pairing state and the endpoint Keychain item intentionally.
 - When a blocked signed schedule is active, rc.4 re-arms lock enforcement as a graphical child session becomes active after login or unlock. It does not replace macOS login-window authentication or claim to prevent an authorized administrator from signing in.
 - Both visible apps now offer System, Light, and Dark appearance choices. System follows the current macOS appearance; the existing dark editorial theme remains the default-compatible design rather than the only usable appearance.
 - rc.3 projects the next signed-policy restriction with active-session quota semantics. The child app displays a live one-second countdown; the visible login helper also provides a persistent menu-bar countdown outside the child app while retaining the existing generic pre-enforcement panel.
@@ -66,12 +68,12 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 
 1. Verify the supplied PKG and extension ZIP SHA-256 values before opening either artifact.
 2. On a parent Mac with no prior version, run the PKG with its default **Parent Controller** selection. On a child Mac with no prior version, run the same PKG, choose **Customize**, deselect Parent Controller, and select **Child Endpoint**.
-3. Open both visible apps and confirm version `0.6.0-rc.5`. On the child run `parental-control-agentctl status`; capture only health, connection, policy, and session fields—not device/network identifiers.
+3. Open both visible apps and confirm version `0.6.0-rc.6`. On the child run `parental-control-agentctl status`; capture only health, connection, policy, and session fields—not device/network identifiers.
 4. Pair once with a new one-time code. Confirm the child is Online, then select it in the parent's single Devices list.
 5. In Schedule choose a small test window that currently allows use, a 1-minute warning, a 15-second grace, and Lock. Choose **Sign and Apply Policy** and record the displayed adult override code privately.
 6. Adjust the test window so it ends within the next few minutes. Confirm the child shows a generic warning, then locks only after the configured grace. Confirm open apps/documents remain present after unlocking.
 7. Disconnect the parent from the LAN, leave the child running, and repeat an allowed-to-block transition. Confirm the cached policy still warns and locks. Reconnect afterward.
-8. After first launch, confirm any badge left by an old removed/replaced pairing disappears. From the active child, request 15 minutes twice. Confirm only one request contributes to the Parent **Devices** and per-device badges. Approve the newest request; confirm the badge clears and the child shows Approved. Send a fresh request, reject it, and confirm the badge clears and the child shows Rejected. Repeat rejection once while the child is briefly offline and confirm the signed decision arrives after reconnect.
+8. After first launch, confirm any badge left by an old removed/replaced pairing disappears. From the active child, request 15 minutes, then use **Update Request** while it is pending. Confirm only the newest request contributes to the Parent **Devices** and per-device badges. Approve it; confirm the badge clears and the child shows Approved. Send a fresh request, reject it, and confirm the badge clears and the child shows Rejected. Repeat rejection once while the child is briefly offline and confirm the signed decision arrives after reconnect.
 9. Set a restriction within a few minutes. Confirm the child app countdown changes once per second. Close the child app and confirm the visible menu-bar shield/hourglass remains, its countdown continues, and **Open Parental Control** reopens the app. Confirm the generic warning panel still appears before enforcement.
 10. In Parent Devices, confirm the child shows only physical `enN` interface rows with private/link-local IP addresses. If macOS exposes a non-zero interface MAC, confirm it appears as informational. Public addresses and `utun`/`awdl`/`llw` rows must not appear.
 11. From a standard child account, quit the visible child app and helper normally and confirm launchd restores the helper/menu item. Confirm the account cannot modify or remove the root-owned app bundle and cannot run the bundled uninstaller without administrator authorization. Do not test against an authorized administrator account.
@@ -88,6 +90,7 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 ## Known limitations
 
 - This is a developer candidate. The retained local build may use Apple Development or ad-hoc app/helper signing; the product PKG and extension ZIP are not Developer ID Installer signed, notarized, or store-published.
+- A normal update is an in-place PKG installation with **Child Endpoint** selected. Running the bundled uninstaller first is a privacy reset: it removes the endpoint identifier, paired-controller configuration, policy/runtime state, and Keychain identity and therefore requires a new pairing. Ad-hoc development signing cannot guarantee Keychain continuity when the daemon binary changes; production upgrades require one stable Developer ID/team identity.
 - Lock uses the public Screen Saver path because macOS exposes no general third-party API that guarantees the same semantics as the Apple-menu Lock Screen command. Its password timing follows System Settings.
 - Logoff/restart/shutdown receipt state is acceptance-only. The standard confirmation dialog may be cancelled, and LAN loss still reports `Offline`, never inferred power state.
 - Desktop enforcement actions require the visible per-user login helper and a logged-in graphical session. If no user session is available, an authenticated command may be accepted by the daemon without an OS dialog or screen transition.

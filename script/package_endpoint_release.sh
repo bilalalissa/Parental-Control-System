@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-VERSION="0.6.0-rc.5"
+VERSION="0.6.0-rc.6"
 STAGING="$ROOT_DIR/.artifacts/package-staging/stage-06"
 COMPONENTS="$STAGING/component-packages"
 CHILD_PAYLOAD="$STAGING/child-payload"
@@ -70,7 +70,7 @@ chmod 755 \
 retry "controller pkgbuild" /usr/bin/pkgbuild \
   --root "$CONTROLLER_PAYLOAD" \
   --identifier com.bilalalissa.ParentalControlController.component \
-  --version 0.6.0.5 \
+  --version 0.6.0.6 \
   --install-location / \
   --ownership recommended \
   "$COMPONENTS/ParentalControlController.pkg"
@@ -79,7 +79,7 @@ retry "child pkgbuild" /usr/bin/pkgbuild \
   --root "$CHILD_PAYLOAD" \
   --scripts "$CHILD_SCRIPTS" \
   --identifier com.bilalalissa.ParentalControlChild.component \
-  --version 0.6.0.5 \
+  --version 0.6.0.6 \
   --install-location / \
   --ownership recommended \
   "$COMPONENTS/ParentalControlChild.pkg"
@@ -100,6 +100,10 @@ test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Microsoft/Edge/Nativ
 rm -rf -- "$EXPANDED"
 /usr/bin/shasum -a 256 "$PKG" > "$CHECKSUM"
 rm -f -- \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.5.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.5.pkg.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.5.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.5.zip.sha256" \
   "$RC_DIR/ParentalControlSystem-0.6.0-rc.4.pkg" \
   "$RC_DIR/ParentalControlSystem-0.6.0-rc.4.pkg.sha256" \
   "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.4.zip" \

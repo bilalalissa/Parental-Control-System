@@ -42,6 +42,7 @@ final class ChildDashboardModel: NSObject, ObservableObject {
   @Published var status: EndpointStatus?
   @Published var messages: [EndpointChatMessage] = []
   @Published var latestTimeRequest: EndpointTimeRequest?
+  @Published var isSubmittingTimeRequest = false
   @Published var error = "Connecting to the protected endpoint service…"
   @Published var actionMessage = ""
   private let client = EndpointXPCClient()
@@ -175,12 +176,15 @@ final class ChildDashboardModel: NSObject, ObservableObject {
   }
 
   func requestTime(minutes: Int, note: String) {
+    guard !isSubmittingTimeRequest else { return }
+    isSubmittingTimeRequest = true
     client.requestMoreTime(EndpointMoreTimeRequest(minutes: minutes, note: note)) {
       [weak self] result in
       Task { @MainActor in
+        self?.isSubmittingTimeRequest = false
         self?.actionMessage =
           result.isSuccess
-          ? "Request queued for your parent." : "Request could not be queued."
+          ? "Newest request queued for your parent." : "Request could not be queued."
         if result.isSuccess { self?.refresh() }
       }
     }
@@ -413,12 +417,18 @@ struct ChildDashboard: View {
       }
       Stepper("Request \(requestMinutes) minutes", value: $requestMinutes, in: 5...240, step: 5)
       TextField("Optional note", text: $requestNote)
-      Button("Send Request") {
+      Button(model.latestTimeRequest?.state == .pending ? "Update Request" : "Send Request") {
         model.requestTime(minutes: requestMinutes, note: requestNote)
         requestNote = ""
       }
       .buttonStyle(.borderedProminent)
-      .disabled(model.latestTimeRequest?.state == .pending)
+      .disabled(model.isSubmittingTimeRequest)
+      if model.latestTimeRequest?.state == .pending {
+        Text(
+          "Your earlier request is still pending. Updating it replaces the actionable request on your parent's device."
+        )
+        .font(.caption).foregroundStyle(.secondary)
+      }
       Text(
         "A request is not an automatic time grant. Your parent must approve bonus time."
       )

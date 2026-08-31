@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06-macos-policy-enforcement");
-  assert.equal(active[0].version, "0.6.0-rc.5");
+  assert.equal(active[0].version, "0.6.0-rc.6");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -81,6 +81,16 @@ test("child notification authorization avoids actor-isolated completion callback
     /let center = UNUserNotificationCenter\.current\(\)[\s\S]*Task\s*\{[\s\S]*try\?\s+await\s+center\.requestAuthorization/,
   );
   assert.doesNotMatch(child, /requestAuthorization\([^)]*\)\s*\{\s*_,\s*_\s+in/);
+});
+
+test("child can replace a pending time request without enabling rapid duplicate submissions", async () => {
+  const child = await read(
+    "agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift",
+  );
+  assert.match(child, /state == \.pending \? "Update Request" : "Send Request"/);
+  assert.match(child, /guard !isSubmittingTimeRequest else \{ return \}/);
+  assert.match(child, /\.disabled\(model\.isSubmittingTimeRequest\)/);
+  assert.doesNotMatch(child, /\.disabled\(model\.latestTimeRequest\?\.state == \.pending\)/);
 });
 
 test("parent foreground notification delegate matches the macOS SDK signature", async () => {
@@ -158,7 +168,7 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /configuration\.browser \|\| browser/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.0-rc\.5\.zip"/);
+  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.0-rc\.6\.zip"/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
   assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
@@ -326,7 +336,9 @@ test("CI is least-privilege, cancellable, pinned, and short-retention", async ()
 test("Stage 06 CI verifies the fresh default install before child customization", async () => {
   const workflow = await read(".github/workflows/stage-03-macos.yml");
   const parentInstall = workflow.indexOf("- name: Install default parent choice");
-  const childInstall = workflow.indexOf("- name: Install, diagnose, and uninstall child choice");
+  const childInstall = workflow.indexOf(
+    "- name: Install, verify upgrade persistence, and uninstall child choice",
+  );
   assert.ok(parentInstall >= 0);
   assert.ok(childInstall > parentInstall);
   assert.match(workflow, /BEFORE_SHA: \$\{\{ github\.event\.before \}\}/);
@@ -336,6 +348,8 @@ test("Stage 06 CI verifies the fresh default install before child customization"
     workflow,
     /Install default parent choice[\s\S]*?codesign --verify --deep --strict[\s\S]*?pkgutil --forget com\.bilalalissa\.ParentalControlController\.component/,
   );
+  assert.match(workflow, /Verify child in-place upgrade preserves endpoint identity/);
+  assert.match(workflow, /test "\$first_device_id" = "\$second_device_id"/);
   assert.match(workflow, /test "\$PWD" = "\$GITHUB_WORKSPACE"/);
   assert.match(
     workflow,
