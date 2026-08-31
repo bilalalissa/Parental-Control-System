@@ -55,14 +55,14 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 ## Verification evidence
 
 - Controller/hub: 46 tests in 13 suites passed, including observable presence aging, active-pairing badge derivation, orphan-request migration/revocation, three-column width budgeting, request coalescing/rejection, future-timestamp presence, LAN-metadata sanitization/persistence, policy precedence/signatures/warnings, authenticated IPC, TLS, persistence bounds, approved-time behavior, and existing Stage-05 regressions.
-- Endpoint: 21 tests in 3 suites passed, including authenticated request rejection, stale-controller reconnect, schedule re-arm on session activation, projected countdown behavior, bounded physical-interface collection, real TLS policy delivery, protected cached-policy verification, tamper/version replay, durable warning/action handoff, direct action, grace, reboot, sleep/resume, adult-code lockout, and clock-change fail-closed behavior.
-- Full repository suite: 40 tests passed and the Windows-only cleanup test was skipped on macOS. Both Swift format linters, shell syntax, browser JavaScript syntax, JSON validation, launch-plist lint, `git diff --check`, and the bounded secret-pattern scan passed.
-- The retained PKG was expanded and its packaged Parent Controller and Child Endpoint passed deep/strict code-signature verification. Both embed version `0.6.0-rc.5`, build `6005`, and source commit `8181611e2e09`. The parent executable is `arm64`; the child executable and its daemon, login helper, control tool, and browser native host are universal `x86_64 arm64`.
-- `ParentalControlSystem-0.6.0-rc.5.pkg`: SHA-256 `8f8889a11461490e1ea191cf2e06ee6513efae3c3d54d8b4d4d14a3f1405e073`; contained apps/helpers are ad-hoc signed; the product package is unsigned and not notarized.
-- `ParentalControlBrowserSharing-0.6.0-rc.5.zip`: SHA-256 `b15a051d3e571032dadb14e8d4c44303287520d21e44481e11fc65b8bf326654`; ZIP integrity and its exact eight expected extension files passed; it contains no signing-key file extensions.
+- Endpoint: 22 tests in 3 suites passed, including the new protected-configuration reopen regression plus authenticated request rejection, stale-controller reconnect, schedule re-arm on session activation, projected countdown behavior, bounded physical-interface collection, real TLS policy delivery, protected cached-policy verification, tamper/version replay, durable warning/action handoff, direct action, grace, reboot, sleep/resume, adult-code lockout, and clock-change fail-closed behavior.
+- Full repository suite: 41 tests passed and the Windows-only cleanup test was skipped on macOS. Both Swift format linters, shell syntax, browser JavaScript syntax, JSON validation, launch-plist lint, `git diff --check`, and the bounded secret-pattern scan passed. CI additionally contains a disposable double-install identity-continuity check; its remote result is not claimed locally.
+- The retained PKG was expanded and its packaged Parent Controller and Child Endpoint passed deep/strict code-signature verification. Both embed version `0.6.0-rc.6`, build `6006`, and source commit `9089f9d04984`. The parent executable is `arm64`; the child executable and its daemon, login helper, control tool, and browser native host are universal `x86_64 arm64`.
+- `ParentalControlSystem-0.6.0-rc.6.pkg`: SHA-256 `d1814dae708f3a17d3dea8eedeee671d07b4c0877b11ea35307f64a853befc63`; contained apps/helpers are ad-hoc signed; the product package is unsigned and not notarized.
+- `ParentalControlBrowserSharing-0.6.0-rc.6.zip`: SHA-256 `6762ffc787e4da36b2e96f5212692bbc0038b0b3c9156676af9f0a6a851f6cd2`; ZIP integrity and its exact eight expected extension files passed; it contains no signing-key file extensions.
 - The existing local hub database was inspected only through aggregate read-only queries: it contained four pending rows for no active paired identity and zero pending rows for the active pairing. This reproduced the stuck count without exposing device IDs or request contents; the rc.5 migration and store-level filter both have focused regressions.
-- The prior rc.4 isolated unpaired-daemon measurement remains the current Stage-06 runtime evidence: 6.03 seconds elapsed, 0.00 seconds user CPU, 0.00 seconds system CPU, 14,811,136-byte maximum resident set size, and no swaps. RC5 changes Parent derivation/layout and request cleanup rather than the endpoint heartbeat loop.
-- The existing draft pull request was updated by pushing source commit `8181611e2e09`; local GitHub CLI status lookup was unavailable because its configured API token is invalid, so no rc.5 CI result is claimed here.
+- The prior rc.4 isolated unpaired-daemon measurement remains the current Stage-06 runtime evidence: 6.03 seconds elapsed, 0.00 seconds user CPU, 0.00 seconds system CPU, 14,811,136-byte maximum resident set size, and no swaps. RC6 changes the visible request UI and installer upgrade path rather than the endpoint heartbeat loop.
+- The existing draft pull request is updated on the same Stage-06 branch. Local GitHub CLI status lookup remains unavailable because its configured API token is invalid, so no rc.6 CI result is claimed here.
 - Physical-device installation, policy timing, warning UI, OS confirmation dialogs, sleep/reboot, and offline enforcement remain developer-test evidence and are not claimed by local automation.
 
 ## Clean-install developer checklist
@@ -70,7 +70,7 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 1. Verify the supplied PKG and extension ZIP SHA-256 values before opening either artifact.
 2. On a parent Mac with no prior version, run the PKG with its default **Parent Controller** selection. On a child Mac with no prior version, run the same PKG, choose **Customize**, deselect Parent Controller, and select **Child Endpoint**.
 3. Open both visible apps and confirm version `0.6.0-rc.6`. On the child run `parental-control-agentctl status`; capture only health, connection, policy, and session fields—not device/network identifiers.
-4. Pair once with a new one-time code. Confirm the child is Online, then select it in the parent's single Devices list.
+4. For an rc.5 upgrade, do **not** unpair and do **not** run the uninstaller: install rc.6 over it with **Child Endpoint** selected and confirm the same parent device row returns Online without a new token. For a fresh install or a prior full uninstall, pair once with a new one-time code. Confirm the child is Online, then select it in the parent's single Devices list.
 5. In Schedule choose a small test window that currently allows use, a 1-minute warning, a 15-second grace, and Lock. Choose **Sign and Apply Policy** and record the displayed adult override code privately.
 6. Adjust the test window so it ends within the next few minutes. Confirm the child shows a generic warning, then locks only after the configured grace. Confirm open apps/documents remain present after unlocking.
 7. Disconnect the parent from the LAN, leave the child running, and repeat an allowed-to-block transition. Confirm the cached policy still warns and locks. Reconnect afterward.
@@ -103,12 +103,12 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 - The countdown is a projection from the current signed policy, active-session state, quota, and override. A newer signed policy or a session-state change can legitimately move it.
 - App bundle-ID deny rules, browser-origin deny rules, IP filtering, and timed Internet pause are not in rc.5. Robust device-wide filtering requires separately approved privileged Network Extension design, system authorization, explicit recovery/fail-open behavior, signed expiry, audit, and preservation of controller/LAN and critical system connectivity. The visible browser extension alone cannot enforce device-wide network policy.
 
-## Resource evidence for rc.5 retest
+## Resource evidence for rc.6 retest
 
-- Free disk before work: 12 GiB. Repository: 24 MiB; retained rc.4 candidate set: 14 MiB.
-- The two temporary Debug SwiftPM trees peaked at 433 MiB combined. Release packaging, expansion, and verification stayed below that measured peak and used one shared 105 MiB derived-data tree.
-- Final cleanup removed both Debug trees, Release derived data, package staging, expanded verification payload, and `dist`. Free disk after cleanup is 14 GiB; repository/project-owned output is 24 MiB/14 MiB.
-- Retained output is only the current rc.5 PKG, extension ZIP, and their checksums. No simulator, emulator, VM, container, worktree, project-started process, or temporary verification tree remains. The pre-existing installed Parent Controller and hub processes were preserved because they belong to the developer's active installation, not this build run.
+- Free disk before work: 15 GiB. Repository: 24 MiB; retained rc.5 candidate set: 14 MiB.
+- The single Stage-06 Debug/Release tree peaked at 431 MiB with two workers and sequential universal endpoint architectures. No simulator, VM, container, worktree, duplicate checkout, or platform runtime was created.
+- Final cleanup removed `dist`, the single derived-data tree, package staging, expanded verification payload, and bounded `/tmp` comparison files. Free disk after cleanup is 16 GiB; repository/project-owned output is 24 MiB/14 MiB.
+- Retained output is only the current rc.6 PKG, extension ZIP, and their checksums. No project-started process or temporary verification tree remains. The pre-existing installed Parent Controller and hub processes were preserved because they belong to the developer's active installation, not this build run.
 
 ## Failure evidence to collect
 
