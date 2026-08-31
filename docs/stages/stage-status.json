@@ -53,7 +53,7 @@
     {
       "id": "STAGE-06",
       "name": "macOS policy enforcement",
-      "version": "0.6.0-rc.6",
+      "version": "0.6.0-rc.7",
       "status": "READY_FOR_RETEST",
       "branch": "stage/06-macos-policy-enforcement",
       "document": "stage-06.md"

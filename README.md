@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–05 are merged; STAGE-06 `0.6.0-rc.5` is ready for developer retesting.** This replacement candidate makes presence age visibly to Offline, excludes requests for removed pairings from badges, and bounds the Parent's three-column layout while retaining rc.4 request decisions, reconnect recovery, schedule re-locking, and System/Light/Dark appearance. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–05 are merged; STAGE-06 `0.6.0-rc.7` is being prepared for developer retesting.** This replacement candidate restores pending-request updates and makes child/native-browser-host upgrades idempotent while retaining presence aging, request decisions, reconnect recovery, schedule re-locking, bounded layout, and System/Light/Dark appearance. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 

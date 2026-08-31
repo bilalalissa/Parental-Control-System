@@ -26,20 +26,23 @@ chmod 644 \
   "$TARGET_VOLUME/Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json"
 
 if [[ "$TARGET_VOLUME" == "/" ]]; then
-  /bin/launchctl bootout system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null 2>&1 || true
-  started=false
-  for attempt in 1 2 3; do
-    if /bin/launchctl bootstrap system /Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist; then
-      started=true
-      break
+  DAEMON_SERVICE="system/com.bilalalissa.ParentalControlAgent.daemon"
+  if /bin/launchctl print "$DAEMON_SERVICE" >/dev/null 2>&1; then
+    /bin/launchctl kickstart -k "$DAEMON_SERVICE"
+  else
+    started=false
+    for attempt in 1 2 3; do
+      if /bin/launchctl bootstrap system /Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist; then
+        started=true
+        break
+      fi
+      if [[ "$attempt" != 3 ]]; then /bin/sleep 2; fi
+    done
+    if [[ "$started" != true ]]; then
+      echo "Unable to start the endpoint daemon after three attempts." >&2
+      exit 1
     fi
-    if [[ "$attempt" != 3 ]]; then /bin/sleep 2; fi
-  done
-  if [[ "$started" != true ]]; then
-    echo "Unable to start the endpoint daemon after three attempts." >&2
-    exit 1
   fi
-  /bin/launchctl kickstart -k system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null 2>&1 || true
 
   CONSOLE_UID="$(/usr/bin/stat -f '%u' /dev/console)"
   if [[ "$CONSOLE_UID" =~ ^[0-9]+$ ]] && (( CONSOLE_UID >= 500 )); then
@@ -58,20 +61,22 @@ if [[ "$TARGET_VOLUME" == "/" ]]; then
       /bin/chmod 644 "$ARC_HOST_DIRECTORY/com.bilalalissa.parental_control.json"
     fi
     USER_SERVICE="gui/$CONSOLE_UID/com.bilalalissa.ParentalControlAgent.user"
-    /bin/launchctl bootout "$USER_SERVICE" >/dev/null 2>&1 || true
-    helper_started=false
-    for attempt in 1 2 3; do
-      if /bin/launchctl bootstrap "gui/$CONSOLE_UID" \
-        /Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist; then
-        helper_started=true
-        break
+    if /bin/launchctl print "$USER_SERVICE" >/dev/null 2>&1; then
+      /bin/launchctl kickstart -k "$USER_SERVICE"
+    else
+      helper_started=false
+      for attempt in 1 2 3; do
+        if /bin/launchctl bootstrap "gui/$CONSOLE_UID" \
+          /Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist; then
+          helper_started=true
+          break
+        fi
+        if [[ "$attempt" != 3 ]]; then /bin/sleep 2; fi
+      done
+      if [[ "$helper_started" != true ]]; then
+        echo "Unable to start the visible-session endpoint helper after three attempts." >&2
+        exit 1
       fi
-      if [[ "$attempt" != 3 ]]; then /bin/sleep 2; fi
-    done
-    if [[ "$helper_started" != true ]]; then
-      echo "Unable to start the visible-session endpoint helper after three attempts." >&2
-      exit 1
     fi
-    /bin/launchctl kickstart -k "$USER_SERVICE"
   fi
 fi

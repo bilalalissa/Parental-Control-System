@@ -8,7 +8,7 @@ STAGING="$ROOT_DIR/.artifacts/package-staging/stage-06-extension"
 PACKAGE_ROOT="$STAGING/ParentalControlBrowserSharing"
 RENDER_ROOT="$STAGING/icon-render"
 RC_DIR="$ROOT_DIR/.artifacts/release-candidate"
-ZIP="$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.6.zip"
+ZIP="$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.7.zip"
 CHECKSUM="$ZIP.sha256"
 PACKAGE_LIST="$STAGING/package-files.txt"
 
@@ -44,6 +44,8 @@ if /usr/bin/grep -E -i '\.(pem|key|p12|pfx)$' "$PACKAGE_LIST" >/dev/null; then
 fi
 /usr/bin/shasum -a 256 "$ZIP" > "$CHECKSUM"
 rm -f -- \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.6.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.6.zip.sha256" \
   "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.5.zip" \
   "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.5.zip.sha256" \
   "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.4.zip" \
