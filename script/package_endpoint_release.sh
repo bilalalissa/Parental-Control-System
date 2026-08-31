@@ -60,10 +60,12 @@ cp "$ROOT_DIR/browser-extensions/webextension/native-host-manifest.json" \
 cp "$ROOT_DIR/browser-extensions/webextension/native-host-manifest.json" \
   "$CHILD_PAYLOAD/Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json"
 cp "$ROOT_DIR/agents/endpoint-macos/Installer/postinstall" "$CHILD_SCRIPTS/postinstall"
+cp "$ROOT_DIR/agents/endpoint-macos/Installer/preinstall" "$CHILD_SCRIPTS/preinstall"
 cp "$ROOT_DIR/agents/endpoint-macos/Installer/Distribution.xml" "$STAGING/Distribution.xml"
 cp "$ROOT_DIR/agents/endpoint-macos/Installer/Welcome.html" "$RESOURCES/Welcome.html"
 chmod 755 \
   "$CHILD_SCRIPTS/postinstall" \
+  "$CHILD_SCRIPTS/preinstall" \
   "$CHILD_PAYLOAD/Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon" \
   "$CHILD_PAYLOAD/usr/local/bin/parental-control-agentctl"
 

@@ -52,8 +52,9 @@ test("Stage 04 installer defaults to the parent and offers an explicit child cho
 });
 
 test("Stage 04 keeps the visible helper alive and refreshes its launch registration", async () => {
-  const [launchAgent, postinstall] = await Promise.all([
+  const [launchAgent, preinstall, postinstall] = await Promise.all([
     read("agents/endpoint-macos/Installer/com.bilalalissa.ParentalControlAgent.user.plist"),
+    read("agents/endpoint-macos/Installer/preinstall"),
     read("agents/endpoint-macos/Installer/postinstall"),
   ]);
   assert.match(launchAgent, /<key>KeepAlive<\/key>/);
@@ -61,6 +62,13 @@ test("Stage 04 keeps the visible helper alive and refreshes its launch registrat
   assert.match(postinstall, /for attempt in 1 2 3/);
   assert.match(postinstall, /launchctl bootstrap "gui\/\$CONSOLE_UID"/);
   assert.match(postinstall, /launchctl kickstart -k "\$USER_SERVICE"/);
+  const rc5Daemon = /0bb256f6135e59e5b217d11894d9848c6f64529ec5dccd6c4c0d14d853b52a66/;
+  assert.match(preinstall, rc5Daemon);
+  assert.match(postinstall, rc5Daemon);
+  assert.match(preinstall, /configuration\.json/);
+  assert.match(preinstall, /\.rc5-daemon-upgrade/);
+  assert.match(postinstall, /\.rc5-daemon-upgrade/);
+  assert.doesNotMatch(preinstall, /security|delete-generic-password|device-/);
 });
 
 test("Stage 04 activity controls use an explicit accessible expansion button", async () => {

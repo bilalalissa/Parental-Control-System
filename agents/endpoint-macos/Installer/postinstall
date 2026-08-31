@@ -3,12 +3,22 @@ set -euo pipefail
 
 TARGET_VOLUME="${3:-/}"
 SUPPORT="$TARGET_VOLUME/Library/Application Support/ParentalControlAgent"
+BRIDGE="$SUPPORT/.rc5-daemon-upgrade"
+INSTALLED_DAEMON="$TARGET_VOLUME/Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon"
+RC5_DAEMON_SHA256="0bb256f6135e59e5b217d11894d9848c6f64529ec5dccd6c4c0d14d853b52a66"
 mkdir -p "$SUPPORT/Logs"
 chown -R root:wheel "$SUPPORT"
 chmod 700 "$SUPPORT" "$SUPPORT/Logs"
+if [[ -f "$BRIDGE" ]]; then
+  BRIDGE_SHA256="$(/usr/bin/shasum -a 256 "$BRIDGE" | /usr/bin/awk '{print $1}')"
+  if [[ "$BRIDGE_SHA256" == "$RC5_DAEMON_SHA256" ]]; then
+    /bin/cp -p "$BRIDGE" "$INSTALLED_DAEMON"
+  fi
+  /bin/rm -f -- "$BRIDGE"
+fi
 chmod 644 "$TARGET_VOLUME/Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist"
 chmod 644 "$TARGET_VOLUME/Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist"
-chmod 755 "$TARGET_VOLUME/Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon"
+chmod 755 "$INSTALLED_DAEMON"
 chown -R root:wheel "$TARGET_VOLUME/Applications/Parental Control Child.app"
 chmod -R go-w "$TARGET_VOLUME/Applications/Parental Control Child.app"
 chmod 644 \
