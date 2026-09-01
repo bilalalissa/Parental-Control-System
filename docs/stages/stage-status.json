@@ -1,6 +1,6 @@
 {
   "$schema": "./stage-status.schema.json",
-  "activeStage": "STAGE-06",
+  "activeStage": "STAGE-06A",
   "stages": [
     {
       "id": "STAGE-00",
@@ -57,6 +57,14 @@
       "status": "MERGED",
       "branch": "stage/06-macos-policy-enforcement",
       "document": "stage-06.md"
+    },
+    {
+      "id": "STAGE-06A",
+      "name": "Manual third-party MDM feasibility for managed macOS login",
+      "version": "0.6.1-rc.1",
+      "status": "READY_FOR_DEVELOPER_TEST",
+      "branch": "stage/06a-manual-mdm-feasibility",
+      "document": "stage-06a.md"
     }
   ]
 }

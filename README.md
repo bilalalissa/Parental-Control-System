@@ -3,11 +3,11 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–06 are merged; STAGE-07 has not begun and requires separate `PROCEED` authorization.** The merged Stage-06 candidate restores the logged-in child helper after an in-place upgrade and reconnects its authenticated XPC channel after daemon replacement, while preserving pairing, browser state, presence, signed schedules, and the existing bounded policy behavior. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–06 are merged; STAGE-06A is the active bounded feasibility review; STAGE-07 has not begun.** Stage 06A evaluates manual third-party MDM enrollment for scheduled macOS login and changes no application binary or external account. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
-The planned system has a native Apple-silicon macOS Parent Controller plus visible child endpoints for macOS, Windows, and iPadOS. Desktop devices communicate directly with the controller over an authenticated local network connection and enforce the last valid signed policy while offline. A public relay, hosted database, SaaS telemetry, and mandatory cloud account are outside stages 00–12.
+The planned system has a native Apple-silicon macOS Parent Controller plus visible child endpoints for macOS, Windows, and iPadOS. Desktop devices communicate directly with the controller over an authenticated local network connection and enforce the last valid signed policy while offline. A public relay, hosted database, SaaS telemetry, and mandatory cloud account are outside stages 00–12. Stage 06A is an optional documentation-only feasibility exception; it does not make third-party MDM part of the local-first core.
 
 The project is intentionally visible and bounded. It will not implement hidden installation, keylogging, screenshots, camera or microphone capture, message or file reading, TLS interception, private APIs, security bypasses, or arbitrary remote command execution.
 
@@ -41,6 +41,8 @@ The native Apple-silicon controller in [`apps/controller-macos`](apps/controller
 - A visible ordinary-process mock-agent CLI for safe pairing and concurrency tests
 
 Stage 06 keeps all communication and policy authority local-first. The controller signs per-device schedules; the endpoint verifies the paired controller key, rejects tampering and version replay, stores the accepted policy in a root-protected location, and evaluates it every 15 seconds through an event-driven scheduler. Typed announcements are still spoken locally without recording, uploads, or attachments. Arbitrary commands remain unavailable.
+
+Stage 06A found that Apple's macOS Login Window `AllowList` and `DenyList` apply only to network and mobile accounts, not an ordinary local child account, and provide no weekly schedule or automatic expiry. Broadly disabling local logins could also deny the adult recovery administrator. The proposed manual-MDM mechanism is therefore a documented no-go before enrollment; no MDM account, APNs certificate, API key, profile, or device record is created.
 
 The Stage 06 package remains one selectable clean-install installer. It installs the Apple-silicon Parent Controller by default; on a child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. The universal `arm64`/`x86_64` endpoint has a visible read-only policy dashboard, boot daemon, login helper, authenticated XPC, protected configuration/policy/queue files, Keychain-backed identity, adaptive delta heartbeats, bounded/redacted logs, native browser host, and administrator uninstaller. Lock starts the system screen saver and preserves open applications. Logoff, restart, and shutdown use documented loginwindow confirmation dialogs and never force-terminate applications; unsaved-work prompts remain under macOS control.
 
