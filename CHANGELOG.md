@@ -4,13 +4,14 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.6.0-rc.9 — 2026-08-31
 
-Status: **STAGE-06 approved; awaiting separate merge authorization**
+Status: **STAGE-06 merged; unreleased**
 
 - Recreates the visible per-user child helper registration after an in-place package upgrade instead of retaining a stale interrupted launchd job.
 - Reconnects authenticated local XPC clients after the privileged child daemon is restarted, restoring session reporting and durable allowlisted action delivery without re-pairing.
 - Strengthens the disposable package-upgrade check to require a healthy helper and a real graphical session report after both a double install and an isolated daemon restart.
 - Preserves the endpoint identity, signed policy, pairing, current browser-profile extension installation, and all existing Stage-06 scope boundaries.
 - Approved after physical-device retesting with the exact command `APPROVED: STAGE-06 0.6.0-rc.9` on 2026-09-01; approval does not imply merge or release.
+- Separately authorized for merge with the exact command `MERGE` on 2026-09-01; no release or later-stage work is implied.
 
 ## 0.6.0-rc.5 — 2026-08-30
 

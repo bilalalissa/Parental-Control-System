@@ -2,7 +2,7 @@
 
 - Version: `0.6.0-rc.9`
 - Branch: `stage/06-macos-policy-enforcement`
-- Status: `APPROVED`
+- Status: `MERGED`
 - Approved: `2026-09-01` via `APPROVED: STAGE-06 0.6.0-rc.9`
 - Platform: Apple-silicon Parent Controller and universal Apple-silicon/Intel macOS Child Endpoint on macOS 14 or newer
 
@@ -127,4 +127,4 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 
 ## Approval
 
-The developer approved this release candidate with the exact command `APPROVED: STAGE-06 0.6.0-rc.9` on 2026-09-01 after completing the physical-device retest. The stage is approved but remains unmerged and unreleased. No later stage may begin without the separate exact commands required by the project approval workflow.
+The developer approved this release candidate with the exact command `APPROVED: STAGE-06 0.6.0-rc.9` on 2026-09-01 after completing the physical-device retest and separately authorized its merge with the exact command `MERGE` on 2026-09-01. The stage is merged but unreleased. STAGE-07 must not begin without the separate exact command `PROCEED`.
