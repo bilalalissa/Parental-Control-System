@@ -2,9 +2,8 @@
 
 - Version: `0.6.1-rc.1`
 - Branch: `stage/06a-manual-mdm-feasibility`
-- Status: `APPROVED`
+- Status: `READY_FOR_DEVELOPER_TEST`
 - Authorized: `2026-09-01` via `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06A MANUAL-MDM FEASIBILITY BEFORE STAGE-07` and `PROCEED: STAGE-06A`
-- Approved: `2026-09-01` via `APPROVED: STAGE-06A 0.6.1-rc.1`; approval does not imply merge, release, or permission to begin another stage
 - Platform evaluated: macOS 15 documentation and third-party MDM documentation; no device enrolled
 
 ## Objective, included scope, and acceptance
