@@ -93,14 +93,14 @@ jobs:
       - name: Verify selectable package choices
         if: steps.scope.outputs.build == 'true'
         run: |
-          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.7.pkg" -target / | /usr/bin/plutil -lint -
-          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.7.pkg" || true
-          /usr/bin/unzip -t ".artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.7.zip"
+          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg" -target / | /usr/bin/plutil -lint -
+          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg" || true
+          /usr/bin/unzip -t ".artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.8.zip"
       - name: Install default parent choice
         if: steps.scope.outputs.build == 'true'
         run: |
           sudo /usr/sbin/installer \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.7.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg" \
             -target /
           test -x "/Applications/Parental Control.app/Contents/MacOS/ParentalControlController"
           test ! -e "/Applications/Parental Control Child.app"
@@ -112,7 +112,7 @@ jobs:
         run: |
           sudo /usr/sbin/installer \
             -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.7.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg" \
             -target /
           console_user="$(/usr/bin/stat -f '%Su' /dev/console)"
           console_user_home="$(/usr/bin/dscl . -read "/Users/$console_user" NFSHomeDirectory | /usr/bin/awk '{print $2}')"
@@ -131,7 +131,7 @@ jobs:
             # Verify child in-place upgrade preserves endpoint identity and protected state.
             if ! sudo /usr/sbin/installer \
               -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
-              -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.7.pkg" \
+              -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg" \
               -target /; then
               sudo /usr/bin/tail -n 200 /var/log/install.log || true
               exit 1
@@ -215,10 +215,10 @@ jobs:
         with:
           name: ParentalControlSystem-0.6.0-rc.7
           path: |
-            .artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.7.pkg
-            .artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.7.pkg.sha256
-            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.7.zip
-            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.7.zip.sha256
+            .artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg
+            .artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg.sha256
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.8.zip
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.8.zip.sha256
           if-no-files-found: error
           retention-days: 7
       - name: Clean project-owned generated output
