@@ -2,7 +2,8 @@
 
 - Version: `0.6.0-rc.9`
 - Branch: `stage/06-macos-policy-enforcement`
-- Status: `READY_FOR_RETEST`
+- Status: `APPROVED`
+- Approved: `2026-09-01` via `APPROVED: STAGE-06 0.6.0-rc.9`
 - Platform: Apple-silicon Parent Controller and universal Apple-silicon/Intel macOS Child Endpoint on macOS 14 or newer
 
 ## Objective, scope, and acceptance
@@ -67,7 +68,7 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 - The existing local hub database was inspected only through aggregate read-only queries: it contained four pending rows for no active paired identity and zero pending rows for the active pairing. This reproduced the stuck count without exposing device IDs or request contents; the rc.5 migration and store-level filter both have focused regressions.
 - The prior rc.4 isolated unpaired-daemon measurement remains the current Stage-06 runtime evidence: 6.03 seconds elapsed, 0.00 seconds user CPU, 0.00 seconds system CPU, 14,811,136-byte maximum resident set size, and no swaps. RC9 changes only failure-path XPC connection recreation and package-time GUI-helper registration; it does not add a polling loop.
 - Draft PR #7 is updated on the same Stage-06 branch. The rc.9 macOS build/install/upgrade/reconnect/uninstall workflow passed in run `33471390385`; contracts plus POSIX and Windows cleanup-safety checks passed in run `33471390376`.
-- Physical-device installation, policy timing, warning UI, OS confirmation dialogs, sleep/reboot, and offline enforcement remain developer-test evidence and are not claimed by local automation.
+- The developer completed the physical-device checklist, reported that everything works correctly, and approved the candidate with the exact command `APPROVED: STAGE-06 0.6.0-rc.9` on 2026-09-01. This is physical-device evidence and is not claimed as local automation.
 
 ## Clean-install developer checklist
 
@@ -123,3 +124,7 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 - `/Library/Application Support/ParentalControlAgent/Logs/agent.log*` after reviewing for private family metadata
 - macOS version, architecture, package checksums, exact test step, expected/observed result, and whether Focus/mute/notification settings were active
 - Never attach the policy file, adult override code/verifier, device identity keys, private chat, private screenshots, tab titles/origins, or network addresses to a public issue
+
+## Approval
+
+The developer approved this release candidate with the exact command `APPROVED: STAGE-06 0.6.0-rc.9` on 2026-09-01 after completing the physical-device retest. The stage is approved but remains unmerged and unreleased. No later stage may begin without the separate exact commands required by the project approval workflow.

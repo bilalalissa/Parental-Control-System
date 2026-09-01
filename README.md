@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–05 are merged; STAGE-06 `0.6.0-rc.9` is being prepared for developer retesting.** This replacement candidate restores the logged-in child helper after an in-place upgrade and reconnects its authenticated XPC channel after daemon replacement, while preserving pairing, browser state, presence, signed schedules, and the existing bounded policy behavior. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–05 are merged; STAGE-06 `0.6.0-rc.9` is approved and awaiting separate merge authorization.** The approved candidate restores the logged-in child helper after an in-place upgrade and reconnects its authenticated XPC channel after daemon replacement, while preserving pairing, browser state, presence, signed schedules, and the existing bounded policy behavior. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
