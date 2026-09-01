@@ -1,4 +1,4 @@
-import Darwin
+import CoreFoundation
 @preconcurrency import Foundation
 import HubCore
 import Security
@@ -12,6 +12,19 @@ public enum EndpointMachService {
   public static let browserHostIdentifier = "com.bilalalissa.ParentalControlBrowserHost"
 }
 
+public enum EndpointPolicyWake {
+  public static let name = "com.bilalalissa.ParentalControlAgent.policy-events"
+
+  public static func post() {
+    CFNotificationCenterPostNotification(
+      CFNotificationCenterGetDarwinNotifyCenter(),
+      CFNotificationName(name as CFString),
+      nil,
+      nil,
+      true)
+  }
+}
+
 @objc public protocol EndpointXPCProtocol {
   func status(withReply reply: @escaping (Data?, String?) -> Void)
   func dashboard(withReply reply: @escaping (Data?, String?) -> Void)
@@ -22,6 +35,8 @@ public enum EndpointMachService {
   func sendChat(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
   func markChatRead(withReply reply: @escaping (Bool, String?) -> Void)
   func requestMoreTime(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
+  func submitAdultCode(_ payload: Data, withReply reply: @escaping (Data?, String?) -> Void)
+  func claimPolicyEvents(withReply reply: @escaping (Data?, String?) -> Void)
 }
 
 public enum XPCAuthorization {
@@ -29,7 +44,8 @@ public enum XPCAuthorization {
     guard
       [
         "status", "dashboard", "session-update", "activity-update", "browser-configuration",
-        "browser-update", "send-chat", "mark-chat-read", "time-request",
+        "browser-update", "send-chat", "mark-chat-read", "time-request", "adult-code",
+        "policy-events",
       ]
       .contains(operation)
     else { return false }
@@ -40,6 +56,9 @@ public enum XPCAuthorization {
         || signingIdentifier == EndpointMachService.controlIdentifier
     }
     if operation == "session-update" || operation == "activity-update" {
+      return signingIdentifier == EndpointMachService.helperIdentifier
+    }
+    if operation == "policy-events" {
       return signingIdentifier == EndpointMachService.helperIdentifier
     }
     if operation == "browser-configuration" || operation == "browser-update" {
@@ -169,6 +188,7 @@ public final class EndpointStatusRepository: @unchecked Sendable {
   private var helperLastSeen: Date?
   private var messages: [EndpointChatMessage] = []
   private var outbound: [EndpointOutboundItem] = []
+  private var latestTimeRequest: EndpointTimeRequest?
   private let persistenceURL: URL?
   public init(initial: EndpointStatus, persistenceURL: URL? = nil) {
     value = initial
@@ -179,6 +199,7 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     {
       messages = Array(persisted.messages.suffix(200))
       outbound = Array(persisted.outbound.suffix(100))
+      latestTimeRequest = persisted.latestTimeRequest
     }
   }
   public func status() -> EndpointStatus {
@@ -193,14 +214,17 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     defer { lock.unlock() }
     transform(&value)
   }
-  public func applySession(_ update: SessionUpdate) {
+  @discardableResult
+  public func applySession(_ update: SessionUpdate) -> Bool {
     lock.lock()
     defer { lock.unlock() }
+    let becameActive = update.state == .active && value.sessionState != .active
     value.sessionState = update.state
     value.consoleUser = update.consoleUser.map { String($0.prefix(128)) }
     value.helperHealthy = true
     value.collectedAt = Date()
     helperLastSeen = Date()
+    return becameActive
   }
 
   public func applyActivity(_ update: EndpointActivityUpdate) {
@@ -310,7 +334,8 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     }
     var current = value
     current.helperHealthy = helperLastSeen.map { Date().timeIntervalSince($0) <= 90 } ?? false
-    return EndpointDashboardSnapshot(status: current, messages: messages)
+    return EndpointDashboardSnapshot(
+      status: current, messages: messages, latestTimeRequest: latestTimeRequest)
   }
 
   @discardableResult
@@ -357,11 +382,15 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     persistLocked()
   }
 
-  public func queueMoreTime(minutes: Int, note: String) {
+  @discardableResult
+  public func queueMoreTime(minutes: Int, note: String) -> UUID {
     lock.lock()
     defer { lock.unlock() }
+    let request = EndpointTimeRequest(requestedMinutes: minutes, note: note)
+    latestTimeRequest = request
     outbound.append(
       EndpointOutboundItem(
+        id: request.id,
         kind: .requestMoreTime,
         payload: [
           "minutes": .integer(Int64(max(5, min(minutes, 240)))),
@@ -369,6 +398,27 @@ public final class EndpointStatusRepository: @unchecked Sendable {
         ]))
     trimOutbound()
     persistLocked()
+    return request.id
+  }
+
+  @discardableResult
+  public func resolveMoreTime(
+    id: UUID, state: EndpointTimeRequestState, minutes: Int, resolvedAt: Date = Date()
+  ) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    if latestTimeRequest == nil || latestTimeRequest?.state != .pending {
+      latestTimeRequest = EndpointTimeRequest(
+        id: id, requestedMinutes: minutes, note: "", createdAt: resolvedAt, state: state,
+        resolvedAt: resolvedAt)
+      persistLocked()
+      return true
+    }
+    guard latestTimeRequest?.id == id else { return false }
+    latestTimeRequest?.state = state
+    latestTimeRequest?.resolvedAt = resolvedAt
+    persistLocked()
+    return true
   }
 
   public func drainOutbound() -> [EndpointOutboundItem] {
@@ -418,7 +468,8 @@ public final class EndpointStatusRepository: @unchecked Sendable {
         at: directory, withIntermediateDirectories: true,
         attributes: [.posixPermissions: 0o700])
       try JSONEncoder.endpoint.encode(
-        EndpointRuntimeState(messages: messages, outbound: outbound)
+        EndpointRuntimeState(
+          messages: messages, outbound: outbound, latestTimeRequest: latestTimeRequest)
       ).write(to: persistenceURL, options: [.atomic])
       try FileManager.default.setAttributes(
         [.posixPermissions: 0o600], ofItemAtPath: persistenceURL.path)
@@ -428,10 +479,15 @@ public final class EndpointStatusRepository: @unchecked Sendable {
 
 private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked Sendable {
   let repository: EndpointStatusRepository
+  let policyRuntime: EndpointPolicyRuntime?
   let uid: uid_t
   let identifier: String
-  init(repository: EndpointStatusRepository, uid: uid_t, identifier: String) {
+  init(
+    repository: EndpointStatusRepository, policyRuntime: EndpointPolicyRuntime?, uid: uid_t,
+    identifier: String
+  ) {
     self.repository = repository
+    self.policyRuntime = policyRuntime
     self.uid = uid
     self.identifier = identifier
   }
@@ -472,7 +528,12 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
         reply(false, "expired update")
         return
       }
-      repository.applySession(update)
+      let becameActive = repository.applySession(update)
+      if becameActive, let policyRuntime {
+        policyRuntime.rearmRestrictionForActiveSession()
+        let events = policyRuntime.tick(now: update.observedAt, sessionActive: true)
+        if !events.isEmpty { EndpointPolicyWake.post() }
+      }
       reply(true, nil)
     } catch { reply(false, "invalid update") }
   }
@@ -569,6 +630,49 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
       reply(true, nil)
     } catch { reply(false, "invalid time request") }
   }
+
+  func submitAdultCode(_ payload: Data, withReply reply: @escaping (Data?, String?) -> Void) {
+    guard
+      XPCAuthorization.allows(
+        uid: uid, signingIdentifier: identifier, operation: "adult-code")
+    else {
+      reply(nil, "unauthorized")
+      return
+    }
+    guard let policyRuntime else {
+      reply(nil, "policy unavailable")
+      return
+    }
+    do {
+      let request = try JSONDecoder.endpoint.decode(
+        EndpointAdultOverrideRequest.self, from: payload)
+      let until = try policyRuntime.submitAdultCode(request.code, duration: request.minutes * 60)
+      reply(try JSONEncoder.endpoint.encode(until), nil)
+    } catch EndpointPolicyError.adultCodeLocked {
+      reply(nil, "Too many attempts. Try again in five minutes.")
+    } catch {
+      reply(nil, "The adult code was not accepted.")
+    }
+  }
+
+  func claimPolicyEvents(withReply reply: @escaping (Data?, String?) -> Void) {
+    guard
+      XPCAuthorization.allows(
+        uid: uid, signingIdentifier: identifier, operation: "policy-events")
+    else {
+      reply(nil, "unauthorized")
+      return
+    }
+    guard let policyRuntime else {
+      reply(nil, "policy unavailable")
+      return
+    }
+    do {
+      reply(try JSONEncoder.endpoint.encode(policyRuntime.claimUserEvents()), nil)
+    } catch {
+      reply(nil, "encoding failed")
+    }
+  }
 }
 
 public struct EndpointChatRequest: Codable, Equatable, Sendable {
@@ -594,12 +698,14 @@ public struct EndpointMoreTimeRequest: Codable, Equatable, Sendable {
 public final class EndpointXPCService: NSObject, NSXPCListenerDelegate, @unchecked Sendable {
   private let listener: NSXPCListener
   private let repository: EndpointStatusRepository
+  private let policyRuntime: EndpointPolicyRuntime?
   private let rejectionHandler: @Sendable (String) -> Void
   public init(
-    repository: EndpointStatusRepository,
+    repository: EndpointStatusRepository, policyRuntime: EndpointPolicyRuntime? = nil,
     rejectionHandler: @escaping @Sendable (String) -> Void = { _ in }
   ) {
     self.repository = repository
+    self.policyRuntime = policyRuntime
     self.rejectionHandler = rejectionHandler
     listener = NSXPCListener(machServiceName: EndpointMachService.name)
     super.init()
@@ -621,25 +727,71 @@ public final class EndpointXPCService: NSObject, NSXPCListenerDelegate, @uncheck
     }
     connection.exportedInterface = NSXPCInterface(with: EndpointXPCProtocol.self)
     connection.exportedObject = EndpointXPCObject(
-      repository: repository, uid: uid, identifier: identifier)
+      repository: repository, policyRuntime: policyRuntime, uid: uid, identifier: identifier)
     connection.resume()
     return true
   }
 }
 
 public final class EndpointXPCClient: @unchecked Sendable {
-  private let connection: NSXPCConnection
-  public init() {
-    connection = NSXPCConnection(
-      machServiceName: EndpointMachService.name, options: EndpointMachService.clientOptions)
-    connection.remoteObjectInterface = NSXPCInterface(with: EndpointXPCProtocol.self)
-    connection.resume()
+  private let connectionLock = NSLock()
+  private var connection: NSXPCConnection?
+  public init() {}
+  deinit {
+    connectionLock.lock()
+    let current = connection
+    connection = nil
+    connectionLock.unlock()
+    current?.invalidate()
   }
-  deinit { connection.invalidate() }
+
+  private func activeConnection() -> NSXPCConnection {
+    connectionLock.lock()
+    if let connection {
+      connectionLock.unlock()
+      return connection
+    }
+    let next = NSXPCConnection(
+      machServiceName: EndpointMachService.name, options: EndpointMachService.clientOptions)
+    next.remoteObjectInterface = NSXPCInterface(with: EndpointXPCProtocol.self)
+    next.interruptionHandler = { [weak self, weak next] in
+      guard let next else { return }
+      self?.discard(next)
+    }
+    next.invalidationHandler = { [weak self, weak next] in
+      guard let next else { return }
+      self?.discard(next)
+    }
+    connection = next
+    connectionLock.unlock()
+    next.resume()
+    return next
+  }
+
+  private func discard(_ candidate: NSXPCConnection) {
+    connectionLock.lock()
+    if connection === candidate { connection = nil }
+    connectionLock.unlock()
+  }
+
+  private func remoteProxy(
+    errorHandler: @escaping @Sendable (Error) -> Void
+  ) -> EndpointXPCProtocol? {
+    let current = activeConnection()
+    let object = current.remoteObjectProxyWithErrorHandler { [weak self, weak current] error in
+      if let current { self?.discard(current) }
+      errorHandler(error)
+    }
+    guard let proxy = object as? EndpointXPCProtocol else {
+      discard(current)
+      errorHandler(EndpointXPCError.malformed)
+      return nil
+    }
+    return proxy
+  }
+
   public func fetchStatus(completion: @escaping @Sendable (Result<EndpointStatus, Error>) -> Void) {
-    let proxy =
-      connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-      as? EndpointXPCProtocol
+    let proxy = remoteProxy { completion(.failure($0)) }
     proxy?.status { data, error in
       do {
         if let error { throw EndpointXPCError.remote(error) }
@@ -651,9 +803,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   public func fetchDashboard(
     completion: @escaping @Sendable (Result<EndpointDashboardSnapshot, Error>) -> Void
   ) {
-    let proxy =
-      connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-      as? EndpointXPCProtocol
+    let proxy = remoteProxy { completion(.failure($0)) }
     proxy?.dashboard { data, error in
       do {
         if let error { throw EndpointXPCError.remote(error) }
@@ -668,9 +818,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   ) {
     do {
       let data = try JSONEncoder.endpoint.encode(update)
-      let proxy =
-        connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-        as? EndpointXPCProtocol
+      let proxy = remoteProxy { completion(.failure($0)) }
       proxy?.updateSession(data) { accepted, error in
         if accepted {
           completion(.success(()))
@@ -687,9 +835,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   ) {
     do {
       let data = try JSONEncoder.endpoint.encode(update)
-      let proxy =
-        connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-        as? EndpointXPCProtocol
+      let proxy = remoteProxy { completion(.failure($0)) }
       proxy?.updateActivity(data) { accepted, error in
         accepted
           ? completion(.success(()))
@@ -701,9 +847,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   public func fetchBrowserConfiguration(
     completion: @escaping @Sendable (Result<EndpointBrowserConfiguration, Error>) -> Void
   ) {
-    let proxy =
-      connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-      as? EndpointXPCProtocol
+    let proxy = remoteProxy { completion(.failure($0)) }
     proxy?.browserConfiguration { data, error in
       do {
         if let error { throw EndpointXPCError.remote(error) }
@@ -720,9 +864,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   ) {
     do {
       let data = try JSONEncoder.endpoint.encode(update)
-      let proxy =
-        connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-        as? EndpointXPCProtocol
+      let proxy = remoteProxy { completion(.failure($0)) }
       proxy?.updateBrowser(data) { accepted, error in
         accepted
           ? completion(.success(()))
@@ -737,9 +879,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   ) {
     do {
       let data = try JSONEncoder.endpoint.encode(request)
-      let proxy =
-        connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-        as? EndpointXPCProtocol
+      let proxy = remoteProxy { completion(.failure($0)) }
       proxy?.sendChat(data) { accepted, error in
         accepted
           ? completion(.success(()))
@@ -751,9 +891,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   public func markChatRead(
     completion: @escaping @Sendable (Result<Void, Error>) -> Void
   ) {
-    let proxy =
-      connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-      as? EndpointXPCProtocol
+    let proxy = remoteProxy { completion(.failure($0)) }
     proxy?.markChatRead { accepted, error in
       accepted
         ? completion(.success(()))
@@ -767,15 +905,44 @@ public final class EndpointXPCClient: @unchecked Sendable {
   ) {
     do {
       let data = try JSONEncoder.endpoint.encode(request)
-      let proxy =
-        connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-        as? EndpointXPCProtocol
+      let proxy = remoteProxy { completion(.failure($0)) }
       proxy?.requestMoreTime(data) { accepted, error in
         accepted
           ? completion(.success(()))
           : completion(.failure(EndpointXPCError.remote(error ?? "rejected")))
       }
     } catch { completion(.failure(error)) }
+  }
+
+  public func submitAdultCode(
+    _ request: EndpointAdultOverrideRequest,
+    completion: @escaping @Sendable (Result<Date, Error>) -> Void
+  ) {
+    do {
+      let data = try JSONEncoder.endpoint.encode(request)
+      let proxy = remoteProxy { completion(.failure($0)) }
+      proxy?.submitAdultCode(data) { data, error in
+        do {
+          if let error { throw EndpointXPCError.remote(error) }
+          guard let data else { throw EndpointXPCError.malformed }
+          completion(.success(try JSONDecoder.endpoint.decode(Date.self, from: data)))
+        } catch { completion(.failure(error)) }
+      }
+    } catch { completion(.failure(error)) }
+  }
+
+  public func claimPolicyEvents(
+    completion: @escaping @Sendable (Result<[EndpointPolicyEvent], Error>) -> Void
+  ) {
+    let proxy = remoteProxy { completion(.failure($0)) }
+    proxy?.claimPolicyEvents { data, error in
+      do {
+        if let error { throw EndpointXPCError.remote(error) }
+        guard let data else { throw EndpointXPCError.malformed }
+        completion(
+          .success(try JSONDecoder.endpoint.decode([EndpointPolicyEvent].self, from: data)))
+      } catch { completion(.failure(error)) }
+    }
   }
 }
 

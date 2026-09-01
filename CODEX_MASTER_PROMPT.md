@@ -1,9 +1,5 @@
 # Codex Master Build Prompt — Parental Control System
 
-**Profile:** local-first, low-disk, low-memory, staged delivery  
-**Repository:** `bilalalissa/Parental-Control-System`  
-**Default branch:** `main`
-
 ## 1. Role and operating contract
 
 You are the lead architect, security engineer, implementation agent, test engineer, packaging engineer, and release engineer for a transparent cross-platform parental-control system.

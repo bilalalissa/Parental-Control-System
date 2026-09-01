@@ -3,31 +3,46 @@ set -euo pipefail
 
 TARGET_VOLUME="${3:-/}"
 SUPPORT="$TARGET_VOLUME/Library/Application Support/ParentalControlAgent"
+BRIDGE="$SUPPORT/.rc5-daemon-upgrade"
+INSTALLED_DAEMON="$TARGET_VOLUME/Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon"
+RC5_DAEMON_SHA256="0bb256f6135e59e5b217d11894d9848c6f64529ec5dccd6c4c0d14d853b52a66"
 mkdir -p "$SUPPORT/Logs"
 chown -R root:wheel "$SUPPORT"
 chmod 700 "$SUPPORT" "$SUPPORT/Logs"
+if [[ -f "$BRIDGE" ]]; then
+  BRIDGE_SHA256="$(/usr/bin/shasum -a 256 "$BRIDGE" | /usr/bin/awk '{print $1}')"
+  if [[ "$BRIDGE_SHA256" == "$RC5_DAEMON_SHA256" ]]; then
+    /bin/cp -p "$BRIDGE" "$INSTALLED_DAEMON"
+  fi
+  /bin/rm -f -- "$BRIDGE"
+fi
 chmod 644 "$TARGET_VOLUME/Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist"
 chmod 644 "$TARGET_VOLUME/Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist"
-chmod 755 "$TARGET_VOLUME/Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon"
+chmod 755 "$INSTALLED_DAEMON"
+chown -R root:wheel "$TARGET_VOLUME/Applications/Parental Control Child.app"
+chmod -R go-w "$TARGET_VOLUME/Applications/Parental Control Child.app"
 chmod 644 \
   "$TARGET_VOLUME/Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json" \
   "$TARGET_VOLUME/Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json"
 
 if [[ "$TARGET_VOLUME" == "/" ]]; then
-  /bin/launchctl bootout system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null 2>&1 || true
-  started=false
-  for attempt in 1 2 3; do
-    if /bin/launchctl bootstrap system /Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist; then
-      started=true
-      break
+  DAEMON_SERVICE="system/com.bilalalissa.ParentalControlAgent.daemon"
+  if /bin/launchctl print "$DAEMON_SERVICE" >/dev/null 2>&1; then
+    /bin/launchctl kickstart -k "$DAEMON_SERVICE"
+  else
+    started=false
+    for attempt in 1 2 3; do
+      if /bin/launchctl bootstrap system /Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist; then
+        started=true
+        break
+      fi
+      if [[ "$attempt" != 3 ]]; then /bin/sleep 2; fi
+    done
+    if [[ "$started" != true ]]; then
+      echo "Unable to start the endpoint daemon after three attempts." >&2
+      exit 1
     fi
-    if [[ "$attempt" != 3 ]]; then /bin/sleep 2; fi
-  done
-  if [[ "$started" != true ]]; then
-    echo "Unable to start the endpoint daemon after three attempts." >&2
-    exit 1
   fi
-  /bin/launchctl kickstart -k system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null 2>&1 || true
 
   CONSOLE_UID="$(/usr/bin/stat -f '%u' /dev/console)"
   if [[ "$CONSOLE_UID" =~ ^[0-9]+$ ]] && (( CONSOLE_UID >= 500 )); then
@@ -46,7 +61,13 @@ if [[ "$TARGET_VOLUME" == "/" ]]; then
       /bin/chmod 644 "$ARC_HOST_DIRECTORY/com.bilalalissa.parental_control.json"
     fi
     USER_SERVICE="gui/$CONSOLE_UID/com.bilalalissa.ParentalControlAgent.user"
-    /bin/launchctl bootout "$USER_SERVICE" >/dev/null 2>&1 || true
+    # Refresh the current GUI-domain registration after replacing the helper executable. A plain
+    # kickstart can retain an interrupted pre-upgrade job and leave session/action XPC silent even
+    # though the process remains visible to pgrep.
+    if /bin/launchctl print "$USER_SERVICE" >/dev/null 2>&1; then
+      /bin/launchctl bootout "$USER_SERVICE" >/dev/null 2>&1 || true
+      /bin/sleep 1
+    fi
     helper_started=false
     for attempt in 1 2 3; do
       if /bin/launchctl bootstrap "gui/$CONSOLE_UID" \

@@ -34,8 +34,8 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   const active = tracker.stages.filter((stage) => stage.id === tracker.activeStage);
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
-  assert.equal(active[0].branch, "stage/05-chromium-extension");
-  assert.equal(active[0].version, "0.5.0-rc.9");
+  assert.equal(active[0].branch, "stage/06-macos-policy-enforcement");
+  assert.equal(active[0].version, "0.6.0-rc.9");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -52,15 +52,24 @@ test("Stage 04 installer defaults to the parent and offers an explicit child cho
 });
 
 test("Stage 04 keeps the visible helper alive and refreshes its launch registration", async () => {
-  const [launchAgent, postinstall] = await Promise.all([
+  const [launchAgent, preinstall, postinstall] = await Promise.all([
     read("agents/endpoint-macos/Installer/com.bilalalissa.ParentalControlAgent.user.plist"),
+    read("agents/endpoint-macos/Installer/preinstall"),
     read("agents/endpoint-macos/Installer/postinstall"),
   ]);
   assert.match(launchAgent, /<key>KeepAlive<\/key>/);
-  assert.match(launchAgent, /<key>SuccessfulExit<\/key><false\/>/);
+  assert.match(launchAgent, /<key>KeepAlive<\/key><true\/>/);
   assert.match(postinstall, /for attempt in 1 2 3/);
+  assert.match(postinstall, /launchctl bootout "\$USER_SERVICE"/);
   assert.match(postinstall, /launchctl bootstrap "gui\/\$CONSOLE_UID"/);
   assert.match(postinstall, /launchctl kickstart -k "\$USER_SERVICE"/);
+  const rc5Daemon = /0bb256f6135e59e5b217d11894d9848c6f64529ec5dccd6c4c0d14d853b52a66/;
+  assert.match(preinstall, rc5Daemon);
+  assert.match(postinstall, rc5Daemon);
+  assert.match(preinstall, /configuration\.json/);
+  assert.match(preinstall, /\.rc5-daemon-upgrade/);
+  assert.match(postinstall, /\.rc5-daemon-upgrade/);
+  assert.doesNotMatch(preinstall, /security|delete-generic-password|device-/);
 });
 
 test("Stage 04 activity controls use an explicit accessible expansion button", async () => {
@@ -81,6 +90,16 @@ test("child notification authorization avoids actor-isolated completion callback
     /let center = UNUserNotificationCenter\.current\(\)[\s\S]*Task\s*\{[\s\S]*try\?\s+await\s+center\.requestAuthorization/,
   );
   assert.doesNotMatch(child, /requestAuthorization\([^)]*\)\s*\{\s*_,\s*_\s+in/);
+});
+
+test("child can replace a pending time request without enabling rapid duplicate submissions", async () => {
+  const child = await read(
+    "agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift",
+  );
+  assert.match(child, /state == \.pending \? "Update Request" : "Send Request"/);
+  assert.match(child, /guard !isSubmittingTimeRequest else \{ return \}/);
+  assert.match(child, /\.disabled\(model\.isSubmittingTimeRequest\)/);
+  assert.doesNotMatch(child, /\.disabled\(model\.latestTimeRequest\?\.state == \.pending\)/);
 });
 
 test("parent foreground notification delegate matches the macOS SDK signature", async () => {
@@ -146,6 +165,8 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
     read("agents/endpoint-macos/Sources/EndpointCore/BrowserNativeMessaging.swift"),
   ]);
   assert.equal(manifest.manifest_version, 3);
+  assert.equal(manifest.version, "0.6.0.9");
+  assert.equal(manifest.version_name, "0.6.0-rc.9");
   assert.deepEqual(manifest.permissions.sort(), ["alarms", "nativeMessaging", "storage", "tabs"]);
   for (const forbidden of ["history", "webRequest", "cookies", "downloads", "debugger"])
     assert.ok(!manifest.permissions.includes(forbidden));
@@ -158,13 +179,26 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /configuration\.browser \|\| browser/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ParentalControlBrowserSharing-0\.5\.0-rc\.8\.zip/);
+  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.0-rc\.9\.zip"/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
   assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
   assert.match(postinstall, /Arc\/User Data\/NativeMessagingHosts/);
+  assert.match(postinstall, /launchctl print "\$DAEMON_SERVICE"/);
+  assert.match(postinstall, /launchctl kickstart -k "\$DAEMON_SERVICE"/);
+  assert.doesNotMatch(postinstall, /launchctl bootout system/);
+  assert.doesNotMatch(postinstall, /(?:Chrome|Edge|Arc)[^\n]*Extensions\//);
   assert.match(authorization, /company\.thebrowser\.Browser/);
   assert.match(authorization, /S6N382Y83G/);
+});
+
+test("endpoint XPC clients reconnect after the privileged daemon is replaced", async () => {
+  const xpc = await read("agents/endpoint-macos/Sources/EndpointCore/EndpointXPC.swift");
+  assert.match(xpc, /next\.interruptionHandler/);
+  assert.match(xpc, /next\.invalidationHandler/);
+  assert.match(xpc, /private func discard\(_ candidate: NSXPCConnection\)/);
+  assert.match(xpc, /private func remoteProxy/);
+  assert.doesNotMatch(xpc, /private let connection: NSXPCConnection/);
 });
 
 test("Stage 05 chat feedback uses system-controlled audio, unread badges, and explicit read visibility", async () => {
@@ -194,7 +228,8 @@ test("Stage 05 chat feedback uses system-controlled audio, unread badges, and ex
   assert.match(childApp, /result\.isSuccess \{ NSSound\.beep\(\) \}/);
   assert.match(childApp, /badge: model\.unreadMessageCount/);
   assert.match(childApp, /ChildTabButton/);
-  assert.match(root, /UnreadChatBadge\(count: store\.unreadChatCount\)/);
+  assert.match(root, /SidebarCountBadge\(count: store\.unreadChatCount/);
+  assert.match(root, /SidebarCountBadge\([\s\S]*store\.pendingTimeRequestCount/);
   assert.match(chat, /markVisibleMessagesRead/);
   assert.match(chat, /editParentChatMessage/);
   assert.match(chat, /deleteParentChatMessage/);
@@ -256,6 +291,37 @@ test("Stage 05 release UI uses one real paired-device list and the shared visual
   assert.match(popup, /ui-monospace/);
 });
 
+test("Stage 06 policy enforcement is signed, bounded, visible, and allowlisted", async () => {
+  const [policy, runtime, daemon, helper, child, schedule, devices, store, security] = await Promise.all([
+    read("apps/controller-macos/Sources/HubCore/Policy/PolicyModels.swift"),
+    read("agents/endpoint-macos/Sources/EndpointCore/EndpointPolicyRuntime.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlAgentDaemon/main.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlAgentUser/main.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/ScheduleEditorView.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/DevicesView.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Stores/ControllerStore.swift"),
+    read("SECURITY.md"),
+  ]);
+  assert.match(policy, /Curve25519\.Signing\.PublicKey/);
+  assert.match(policy, /adultOverride[\s\S]*immediateCommand[\s\S]*exception[\s\S]*blockedInterval[\s\S]*dailyQuota/);
+  assert.match(runtime, /replayedVersion/);
+  assert.match(runtime, /maximumFailedAttempts = 3/);
+  assert.match(runtime, /lockoutDuration: TimeInterval = 5 \* 60/);
+  assert.match(runtime, /mach_continuous_time/);
+  assert.match(runtime, /posixPermissions: 0o600/);
+  assert.match(daemon, /repeating: 15/);
+  assert.match(helper, /ScreenSaverEngine\.app/);
+  assert.match(helper, /kAEShowRestartDialog/);
+  assert.match(helper, /kAEShowShutdownDialog/);
+  assert.doesNotMatch(helper, /kAERestart|kAEShutDown/);
+  assert.match(child, /Settings are read-only here/);
+  assert.match(schedule, /Sign and Apply Policy/);
+  assert.match(devices, /Offline — short-lived actions are unavailable/);
+  assert.match(store, /displayedAuditEvents/);
+  assert.match(security, /Receipts acknowledge endpoint acceptance, not completion/);
+});
+
 test("local Markdown links resolve inside the repository", async () => {
   const markdownFiles = await walk(root, ".md");
   const missing = [];
@@ -291,10 +357,12 @@ test("CI is least-privilege, cancellable, pinned, and short-retention", async ()
   assert.doesNotMatch(workflow, /pull_request_target/);
 });
 
-test("Stage 05 CI verifies the fresh default install before child customization", async () => {
+test("Stage 06 CI verifies the fresh default install before child customization", async () => {
   const workflow = await read(".github/workflows/stage-03-macos.yml");
   const parentInstall = workflow.indexOf("- name: Install default parent choice");
-  const childInstall = workflow.indexOf("- name: Install, diagnose, and uninstall child choice");
+  const childInstall = workflow.indexOf(
+    "- name: Install, verify upgrade persistence, and uninstall child choice",
+  );
   assert.ok(parentInstall >= 0);
   assert.ok(childInstall > parentInstall);
   assert.match(workflow, /BEFORE_SHA: \$\{\{ github\.event\.before \}\}/);
@@ -304,6 +372,8 @@ test("Stage 05 CI verifies the fresh default install before child customization"
     workflow,
     /Install default parent choice[\s\S]*?codesign --verify --deep --strict[\s\S]*?pkgutil --forget com\.bilalalissa\.ParentalControlController\.component/,
   );
+  assert.match(workflow, /Verify child in-place upgrade preserves endpoint identity/);
+  assert.match(workflow, /test "\$first_device_id" = "\$second_device_id"/);
   assert.match(workflow, /test "\$PWD" = "\$GITHUB_WORKSPACE"/);
   assert.match(
     workflow,
@@ -329,8 +399,8 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–05 are merged; the approved STAGE-05 candidate is `0\.5\.0-rc\.9`/);
-  assert.match(readme, /unread counters/);
+  assert.match(readme, /Stages 00–06 are merged; STAGE-07 has not begun and requires separate `PROCEED` authorization/);
+  assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });

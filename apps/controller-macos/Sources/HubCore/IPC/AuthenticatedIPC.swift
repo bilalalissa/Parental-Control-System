@@ -13,6 +13,11 @@ public enum IPCCommand: String, Codable, Sendable {
   case configureActivity
   case configureBrowser
   case markChatRead
+  case acknowledgeTimeRequest
+  case resolveTimeRequest
+  case applyPolicy
+  case sendAction
+  case rotateAdultVerifier
   case shutdown
 }
 
@@ -296,15 +301,65 @@ public final class AuthenticatedIPCServer: @unchecked Sendable {
       errorText = String(describing: error)
     }
     guard
-      let response = try? authenticator.response(
-        requestID: request.id, status: status, error: errorText),
-      var payload = try? IPCCodec.encoder().encode(response)
+      var payload = try? encodedResponse(
+        requestID: request.id, status: status, error: errorText)
     else {
       connection.cancel()
       return
     }
     payload.append(0x0A)
     connection.send(content: payload, completion: .contentProcessed { _ in connection.cancel() })
+  }
+
+  /// The UI protocol intentionally shares the same 64 KiB ceiling as endpoint traffic. A hub
+  /// status is a recent snapshot, not a database export, so progressively compact historical
+  /// collections instead of weakening that bound. Device identity, pairing invitations,
+  /// configuration, and storage totals are always retained.
+  private func encodedResponse(
+    requestID: UUID, status: LocalHubStatus?, error: String?
+  ) throws -> Data {
+    var divisor = 1
+    while true {
+      let candidate = divisor == 1 ? status : status?.compactedForIPC(divisor: divisor)
+      let response = try authenticator.response(
+        requestID: requestID, status: candidate, error: error)
+      let payload = try IPCCodec.encoder().encode(response)
+      if payload.count < ProtocolCodec.maximumMessageBytes { return payload }
+      guard status != nil, divisor < 1_024 else {
+        throw AuthenticatedIPCError.oversizedMessage
+      }
+      divisor *= 2
+    }
+  }
+}
+
+extension LocalHubStatus {
+  fileprivate func compactedForIPC(divisor: Int) -> LocalHubStatus {
+    let divisor = max(1, divisor)
+
+    func recentPrefix<T>(_ values: [T]) -> [T] {
+      guard !values.isEmpty else { return [] }
+      return Array(values.prefix(max(1, values.count / divisor)))
+    }
+
+    // Chat is loaded oldest-first for conversation rendering; retain its newest suffix. The
+    // other historical collections are loaded newest/active-first and retain their prefixes.
+    let retainedChatCount = chatMessages.isEmpty ? 0 : max(1, chatMessages.count / divisor)
+    let retainedChat = retainedChatCount == 0 ? [] : Array(chatMessages.suffix(retainedChatCount))
+
+    return LocalHubStatus(
+      port: port,
+      certificateFingerprint: certificateFingerprint,
+      devices: devices,
+      invitation: invitation,
+      chatMessages: retainedChat,
+      activity: recentPrefix(activity),
+      activityConfigurations: activityConfigurations,
+      browserTabs: recentPrefix(browserTabs),
+      browserConfigurations: browserConfigurations,
+      moreTimeRequests: recentPrefix(moreTimeRequests),
+      auditRecords: recentPrefix(auditRecords),
+      storage: storage)
   }
 }
 

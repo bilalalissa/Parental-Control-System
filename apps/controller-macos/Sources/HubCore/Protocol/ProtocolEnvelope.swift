@@ -12,6 +12,16 @@ public enum ProtocolMessageType: String, Codable, CaseIterable, Sendable {
   case chatMessage = "chat.message"
   case chatMutation = "chat.mutation"
   case requestMoreTime = "time.request"
+  case resolveMoreTime = "time.request-resolution"
+  case policyApply = "policy.apply"
+  case policyQuery = "policy.query"
+  case actionLock = "action.lock"
+  case actionLogoff = "action.logoff"
+  case actionRestart = "action.restart"
+  case actionShutdown = "action.shutdown"
+  case bonusGrant = "bonus.grant"
+  case bonusRevoke = "bonus.revoke"
+  case adultVerifierRotate = "adult-verifier.rotate"
   case receipt
 }
 
@@ -194,6 +204,15 @@ public struct Ed25519Identity: Sendable {
       payload: unsigned.payload,
       auth: ProtocolAuthentication(keyID: keyID, signature: signature.base64EncodedString())
     )
+  }
+
+  public func sign(policy: ParentalControlPolicy) throws -> ParentalControlPolicy {
+    let unsigned = policy.replacing(
+      signature: PolicySignature(algorithm: "Ed25519", keyID: keyID, value: ""))
+    let signature = try privateKey.signature(for: PolicyCodec.signingData(for: unsigned))
+    return unsigned.replacing(
+      signature: PolicySignature(
+        algorithm: "Ed25519", keyID: keyID, value: signature.base64EncodedString()))
   }
 }
 

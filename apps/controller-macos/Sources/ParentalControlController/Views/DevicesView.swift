@@ -10,13 +10,21 @@ struct DevicesView: View {
       List(selection: Bindable(store).selectedDeviceID) {
         Section("Paired devices") {
           ForEach(store.pairedDevices) { device in
-            PairedDeviceSidebarRow(device: device)
-              .tag(device.id)
+            PairedDeviceSidebarRow(
+              device: device,
+              now: store.presenceNow,
+              pendingRequestCount: store.pendingTimeRequestCount(deviceID: device.id)
+            )
+            .tag(device.id)
           }
         }
       }
       .listStyle(.sidebar)
-      .frame(minWidth: 230, idealWidth: 270, maxWidth: 330)
+      .frame(
+        minWidth: ControllerLayout.deviceListMinimum,
+        idealWidth: ControllerLayout.deviceListIdeal,
+        maxWidth: ControllerLayout.deviceListMaximum
+      )
       .overlay {
         if store.pairedDevices.isEmpty {
           ContentUnavailableView(
@@ -39,6 +47,7 @@ struct DevicesView: View {
             } ?? BrowserConfiguration(deviceID: device.id),
             browserTabs: store.hubStatus?.browserTabs.filter { $0.deviceID == device.id } ?? [],
             requests: store.hubStatus?.moreTimeRequests.filter { $0.deviceID == device.id } ?? [],
+            now: store.presenceNow,
             store: store
           )
           .id(device.id)
@@ -48,7 +57,12 @@ struct DevicesView: View {
             description: Text("Device details and privacy controls appear here."))
         }
       }
-      .frame(minWidth: 560, maxWidth: .infinity, maxHeight: .infinity)
+      .frame(
+        minWidth: ControllerLayout.deviceDetailMinimum,
+        maxWidth: .infinity,
+        maxHeight: .infinity
+      )
+      .layoutPriority(1)
       .background(ControlTheme.canvas)
     }
     .navigationTitle("Devices")
@@ -58,6 +72,8 @@ struct DevicesView: View {
 
 private struct PairedDeviceSidebarRow: View {
   let device: HubDeviceRecord
+  let now: Date
+  let pendingRequestCount: Int
 
   var body: some View {
     HStack(spacing: 10) {
@@ -68,12 +84,23 @@ private struct PairedDeviceSidebarRow: View {
         Text(device.name).lineLimit(1)
         HStack(spacing: 5) {
           Circle()
-            .fill(device.state() == .online ? ControlTheme.success : ControlTheme.textMuted)
+            .fill(device.state(now: now) == .online ? ControlTheme.success : ControlTheme.textMuted)
             .frame(width: 6, height: 6)
-          Text(device.state() == .online ? "Online" : "Offline")
+          Text(device.state(now: now) == .online ? "Online" : "Offline")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
+      }
+      Spacer(minLength: 4)
+      if pendingRequestCount > 0 {
+        Text(pendingRequestCount > 99 ? "99+" : "\(pendingRequestCount)")
+          .font(.caption2.bold())
+          .foregroundStyle(.white)
+          .padding(.horizontal, 6)
+          .padding(.vertical, 2)
+          .background(ControlTheme.accent, in: Capsule())
+          .accessibilityLabel("Pending time requests")
+          .accessibilityValue("\(pendingRequestCount)")
       }
     }
     .padding(.vertical, 3)
@@ -96,15 +123,18 @@ private struct PairedDeviceDetailView: View {
   let browserConfiguration: BrowserConfiguration
   let browserTabs: [HubBrowserTab]
   let requests: [MoreTimeRequestRecord]
+  let now: Date
   let store: ControllerStore
 
   @State private var retentionDays: Int
   @State private var browserRetentionDays: Int
+  @State private var pendingHighImpactAction: PolicyAction?
 
   init(
     device: HubDeviceRecord, configuration: ActivityConfiguration,
     activity: [HubAppActivity], browserConfiguration: BrowserConfiguration,
-    browserTabs: [HubBrowserTab], requests: [MoreTimeRequestRecord], store: ControllerStore
+    browserTabs: [HubBrowserTab], requests: [MoreTimeRequestRecord], now: Date,
+    store: ControllerStore
   ) {
     self.device = device
     self.configuration = configuration
@@ -112,6 +142,7 @@ private struct PairedDeviceDetailView: View {
     self.browserConfiguration = browserConfiguration
     self.browserTabs = browserTabs
     self.requests = requests
+    self.now = now
     self.store = store
     _retentionDays = State(initialValue: configuration.retentionDays)
     _browserRetentionDays = State(initialValue: browserConfiguration.retentionDays)
@@ -127,7 +158,9 @@ private struct PairedDeviceDetailView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         deviceHeader
+        networkSection
         capabilitySection
+        immediateActionsSection
         activitySection
         browserSection
         requestSection
@@ -139,6 +172,25 @@ private struct PairedDeviceDetailView: View {
     .onChange(of: configuration.retentionDays) { _, days in retentionDays = days }
     .onChange(of: browserConfiguration.retentionDays) { _, days in browserRetentionDays = days }
     .accessibilityIdentifier(AccessibilityID.deviceDetail.rawValue)
+    .confirmationDialog(
+      "Confirm \(pendingHighImpactAction?.rawValue ?? "action")",
+      isPresented: Binding(
+        get: { pendingHighImpactAction != nil },
+        set: { if !$0 { pendingHighImpactAction = nil } }),
+      titleVisibility: .visible
+    ) {
+      if let action = pendingHighImpactAction {
+        Button("Send \(action.rawValue.capitalized) Request", role: .destructive) {
+          store.sendImmediateAction(deviceID: device.id, action: action, confirmed: true)
+          pendingHighImpactAction = nil
+        }
+        Button("Cancel", role: .cancel) { pendingHighImpactAction = nil }
+      }
+    } message: {
+      Text(
+        "macOS will show its own confirmation and preserve app save prompts. The child can cancel; this app never force-quits applications."
+      )
+    }
   }
 
   private var deviceHeader: some View {
@@ -177,7 +229,7 @@ private struct PairedDeviceDetailView: View {
   }
 
   private var connectionBadge: some View {
-    let online = device.state() == .online
+    let online = device.state(now: now) == .online
     let color = online ? ControlTheme.success : ControlTheme.textMuted
     return HStack(spacing: 6) {
       Circle().fill(color).frame(width: 8, height: 8)
@@ -188,6 +240,46 @@ private struct PairedDeviceDetailView: View {
     .padding(.horizontal, 10)
     .padding(.vertical, 5)
     .background(color.opacity(0.12), in: Capsule())
+  }
+
+  private var networkSection: some View {
+    SectionCard {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Local network interfaces").font(ControlTheme.sectionTitle)
+        Text(
+          "Private or link-local addresses from physical interfaces only. MAC addresses are informational and are never used for pairing or identity."
+        )
+        .font(.caption).foregroundStyle(.secondary)
+        let interfaces = device.networkInterfaces ?? []
+        if interfaces.isEmpty {
+          Label(
+            "No physical-interface LAN metadata is currently available.",
+            systemImage: "network.slash"
+          )
+          .font(.caption).foregroundStyle(.secondary)
+        } else {
+          Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 7) {
+            ForEach(interfaces) { interface in
+              GridRow {
+                Text(interface.interface).font(.caption.monospaced().weight(.semibold))
+                VStack(alignment: .leading, spacing: 2) {
+                  ForEach(interface.addresses, id: \.self) { address in
+                    Text(address).font(.caption.monospaced()).textSelection(.enabled)
+                  }
+                  if interface.addresses.isEmpty {
+                    Text("IP unavailable").font(.caption).foregroundStyle(.secondary)
+                  }
+                }
+                Text(interface.macAddress ?? "MAC unavailable")
+                  .font(.caption.monospaced())
+                  .foregroundStyle(interface.macAddress == nil ? .secondary : .primary)
+                  .textSelection(.enabled)
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   private var capabilitySection: some View {
@@ -203,6 +295,43 @@ private struct PairedDeviceDetailView: View {
               .padding(.vertical, 6)
               .background(ControlTheme.success.opacity(0.10), in: Capsule())
           }
+        }
+      }
+    }
+  }
+
+  private var immediateActionsSection: some View {
+    SectionCard {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Immediate actions").font(ControlTheme.sectionTitle)
+        Text(
+          "Commands are signed, expire after two minutes, are capability-checked, and generate receipts and audit records. Lock is the safe default."
+        )
+        .font(.caption).foregroundStyle(.secondary)
+        HStack {
+          Button("Lock Screen") {
+            store.sendImmediateAction(deviceID: device.id, action: .lock, confirmed: true)
+          }
+          .disabled(device.state(now: now) != .online || !device.capabilities.contains("lock"))
+          Menu("More Actions") {
+            Button("Log Out…") { pendingHighImpactAction = .logoff }
+              .disabled(
+                device.state(now: now) != .online || !device.capabilities.contains("logoff"))
+            Button("Restart…") { pendingHighImpactAction = .restart }
+              .disabled(
+                device.state(now: now) != .online || !device.capabilities.contains("restart"))
+            Button("Shut Down…") { pendingHighImpactAction = .shutdown }
+              .disabled(
+                device.state(now: now) != .online || !device.capabilities.contains("shutdown"))
+          }
+          Spacer()
+          if device.state(now: now) != .online {
+            Label("Offline — short-lived actions are unavailable", systemImage: "wifi.slash")
+              .font(.caption).foregroundStyle(.secondary)
+          }
+        }
+        if let status = store.policyActionStatusMessage {
+          Text(status).font(.caption).foregroundStyle(.secondary)
         }
       }
     }
@@ -362,11 +491,37 @@ private struct PairedDeviceDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
           Text("Recent time requests").font(ControlTheme.sectionTitle)
           ForEach(requests.prefix(3)) { request in
-            Label(
-              "Requested \(request.requestedMinutes) minutes · \(request.createdAt.formatted(date: .omitted, time: .shortened))",
-              systemImage: "hourglass.badge.plus"
-            )
-            .font(.caption)
+            HStack {
+              Label(
+                "Requested \(request.requestedMinutes) minutes · \(request.createdAt.formatted(date: .omitted, time: .shortened))",
+                systemImage: "hourglass.badge.plus"
+              )
+              .font(.caption)
+              Spacer()
+              if request.state == .pending {
+                HStack(spacing: 6) {
+                  Button(
+                    store.resolvingTimeRequestIDs.contains(request.id) ? "Resolving…" : "Approve"
+                  ) {
+                    store.grantBonus(request: request)
+                  }
+                  .disabled(store.resolvingTimeRequestIDs.contains(request.id))
+                  Button("Reject", role: .destructive) {
+                    store.rejectBonus(request: request)
+                  }
+                  .disabled(store.resolvingTimeRequestIDs.contains(request.id))
+                }
+              } else {
+                Label(
+                  request.state.isApproved ? "Approved" : request.state.rawValue.capitalized,
+                  systemImage: request.state.isApproved
+                    ? "checkmark.circle.fill" : "xmark.circle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(
+                  request.state.isApproved ? ControlTheme.success : ControlTheme.textMuted)
+              }
+            }
           }
         }
       }

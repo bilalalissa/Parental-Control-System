@@ -166,6 +166,48 @@ final class HubClient {
       payload: ["audience": .string(audience.rawValue)])
   }
 
+  func acknowledgeTimeRequest(
+    requestID: UUID, deviceID: String
+  ) async throws -> LocalHubStatus? {
+    try await request(
+      .acknowledgeTimeRequest, deviceID: deviceID,
+      payload: ["requestId": .string(requestID.uuidString)])
+  }
+
+  func resolveTimeRequest(
+    requestID: UUID, deviceID: String, decision: MoreTimeRequestState
+  ) async throws -> LocalHubStatus? {
+    try await request(
+      .resolveTimeRequest, deviceID: deviceID,
+      payload: [
+        "requestId": .string(requestID.uuidString),
+        "decision": .string(decision.rawValue),
+      ])
+  }
+
+  func applyPolicy(_ policy: ParentalControlPolicy) async throws -> LocalHubStatus? {
+    let data = try PolicyCodec.encoder().encode(policy)
+    return try await request(
+      .applyPolicy, deviceID: policy.deviceID,
+      payload: ["policy": .string(data.base64EncodedString())])
+  }
+
+  func sendAction(
+    deviceID: String, action: PolicyAction, confirmed: Bool
+  ) async throws -> LocalHubStatus? {
+    try await request(
+      .sendAction, deviceID: deviceID,
+      payload: ["action": .string(action.rawValue), "confirmed": .bool(confirmed)])
+  }
+
+  func rotateAdultVerifier(
+    deviceID: String, salt: String, digest: String
+  ) async throws -> LocalHubStatus? {
+    try await request(
+      .rotateAdultVerifier, deviceID: deviceID,
+      payload: ["salt": .string(salt), "digest": .string(digest)])
+  }
+
   func stop() {
     guard let runtime = try? HubRuntime.read(), let key = ipcKey else { return }
     _ = try? AuthenticatedIPCClient.send(

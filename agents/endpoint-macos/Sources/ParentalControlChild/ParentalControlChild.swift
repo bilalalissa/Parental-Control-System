@@ -41,6 +41,8 @@ final class ChildAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
 final class ChildDashboardModel: NSObject, ObservableObject {
   @Published var status: EndpointStatus?
   @Published var messages: [EndpointChatMessage] = []
+  @Published var latestTimeRequest: EndpointTimeRequest?
+  @Published var isSubmittingTimeRequest = false
   @Published var error = "Connecting to the protected endpoint service…"
   @Published var actionMessage = ""
   private let client = EndpointXPCClient()
@@ -61,6 +63,9 @@ final class ChildDashboardModel: NSObject, ObservableObject {
     center.addObserver(
       self, selector: #selector(chatChanged),
       name: Notification.Name("com.bilalalissa.ParentalControlAgent.chat-changed"), object: nil)
+    center.addObserver(
+      self, selector: #selector(policyEvent(_:)),
+      name: Notification.Name("com.bilalalissa.ParentalControlAgent.policy-event"), object: nil)
     refresh()
     timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
       Task { @MainActor in self?.refresh() }
@@ -70,6 +75,27 @@ final class ChildDashboardModel: NSObject, ObservableObject {
   deinit { DistributedNotificationCenter.default().removeObserver(self) }
 
   @objc private func chatChanged() { refresh() }
+
+  @objc private func policyEvent(_ notification: Notification) {
+    let info = notification.userInfo
+    let kind = info?["kind"] as? String ?? "policy"
+    let explanation = info?["explanation"] as? String ?? "Your family policy changed."
+    let content = UNMutableNotificationContent()
+    if kind == "warning", let minutes = info?["minutes"] as? String {
+      content.title = "Time warning"
+      content.body = "A restriction starts in about \(minutes) minute(s). \(explanation)"
+    } else if kind == "clock-change" {
+      content.title = "Clock adjustment detected"
+      content.body = explanation
+    } else {
+      content.title = "Family restriction active"
+      content.body = explanation
+    }
+    content.sound = .default
+    UNUserNotificationCenter.current().add(
+      UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    refresh()
+  }
 
   func refresh() {
     client.fetchDashboard { [weak self] result in
@@ -81,6 +107,19 @@ final class ChildDashboardModel: NSObject, ObservableObject {
               in: value.messages) ?? []
           self?.status = value.status
           self?.messages = value.messages
+          if self?.latestTimeRequest?.state != value.latestTimeRequest?.state,
+            let request = value.latestTimeRequest
+          {
+            switch request.state {
+            case .pending:
+              self?.actionMessage = "Waiting for your parent to review the request."
+            case .approved:
+              self?.actionMessage = "Your parent approved \(request.requestedMinutes) minutes."
+            case .rejected:
+              self?.actionMessage = "Your parent did not approve this time request."
+            }
+          }
+          self?.latestTimeRequest = value.latestTimeRequest
           self?.error = ""
           if !newParentMessages.isEmpty {
             self?.notifyAboutIncomingMessages(count: newParentMessages.count)
@@ -137,12 +176,32 @@ final class ChildDashboardModel: NSObject, ObservableObject {
   }
 
   func requestTime(minutes: Int, note: String) {
+    guard !isSubmittingTimeRequest else { return }
+    isSubmittingTimeRequest = true
     client.requestMoreTime(EndpointMoreTimeRequest(minutes: minutes, note: note)) {
       [weak self] result in
       Task { @MainActor in
+        self?.isSubmittingTimeRequest = false
         self?.actionMessage =
           result.isSuccess
-          ? "Request queued for your parent." : "Request could not be queued."
+          ? "Newest request queued for your parent." : "Request could not be queued."
+        if result.isSuccess { self?.refresh() }
+      }
+    }
+  }
+
+  func submitAdultCode(_ code: String, minutes: Int = 15) {
+    client.submitAdultCode(EndpointAdultOverrideRequest(code: code, minutes: minutes)) {
+      [weak self] result in
+      Task { @MainActor in
+        switch result {
+        case .success(let until):
+          self?.actionMessage =
+            "Adult override active until \(until.formatted(date: .omitted, time: .shortened))."
+        case .failure(let error):
+          self?.actionMessage = String(describing: error)
+        }
+        self?.refresh()
       }
     }
   }
@@ -160,6 +219,7 @@ struct ChildDashboard: View {
   @State private var draft = ""
   @State private var requestMinutes = 15
   @State private var requestNote = ""
+  @State private var adultCode = ""
   @State private var selectedTab = 0
 
   var body: some View {
@@ -236,8 +296,52 @@ struct ChildDashboard: View {
         row("Tab retention", "\(status.browserRetentionDays) days on parent controller")
       }
       GroupBox("Schedule") {
-        Text("No schedule enforcement is configured in Stage 05.")
-          .frame(maxWidth: .infinity, alignment: .leading).padding(6)
+        VStack(alignment: .leading, spacing: 8) {
+          if let version = status.policyVersion {
+            LabeledContent("Signed policy", value: "Version \(version)")
+            LabeledContent(
+              "Current decision", value: status.policyDecision?.rawValue.capitalized ?? "Pending")
+            LabeledContent(
+              "Restriction", value: status.policyAction?.rawValue.capitalized ?? "None")
+            if status.policyDecision == .allow, let restrictionAt = status.policyNextRestrictionAt {
+              TimelineView(.periodic(from: .now, by: 1)) { context in
+                LabeledContent(
+                  "Next restriction",
+                  value: Self.countdown(until: restrictionAt, now: context.date)
+                )
+                .monospacedDigit()
+              }
+            } else if status.policyDecision == .block {
+              LabeledContent("Countdown", value: "Restriction active")
+            } else {
+              LabeledContent("Next restriction", value: "Not within the next 8 days")
+            }
+            Text(status.policyReason ?? "The policy is evaluated locally, including while offline.")
+              .font(.caption).foregroundStyle(.secondary)
+            if let until = status.adultOverrideUntil, until > Date() {
+              Label(
+                "Adult override until \(until.formatted(date: .omitted, time: .shortened))",
+                systemImage: "checkmark.shield")
+            }
+            HStack {
+              SecureField("Adult code", text: $adultCode)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 180)
+              Button("Allow 15 Minutes") {
+                model.submitAdultCode(adultCode)
+                adultCode = ""
+              }
+              .disabled(adultCode.filter(\.isNumber).count < 4)
+            }
+            Text(
+              "Three failed attempts trigger a five-minute lockout. Settings are read-only here."
+            )
+            .font(.caption2).foregroundStyle(.secondary)
+          } else {
+            Text("Waiting for a signed family schedule from the parent controller.")
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading).padding(6)
       }
       Spacer()
     }.padding(.top, 14)
@@ -293,14 +397,40 @@ struct ChildDashboard: View {
 
   private var requestView: some View {
     Form {
+      if let request = model.latestTimeRequest {
+        LabeledContent("Latest request") {
+          Label(
+            request.state.rawValue.capitalized,
+            systemImage: request.state == .approved
+              ? "checkmark.circle.fill"
+              : (request.state == .rejected ? "xmark.circle.fill" : "clock.fill")
+          )
+          .foregroundStyle(
+            request.state == .approved
+              ? ControlTheme.success
+              : (request.state == .rejected ? ControlTheme.accent : .secondary))
+        }
+        Text(
+          "\(request.requestedMinutes) minutes · \(request.createdAt.formatted(date: .omitted, time: .shortened))"
+        )
+        .font(.caption).foregroundStyle(.secondary)
+      }
       Stepper("Request \(requestMinutes) minutes", value: $requestMinutes, in: 5...240, step: 5)
       TextField("Optional note", text: $requestNote)
-      Button("Send Request") {
+      Button(model.latestTimeRequest?.state == .pending ? "Update Request" : "Send Request") {
         model.requestTime(minutes: requestMinutes, note: requestNote)
         requestNote = ""
-      }.buttonStyle(.borderedProminent)
+      }
+      .buttonStyle(.borderedProminent)
+      .disabled(model.isSubmittingTimeRequest)
+      if model.latestTimeRequest?.state == .pending {
+        Text(
+          "Your earlier request is still pending. Updating it replaces the actionable request on your parent's device."
+        )
+        .font(.caption).foregroundStyle(.secondary)
+      }
       Text(
-        "A request is not an automatic time grant. Schedule enforcement begins in a later stage."
+        "A request is not an automatic time grant. Your parent must approve bonus time."
       )
       .font(.caption).foregroundStyle(.secondary)
     }.formStyle(.grouped)
@@ -318,6 +448,11 @@ struct ChildDashboard: View {
           Text(
             "No command lines, window or document contents, file contents, screenshots, keystrokes, passwords, clipboard, camera, microphone, private tabs, URL query strings/fragments, page content, forms, cookies, or network traffic."
           ).frame(maxWidth: .infinity, alignment: .leading).padding(6)
+        }
+        GroupBox("Appearance") {
+          ControlAppearancePicker()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(6)
         }
         Label(
           status.activityCollectionEnabled
@@ -350,6 +485,16 @@ struct ChildDashboard: View {
     case "failed": "exclamationmark.triangle"
     default: "questionmark.circle"
     }
+  }
+
+  static func countdown(until date: Date, now: Date = Date()) -> String {
+    let total = max(0, Int(date.timeIntervalSince(now).rounded(.down)))
+    let days = total / 86_400
+    let hours = (total % 86_400) / 3_600
+    let minutes = (total % 3_600) / 60
+    let seconds = total % 60
+    if days > 0 { return String(format: "%dd %02d:%02d:%02d", days, hours, minutes, seconds) }
+    return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
   }
 }
 

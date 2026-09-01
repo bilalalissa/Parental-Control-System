@@ -48,13 +48,90 @@ struct PairingAndPersistenceTests {
         ))
       try database.updateSeen(
         deviceID: "mock-one", sequence: 7, snapshotVersion: 3, now: pairedAt.addingTimeInterval(1))
+      let interface = try #require(
+        HubNetworkInterface(
+          interface: "en0",
+          addresses: ["192.168.1.12", "8.8.8.8", "fe80::1234%en0"],
+          macAddress: "aa-bb-cc-dd-ee-ff", observedAt: pairedAt))
+      try database.saveNetworkInterfaces([interface], deviceID: "mock-one")
     }
     let reopened = try HubDatabase(path: fixture.path)
     let persistedDevice = try reopened.device(id: "mock-one")
     let device = try #require(persistedDevice)
     #expect(device.lastSequence == 7)
     #expect(device.snapshotVersion == 3)
+    #expect(device.networkInterfaces?.first?.addresses == ["192.168.1.12", "fe80::1234"])
+    #expect(device.networkInterfaces?.first?.macAddress == "AA:BB:CC:DD:EE:FF")
     #expect(device.state(now: pairedAt.addingTimeInterval(80)) == .offline)
+    #expect(device.state(now: pairedAt.addingTimeInterval(-10)) == .offline)
+  }
+
+  @Test("network metadata excludes public, virtual, and zero-address identifiers")
+  func sanitizedNetworkMetadata() {
+    #expect(
+      HubNetworkInterface(
+        interface: "utun4", addresses: ["10.0.0.4"], macAddress: "AA:BB:CC:DD:EE:FF")
+        == nil)
+    #expect(
+      HubNetworkInterface(
+        interface: "en0", addresses: ["8.8.8.8"], macAddress: "00:00:00:00:00:00")
+        == nil)
+    let value = HubNetworkInterface(
+      interface: "en1", addresses: ["10.0.0.4", "2001:4860:4860::8888"],
+      macAddress: "01:23:45:67:89:ab")
+    #expect(value?.addresses == ["10.0.0.4"])
+    #expect(value?.macAddress == "01:23:45:67:89:AB")
+  }
+
+  @Test("time requests coalesce and approved or rejected records stop contributing to badges")
+  func timeRequestAcknowledgement() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let database = try HubDatabase(path: fixture.path)
+    let request = MoreTimeRequestRecord(
+      deviceID: "child-request", requestedMinutes: 20, note: "Synthetic request")
+    try database.appendMoreTimeRequest(request)
+    let newer = MoreTimeRequestRecord(
+      deviceID: request.deviceID, requestedMinutes: 30, note: "Newer synthetic request",
+      createdAt: request.createdAt.addingTimeInterval(1))
+    try database.appendMoreTimeRequest(newer)
+    #expect(try database.moreTimeRequests().filter { $0.state == .pending }.count == 1)
+    #expect(
+      try database.moreTimeRequests().first { $0.id == request.id }?.state == .superseded)
+    try database.resolveMoreTimeRequest(
+      id: newer.id, deviceID: newer.deviceID, state: .rejected)
+    #expect(try database.moreTimeRequests().first?.state == .rejected)
+    #expect(try database.moreTimeRequests().filter { $0.state == .pending }.isEmpty)
+  }
+
+  @Test("startup and device removal make orphaned time requests non-actionable")
+  func orphanedTimeRequestsAreSuperseded() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let orphan = MoreTimeRequestRecord(
+      deviceID: "removed-child", requestedMinutes: 15, note: "Synthetic orphan")
+    do {
+      let database = try HubDatabase(path: fixture.path)
+      try database.appendMoreTimeRequest(orphan)
+      #expect(try database.moreTimeRequests().first?.state == .pending)
+    }
+
+    let reopened = try HubDatabase(path: fixture.path)
+    #expect(try reopened.moreTimeRequests().first?.state == .superseded)
+
+    let identity = try Ed25519Identity(keyID: "request-owner")
+    let activeID = "active-child"
+    try reopened.upsertDevice(
+      HubDeviceRecord(
+        id: activeID, name: "Active Child", platform: "macOS", keyID: identity.keyID,
+        publicKey: identity.publicKeyData, capabilities: ["request-more-time"],
+        pairedAt: Date(), lastSeen: Date()))
+    let activeRequest = MoreTimeRequestRecord(
+      deviceID: activeID, requestedMinutes: 20, note: "Synthetic active request")
+    try reopened.appendMoreTimeRequest(activeRequest)
+    try reopened.revoke(deviceID: activeID)
+    #expect(
+      try reopened.moreTimeRequests().first { $0.id == activeRequest.id }?.state == .superseded)
   }
 
   @Test("audit, outbound queues, and receipts stay bounded")
@@ -107,9 +184,13 @@ struct PairingAndPersistenceTests {
         deviceID: "mock-revoke",
         expiresAt: Date().addingTimeInterval(60),
         envelope: Data("receipt".utf8)))
+    let request = MoreTimeRequestRecord(
+      deviceID: "mock-revoke", requestedMinutes: 10, note: "Synthetic request")
+    try database.appendMoreTimeRequest(request)
     try database.revoke(deviceID: "mock-revoke")
     #expect(try database.device(id: "mock-revoke")?.isRevoked == true)
     #expect(try database.queued(deviceID: "mock-revoke").isEmpty)
+    #expect(try database.moreTimeRequests().first { $0.id == request.id }?.state == .superseded)
     try database.unpair(deviceID: "mock-revoke")
     #expect(try database.device(id: "mock-revoke") == nil)
   }

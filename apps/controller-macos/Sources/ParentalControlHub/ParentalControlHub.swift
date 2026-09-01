@@ -99,6 +99,40 @@ enum ParentalControlHubMain {
           let audience = ChatAudience(rawValue: audienceText)
         else { throw AuthenticatedIPCError.remote("Chat receipt payload is incomplete") }
         try hub.markChatRead(deviceID: try requiredDeviceID(request), audience: audience)
+      case .acknowledgeTimeRequest:
+        guard let requestText = request.payload["requestId"]?.stringValue,
+          let requestID = UUID(uuidString: requestText)
+        else { throw AuthenticatedIPCError.remote("Time request identifier is incomplete") }
+        try hub.acknowledgeTimeRequest(
+          id: requestID, deviceID: try requiredDeviceID(request))
+      case .resolveTimeRequest:
+        guard let requestText = request.payload["requestId"]?.stringValue,
+          let requestID = UUID(uuidString: requestText),
+          let decisionText = request.payload["decision"]?.stringValue,
+          let decision = MoreTimeRequestState(rawValue: decisionText),
+          decision == .approved || decision == .rejected
+        else { throw AuthenticatedIPCError.remote("Time request resolution is incomplete") }
+        try hub.resolveTimeRequest(
+          id: requestID, deviceID: try requiredDeviceID(request), decision: decision)
+      case .applyPolicy:
+        guard let value = request.payload["policy"]?.stringValue,
+          let data = Data(base64Encoded: value),
+          let policy = try? PolicyCodec.decoder().decode(ParentalControlPolicy.self, from: data)
+        else { throw AuthenticatedIPCError.remote("Policy payload is incomplete") }
+        _ = try hub.applyPolicy(policy)
+      case .sendAction:
+        guard let rawAction = request.payload["action"]?.stringValue,
+          let action = PolicyAction(rawValue: rawAction),
+          let confirmed = request.payload["confirmed"]?.boolValue
+        else { throw AuthenticatedIPCError.remote("Action payload is incomplete") }
+        _ = try hub.sendImmediateAction(
+          deviceID: try requiredDeviceID(request), action: action, confirmed: confirmed)
+      case .rotateAdultVerifier:
+        guard let salt = request.payload["salt"]?.stringValue,
+          let digest = request.payload["digest"]?.stringValue
+        else { throw AuthenticatedIPCError.remote("Adult verifier payload is incomplete") }
+        try hub.rotateAdultVerifier(
+          deviceID: try requiredDeviceID(request), salt: salt, digest: digest)
       case .shutdown:
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { state.requestShutdown() }
       }

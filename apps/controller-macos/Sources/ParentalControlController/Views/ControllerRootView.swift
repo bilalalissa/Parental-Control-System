@@ -22,7 +22,10 @@ struct ControllerRootView: View {
               Label(section.title, systemImage: section.systemImage)
               Spacer(minLength: 4)
               if section == .chat, store.unreadChatCount > 0 {
-                UnreadChatBadge(count: store.unreadChatCount)
+                SidebarCountBadge(count: store.unreadChatCount, label: "Unread messages")
+              } else if section == .devices, store.pendingTimeRequestCount > 0 {
+                SidebarCountBadge(
+                  count: store.pendingTimeRequestCount, label: "Pending time requests")
               }
             }
             .tag(section)
@@ -31,6 +34,11 @@ struct ControllerRootView: View {
         }
       }
       .listStyle(.sidebar)
+      .navigationSplitViewColumnWidth(
+        min: ControllerLayout.navigationSidebarMinimum,
+        ideal: ControllerLayout.navigationSidebarIdeal,
+        max: ControllerLayout.navigationSidebarMaximum
+      )
       .navigationTitle("Parental Control")
       .accessibilityIdentifier(AccessibilityID.sidebar.rawValue)
       .safeAreaInset(edge: .bottom) {
@@ -88,15 +96,30 @@ struct ControllerRootView: View {
     case .chat:
       ChatShellView(store: store)
     case .audit:
-      AuditView(events: store.auditEvents)
+      AuditView(events: store.displayedAuditEvents)
     case .storage:
       StorageView(store: store)
     }
   }
 }
 
-private struct UnreadChatBadge: View {
+enum ControllerLayout {
+  static let minimumWindowWidth: CGFloat = 1_080
+  static let navigationSidebarMinimum: CGFloat = 210
+  static let navigationSidebarIdeal: CGFloat = 230
+  static let navigationSidebarMaximum: CGFloat = 280
+  static let deviceListMinimum: CGFloat = 240
+  static let deviceListIdeal: CGFloat = 275
+  static let deviceListMaximum: CGFloat = 330
+  static let deviceDetailMinimum: CGFloat = 520
+
+  static let requiredThreeColumnWidth =
+    navigationSidebarMinimum + deviceListMinimum + deviceDetailMinimum
+}
+
+private struct SidebarCountBadge: View {
   let count: Int
+  let label: String
 
   var body: some View {
     Text(count > 99 ? "99+" : "\(count)")
@@ -105,7 +128,7 @@ private struct UnreadChatBadge: View {
       .padding(.horizontal, 6)
       .padding(.vertical, 2)
       .background(ControlTheme.accent, in: Capsule())
-      .accessibilityLabel("Unread messages")
+      .accessibilityLabel(label)
       .accessibilityValue("\(count)")
   }
 }

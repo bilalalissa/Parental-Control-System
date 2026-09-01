@@ -1,7 +1,9 @@
 import AppKit
+import CryptoKit
 import Foundation
 import HubCore
 import Observation
+import Security
 import UserNotifications
 
 @MainActor
@@ -12,7 +14,9 @@ final class ControllerStore {
   var chatMessages: [ChatMessage]
   var schedule: ScheduleDraft
   var scheduleIssues: [ScheduleValidationIssue] = []
-  var scheduleStatusMessage = "This is a local preview. No endpoint policy is sent in Stage 01."
+  var scheduleStatusMessage = "Choose a paired macOS device, then sign and apply its schedule."
+  var adultOverrideCode: String?
+  var policyActionStatusMessage: String?
   var databaseStatusMessage: String?
   var storageSnapshot: StorageSnapshot
   var hubStatus: LocalHubStatus?
@@ -21,6 +25,8 @@ final class ControllerStore {
   var chatStatusMessage: String?
   var activityStatusMessage: String?
   var browserStatusMessage: String?
+  var resolvingTimeRequestIDs: Set<UUID> = []
+  var presenceNow = Date()
 
   private let database: ControllerDatabase
   private let hubClient = HubClient()
@@ -60,15 +66,50 @@ final class ControllerStore {
     return pairedDevices.first { $0.id == selectedDeviceID }
   }
 
-  var onlineDeviceCount: Int { pairedDevices.filter { $0.state() == .online }.count }
-  var offlineDeviceCount: Int { pairedDevices.filter { $0.state() == .offline }.count }
+  var onlineDeviceCount: Int {
+    pairedDevices.filter { $0.state(now: presenceNow) == .online }.count
+  }
+  var offlineDeviceCount: Int {
+    pairedDevices.filter { $0.state(now: presenceNow) == .offline }.count
+  }
 
   var unreadChatCount: Int {
     hubStatus?.chatMessages.filter(\.isUnreadForParent).count ?? 0
   }
 
+  var pendingTimeRequestCount: Int {
+    activePendingTimeRequests.count
+  }
+
+  func pendingTimeRequestCount(deviceID: String) -> Int {
+    activePendingTimeRequests.filter { $0.deviceID == deviceID }.count
+  }
+
   var pairedDevices: [HubDeviceRecord] {
     hubStatus?.devices.filter { !$0.isRevoked } ?? []
+  }
+
+  private var activePendingTimeRequests: [MoreTimeRequestRecord] {
+    guard let hubStatus else { return [] }
+    let activeDeviceIDs = Set(hubStatus.devices.lazy.filter { !$0.isRevoked }.map(\.id))
+    return hubStatus.moreTimeRequests.filter {
+      $0.state == .pending && activeDeviceIDs.contains($0.deviceID)
+    }
+  }
+
+  var displayedAuditEvents: [AuditEvent] {
+    let hubEvents = (hubStatus?.auditRecords ?? []).map { record in
+      let severity: AuditSeverity =
+        record.event.contains("rejected") || record.event.contains("shutdown")
+        ? .warning
+        : (record.event.contains("action") || record.event.contains("policy")
+          ? .notice : .information)
+      return AuditEvent(
+        id: record.id, timestamp: record.timestamp,
+        title: record.event.replacingOccurrences(of: ".", with: " ").capitalized,
+        detail: record.detail, severity: severity)
+    }
+    return Array((hubEvents + auditEvents).sorted { $0.timestamp > $1.timestamp }.prefix(50))
   }
 
   var pairingInvitationToken: String? {
@@ -84,6 +125,7 @@ final class ControllerStore {
     hubRefreshTask = Task { [weak self] in
       guard let self else { return }
       do {
+        presenceNow = Date()
         applyHubStatus(try await hubClient.status())
         hubStatusMessage = "Local hub ready · TLS 1.3 · Authenticated IPC"
       } catch {
@@ -95,6 +137,7 @@ final class ControllerStore {
         try? await Task.sleep(for: .seconds(5))
         guard !Task.isCancelled else { break }
         do {
+          presenceNow = Date()
           let status = try await hubClient.statusIfRunning()
           // Presence is derived from lastSeen plus the current time. Publish every sample even
           // when the stored payload is equal so Online can age into Offline without a click.
@@ -292,10 +335,136 @@ final class ControllerStore {
     do {
       try database.saveSchedule(schedule)
       storageSnapshot = try database.storageSnapshot()
-      scheduleStatusMessage = "Saved locally as a preview. No endpoint policy was sent."
+      guard let device = selectedPairedDevice else {
+        scheduleStatusMessage = "Saved locally. Pair and select a macOS child device to apply it."
+        return
+      }
+      scheduleStatusMessage = "Signing policy for \(device.name)…"
+      publishPolicy(to: device.id)
     } catch {
       scheduleStatusMessage = "The schedule could not be saved: \(error)"
     }
+  }
+
+  func grantBonus(request: MoreTimeRequestRecord) {
+    guard request.state == .pending, !resolvingTimeRequestIDs.contains(request.id) else { return }
+    resolvingTimeRequestIDs.insert(request.id)
+    schedule.approveRequestedTime(minutes: request.requestedMinutes)
+    do { try database.saveSchedule(schedule) } catch {
+      resolvingTimeRequestIDs.remove(request.id)
+      scheduleStatusMessage = "Bonus time could not be saved: \(error)"
+      return
+    }
+    publishPolicy(to: request.deviceID, resolvingRequest: request)
+  }
+
+  func rejectBonus(request: MoreTimeRequestRecord) {
+    guard request.state == .pending, !resolvingTimeRequestIDs.contains(request.id) else { return }
+    resolvingTimeRequestIDs.insert(request.id)
+    Task {
+      do {
+        applyHubStatus(
+          try await hubClient.resolveTimeRequest(
+            requestID: request.id, deviceID: request.deviceID, decision: .rejected))
+        scheduleStatusMessage = "The time request was rejected and the child was notified."
+      } catch {
+        scheduleStatusMessage = "The time request could not be rejected: \(error)"
+      }
+      resolvingTimeRequestIDs.remove(request.id)
+    }
+  }
+
+  func sendImmediateAction(deviceID: String, action: PolicyAction, confirmed: Bool) {
+    policyActionStatusMessage = "Sending authenticated \(action.rawValue) request…"
+    Task {
+      do {
+        applyHubStatus(
+          try await hubClient.sendAction(
+            deviceID: deviceID, action: action, confirmed: confirmed))
+        policyActionStatusMessage =
+          action == .lock
+          ? "Lock request sent. Apps remain open and unsaved work is not discarded."
+          : "\(action.rawValue.capitalized) request sent with a macOS confirmation dialog."
+      } catch {
+        policyActionStatusMessage = "Action was not sent: \(error)"
+      }
+    }
+  }
+
+  private func publishPolicy(
+    to deviceID: String, resolvingRequest: MoreTimeRequestRecord? = nil
+  ) {
+    guard let policy = makePolicy(deviceID: deviceID) else {
+      if let resolvingRequest { resolvingTimeRequestIDs.remove(resolvingRequest.id) }
+      scheduleStatusMessage = "The schedule could not be converted to a signed policy."
+      return
+    }
+    let code = generateAdultCode()
+    let salt = UUID().uuidString
+    let digest = Data(
+      SHA256.hash(data: Data("adult-code|\(salt)|\(code)".utf8))
+    ).base64EncodedString()
+    Task {
+      do {
+        applyHubStatus(try await hubClient.applyPolicy(policy))
+        applyHubStatus(
+          try await hubClient.rotateAdultVerifier(
+            deviceID: deviceID, salt: salt, digest: digest))
+        if let resolvingRequest {
+          applyHubStatus(
+            try await hubClient.resolveTimeRequest(
+              requestID: resolvingRequest.id, deviceID: resolvingRequest.deviceID,
+              decision: .approved))
+          resolvingTimeRequestIDs.remove(resolvingRequest.id)
+        }
+        adultOverrideCode = code
+        scheduleStatusMessage =
+          resolvingRequest == nil
+          ? "Signed policy version \(policy.version) queued for the selected device."
+          : "More time approved; the signed policy and child status update were queued."
+      } catch {
+        if let resolvingRequest { resolvingTimeRequestIDs.remove(resolvingRequest.id) }
+        scheduleStatusMessage = "The signed policy could not be applied: \(error)"
+      }
+    }
+  }
+
+  private func makePolicy(deviceID: String) -> ParentalControlPolicy? {
+    let windows = schedule.windows.filter(\.isEnabled).compactMap { window -> PolicyWeeklyWindow? in
+      guard let day = PolicyWeekday(rawValue: window.day.title) else { return nil }
+      return PolicyWeeklyWindow(day: day, start: window.startLabel, end: window.endLabel)
+    }
+    guard let action = PolicyAction(rawValue: schedule.action.rawValue), !windows.isEmpty else {
+      return nil
+    }
+    let version = UInt64(max(1, (Date().timeIntervalSince1970 * 1_000).rounded()))
+    return ParentalControlPolicy(
+      version: version, deviceID: deviceID, timezone: schedule.timezone,
+      effectiveAt: Date(), expiresAt: Date().addingTimeInterval(366 * 86_400),
+      defaultAction: action,
+      warningOffsetsMinutes: Array(Set([schedule.warningMinutes, 5, 1])).sorted(by: >),
+      gracePeriodSeconds: schedule.gracePeriodSeconds, weeklyAllowed: windows,
+      exceptions: schedule.bonusUntil.flatMap { until in
+        until > Date()
+          ? [
+            PolicyException(
+              start: Date().addingTimeInterval(-5), end: until, decision: .allow,
+              reason: "Parent-approved time extension")
+          ] : nil
+      } ?? [],
+      dailyQuotaMinutes: schedule.dailyQuotaMinutes, bonusMinutes: schedule.bonusMinutes,
+      childExplanation: "Available during family-approved hours; ask a parent for more time.",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+  }
+
+  private func generateAdultCode() -> String {
+    var random: UInt32 = 0
+    if SecRandomCopyBytes(kSecRandomDefault, MemoryLayout.size(ofValue: random), &random)
+      != errSecSuccess
+    {
+      random = UInt32(Date().timeIntervalSince1970) ^ UInt32.random(in: 0...UInt32.max)
+    }
+    return String(format: "%06u", random % 1_000_000)
   }
 
   func refreshStorageSnapshot() {

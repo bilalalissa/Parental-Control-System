@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-VERSION="0.5.0-rc.9"
-STAGING="$ROOT_DIR/.artifacts/package-staging/stage-05"
+VERSION="0.6.0-rc.9"
+STAGING="$ROOT_DIR/.artifacts/package-staging/stage-06"
 COMPONENTS="$STAGING/component-packages"
 CHILD_PAYLOAD="$STAGING/child-payload"
 CHILD_SCRIPTS="$STAGING/child-scripts"
@@ -60,17 +60,19 @@ cp "$ROOT_DIR/browser-extensions/webextension/native-host-manifest.json" \
 cp "$ROOT_DIR/browser-extensions/webextension/native-host-manifest.json" \
   "$CHILD_PAYLOAD/Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json"
 cp "$ROOT_DIR/agents/endpoint-macos/Installer/postinstall" "$CHILD_SCRIPTS/postinstall"
+cp "$ROOT_DIR/agents/endpoint-macos/Installer/preinstall" "$CHILD_SCRIPTS/preinstall"
 cp "$ROOT_DIR/agents/endpoint-macos/Installer/Distribution.xml" "$STAGING/Distribution.xml"
 cp "$ROOT_DIR/agents/endpoint-macos/Installer/Welcome.html" "$RESOURCES/Welcome.html"
 chmod 755 \
   "$CHILD_SCRIPTS/postinstall" \
+  "$CHILD_SCRIPTS/preinstall" \
   "$CHILD_PAYLOAD/Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon" \
   "$CHILD_PAYLOAD/usr/local/bin/parental-control-agentctl"
 
 retry "controller pkgbuild" /usr/bin/pkgbuild \
   --root "$CONTROLLER_PAYLOAD" \
   --identifier com.bilalalissa.ParentalControlController.component \
-  --version 0.5.0.9 \
+  --version 0.6.0.9 \
   --install-location / \
   --ownership recommended \
   "$COMPONENTS/ParentalControlController.pkg"
@@ -79,7 +81,7 @@ retry "child pkgbuild" /usr/bin/pkgbuild \
   --root "$CHILD_PAYLOAD" \
   --scripts "$CHILD_SCRIPTS" \
   --identifier com.bilalalissa.ParentalControlChild.component \
-  --version 0.5.0.9 \
+  --version 0.6.0.9 \
   --install-location / \
   --ownership recommended \
   "$COMPONENTS/ParentalControlChild.pkg"
@@ -100,6 +102,40 @@ test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Microsoft/Edge/Nativ
 rm -rf -- "$EXPANDED"
 /usr/bin/shasum -a 256 "$PKG" > "$CHECKSUM"
 rm -f -- \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.8.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.8.pkg.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.8.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.8.zip.sha256" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.7.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.7.pkg.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.7.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.7.zip.sha256" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.6.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.6.pkg.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.6.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.6.zip.sha256" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.5.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.5.pkg.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.5.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.5.zip.sha256" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.4.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.4.pkg.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.4.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.4.zip.sha256" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.3.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.3.pkg.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.3.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.3.zip.sha256" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.2.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.2.pkg.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.2.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.2.zip.sha256" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.1.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.0-rc.1.pkg.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.1.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.1.zip.sha256" \
+  "$RC_DIR/ParentalControlSystem-0.5.0-rc.9.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.5.0-rc.9.pkg.sha256" \
   "$RC_DIR/ParentalControlSystem-0.5.0-rc.8.pkg" \
   "$RC_DIR/ParentalControlSystem-0.5.0-rc.8.pkg.sha256" \
   "$RC_DIR/ParentalControlBrowserSharing-0.5.0-rc.8.zip" \

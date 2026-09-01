@@ -45,10 +45,13 @@ struct EndpointCoreTests {
       initial: DeviceSnapshotCollector.collect(deviceID: configuration.deviceID))
     let logDirectory = root.appendingPathComponent("logs")
     let deviceIdentity = try Ed25519Identity(keyID: "device-\(configuration.deviceID)")
+    let policyRuntime = EndpointPolicyRuntime(
+      root: store.root, deviceID: configuration.deviceID,
+      controllerPublicKey: invitation.controllerPublicKey)
     let agent = try EndpointAgent(
       store: store, repository: repository,
       log: BoundedLog(directory: logDirectory),
-      suppliedIdentity: deviceIdentity)
+      suppliedIdentity: deviceIdentity, policyRuntime: policyRuntime)
     defer { agent.stop() }
     try agent.start()
     let pairingResult = paired.wait(timeout: .now() + 8)
@@ -89,6 +92,18 @@ struct EndpointCoreTests {
       })
     #expect(try database.chatMessages().contains { !$0.isFromParent && $0.text == "Child reply" })
     #expect(try database.moreTimeRequests().first?.requestedMinutes == 20)
+    if let request = try database.moreTimeRequests().first {
+      try hub.resolveTimeRequest(
+        id: request.id, deviceID: configuration.deviceID, decision: .rejected)
+      let resolutionDeadline = Date().addingTimeInterval(3)
+      while Date() < resolutionDeadline,
+        repository.dashboard().latestTimeRequest?.state != .rejected
+      {
+        Thread.sleep(forTimeInterval: 0.02)
+      }
+      #expect(repository.dashboard().latestTimeRequest?.state == .rejected)
+      #expect(policyRuntime.claimUserEvents().contains(.timeRequestRejected(minutes: 20)))
+    }
     try hub.editParentChatMessage(id: parentMessageID, text: "Corrected family announcement")
     let editDeadline = Date().addingTimeInterval(3)
     while Date() < editDeadline,
@@ -111,6 +126,23 @@ struct EndpointCoreTests {
     #expect(
       repository.dashboard(markRead: false).messages.first { $0.id == parentMessageID }?.displayText
         == "Message deleted")
+    let policyVersion = UInt64(Date().timeIntervalSince1970 * 1_000)
+    _ = try hub.applyPolicy(
+      ParentalControlPolicy(
+        version: policyVersion, deviceID: configuration.deviceID, timezone: "UTC",
+        effectiveAt: Date().addingTimeInterval(-60), defaultAction: .lock,
+        warningOffsetsMinutes: [15, 5, 1], gracePeriodSeconds: 60,
+        weeklyAllowed: PolicyWeekday.allCases.map {
+          PolicyWeeklyWindow(day: $0, start: "00:00", end: "23:59")
+        }, dailyQuotaMinutes: 1_440, childExplanation: "Synthetic integration policy",
+        signature: PolicySignature(
+          keyID: "controller-local-authority", value: "unsigned")))
+    let policyDeadline = Date().addingTimeInterval(3)
+    while policyRuntime.snapshot().0?.version != policyVersion, Date() < policyDeadline {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(policyRuntime.snapshot().0?.version == policyVersion)
+    #expect(try database.counts().receipts > 0)
     let deviceBeforeRestart = try database.device(id: configuration.deviceID)
     let sequenceBeforeRestart = try #require(deviceBeforeRestart).lastSequence
     agent.stop()
@@ -134,7 +166,7 @@ struct EndpointCoreTests {
     let restartedAgent = try EndpointAgent(
       store: store, repository: repository,
       log: BoundedLog(directory: logDirectory), suppliedIdentity: deviceIdentity,
-      pairedControllerPort: restartedPort)
+      policyRuntime: policyRuntime, pairedControllerPort: restartedPort)
     defer { restartedAgent.stop() }
     try restartedAgent.start()
     let reconnectDeadline = Date().addingTimeInterval(5)
@@ -165,18 +197,52 @@ struct EndpointCoreTests {
     #expect(EndpointAgent.connectionPort(for: EndpointConfiguration()) == nil)
   }
 
+  @Test("in-place upgrades preserve endpoint identity and pairing configuration")
+  func upgradePreservesPairingConfiguration() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+      UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let controller = PairingInvitation(
+      code: "", expiresAt: .distantFuture, host: "parent.local",
+      port: SecureWebSocketServer.parentControlPort,
+      certificateFingerprint: String(repeating: "a", count: 64),
+      controllerPublicKey: Data(repeating: 7, count: 32))
+    let original = EndpointConfiguration(
+      deviceID: "upgrade-stable-device", pairedController: controller, sequence: 42,
+      activityCollectionEnabled: true, activityRetentionDays: 7,
+      browserCollectionEnabled: true, browserRetentionDays: 7)
+    try ProtectedConfigurationStore(root: root).save(original)
+
+    // Reopening the store models a replacement package starting the new daemon against the
+    // existing protected Application Support directory. Upgrade must never mint a new device.
+    let reloaded = try ProtectedConfigurationStore(root: root).load()
+
+    #expect(reloaded == original)
+    #expect(reloaded.deviceID == "upgrade-stable-device")
+    #expect(reloaded.pairedController == controller)
+  }
+
   @Test("reconnects immediately after loss, then bounds short retries")
   func boundedWakeReconnect() {
     var policy = EndpointReconnectPolicy()
 
-    #expect(policy.timerFired(connectionState: .online) == .wait(60))
+    #expect(policy.timerFired(connectionState: .online) == .wait(15))
     #expect(policy.establishedConnectionLost() == 0)
     #expect(policy.timerFired(connectionState: .offline) == .connect(retryAfter: 2))
     #expect(policy.timerFired(connectionState: .connecting) == .connect(retryAfter: 2))
     #expect(policy.timerFired(connectionState: .offline) == .connect(retryAfter: 2))
     #expect(policy.timerFired(connectionState: .offline) == .wait(60))
     #expect(policy.timerFired(connectionState: .offline) == .connect(retryAfter: 2))
-    #expect(policy.timerFired(connectionState: .online) == .wait(60))
+    #expect(policy.timerFired(connectionState: .online) == .wait(15))
+    let now = Date()
+    #expect(
+      policy.timerFired(
+        connectionState: .online, lastControllerContact: now.addingTimeInterval(-91), now: now)
+        == .reconnect)
+    #expect(
+      policy.timerFired(
+        connectionState: .online, lastControllerContact: now.addingTimeInterval(10), now: now)
+        == .reconnect)
   }
 
   @Test("device snapshots are bounded and contain truthful platform data")
@@ -185,8 +251,27 @@ struct EndpointCoreTests {
     #expect(value.deviceID == "synthetic-device")
     #expect(!value.operatingSystem.isEmpty)
     #expect(!value.architecture.isEmpty)
-    #expect(value.networks.count <= 16)
+    #expect(value.networks.count <= 8)
     #expect(value.networks.allSatisfy { $0.addresses.count <= 8 })
+    #expect(value.networks.allSatisfy { HubNetworkInterface.isPhysicalInterface($0.interface) })
+    #expect(
+      value.networks.flatMap(\.addresses).allSatisfy {
+        HubNetworkInterface.sanitizedLocalAddress($0) != nil
+      })
+    #expect(
+      value.networks.compactMap(\.macAddress).allSatisfy {
+        HubNetworkInterface.normalizedMAC($0) != nil
+      })
+  }
+
+  @Test("session activation is reported only on a real transition")
+  func sessionActivationTransition() {
+    let repository = EndpointStatusRepository(
+      initial: DeviceSnapshotCollector.collect(deviceID: "synthetic-session"))
+    #expect(repository.applySession(SessionUpdate(state: .active, consoleUser: "child")))
+    #expect(!repository.applySession(SessionUpdate(state: .active, consoleUser: "child")))
+    #expect(!repository.applySession(SessionUpdate(state: .inactive, consoleUser: "child")))
+    #expect(repository.applySession(SessionUpdate(state: .active, consoleUser: "child")))
   }
 
   @Test("protected configuration is mode 0700 with mode 0600 contents")
@@ -238,6 +323,14 @@ struct EndpointCoreTests {
       XPCAuthorization.allows(
         uid: 501, signingIdentifier: EndpointMachService.helperIdentifier,
         operation: "session-update"))
+    #expect(
+      XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.helperIdentifier,
+        operation: "policy-events"))
+    #expect(
+      !XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.childIdentifier,
+        operation: "policy-events"))
     #expect(
       !XPCAuthorization.allows(
         uid: 0, signingIdentifier: EndpointMachService.helperIdentifier, operation: "status"))

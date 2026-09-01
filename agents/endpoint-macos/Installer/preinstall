@@ -1,0 +1,20 @@
+#!/bin/bash
+set -euo pipefail
+
+TARGET_VOLUME="${3:-/}"
+SUPPORT="$TARGET_VOLUME/Library/Application Support/ParentalControlAgent"
+CONFIGURATION="$SUPPORT/configuration.json"
+INSTALLED_DAEMON="$TARGET_VOLUME/Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon"
+BRIDGE="$SUPPORT/.rc5-daemon-upgrade"
+RC5_DAEMON_SHA256="0bb256f6135e59e5b217d11894d9848c6f64529ec5dccd6c4c0d14d853b52a66"
+
+/bin/rm -f -- "$BRIDGE"
+if [[ -f "$CONFIGURATION" && -x "$INSTALLED_DAEMON" ]]; then
+  INSTALLED_SHA256="$(/usr/bin/shasum -a 256 "$INSTALLED_DAEMON" | /usr/bin/awk '{print $1}')"
+  if [[ "$INSTALLED_SHA256" == "$RC5_DAEMON_SHA256" ]]; then
+    /bin/mkdir -p "$SUPPORT"
+    /bin/cp -p "$INSTALLED_DAEMON" "$BRIDGE"
+    /usr/sbin/chown root:wheel "$BRIDGE"
+    /bin/chmod 700 "$BRIDGE"
+  fi
+fi

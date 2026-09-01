@@ -2,6 +2,64 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.0-rc.9 — 2026-08-31
+
+Status: **STAGE-06 merged; unreleased**
+
+- Recreates the visible per-user child helper registration after an in-place package upgrade instead of retaining a stale interrupted launchd job.
+- Reconnects authenticated local XPC clients after the privileged child daemon is restarted, restoring session reporting and durable allowlisted action delivery without re-pairing.
+- Strengthens the disposable package-upgrade check to require a healthy helper and a real graphical session report after both a double install and an isolated daemon restart.
+- Preserves the endpoint identity, signed policy, pairing, current browser-profile extension installation, and all existing Stage-06 scope boundaries.
+- Approved after physical-device retesting with the exact command `APPROVED: STAGE-06 0.6.0-rc.9` on 2026-09-01; approval does not imply merge or release.
+- Separately authorized for merge with the exact command `MERGE` on 2026-09-01; no release or later-stage work is implied.
+
+## 0.6.0-rc.5 — 2026-08-30
+
+Status: **STAGE-06 ready for developer retest**
+
+- Drives Parent presence from an observable five-second clock so a child with no fresh authenticated heartbeat ages from Online to Offline after the existing 75-second threshold without requiring navigation.
+- Migrates pending requests for revoked, unpaired, or replaced device identities to non-actionable history and defensively excludes them from global and per-device badges.
+- Bounds the Parent navigation sidebar, paired-device list, detail pane, and minimum window width so divider resizing preserves labels and cannot consume the detail pane.
+- Retains all rc.4 schedule, request-decision, reconnect, enforcement, and appearance behavior; no network-filtering or later-stage capability was added.
+
+## 0.6.0-rc.4 — 2026-08-30
+
+Status: **STAGE-06 ready for developer retest**
+
+- Coalesces repeated child time requests so only the newest pending request contributes to the Devices badge, and adds explicit authenticated approval or rejection with durable child-visible status.
+- Ages presence defensively, rejects implausible future timestamps, and makes the endpoint reconnect after stale controller contact instead of remaining attached to a dead connection.
+- Re-arms an active signed schedule restriction when the graphical child session becomes active after login or unlock; the app does not replace or bypass macOS login authentication.
+- Adds system-adaptive Light and Dark appearances with explicit System, Light, and Dark choices in both visible apps.
+- Continues to defer app/site/IP filtering and timed Internet pause until a separately approved privileged filtering design includes authorization, recovery, audit, and controller-connectivity safeguards.
+
+## 0.6.0-rc.3 — 2026-08-27
+
+Status: **STAGE-06 ready for developer retest**
+
+- Adds Devices and per-device pending-time-request badges that clear only after the controller queues a signed grant and acknowledges the request.
+- Adds a live child restriction countdown in the visible app and a persistent, visible menu-bar helper; the existing generic pre-enforcement panel remains in place.
+- Shows only bounded private/link-local addresses and available non-zero MAC addresses from physical `enN` interfaces, stored locally and labeled informational rather than identity.
+- Keeps the visible login helper alive in the graphical session and makes the installed child bundle root-owned and non-writable by standard users; an authorized administrator can still uninstall it.
+- Defers app/site blocking and timed internet pausing because those are separately approved, higher-impact enforcement features.
+
+## 0.6.0-rc.2 — 2026-08-27
+
+Status: **STAGE-06 ready for developer retest**
+
+- Replaces the root-daemon-to-login-helper transient enforcement handoff with a bounded, persisted, authenticated XPC event queue plus a systemwide wake signal, so warnings and actions survive helper timing and restart races.
+- Evaluates accepted direct actions promptly and adds a visible grace warning when a newly applied schedule is already restrictive.
+- Converts approved child time requests into a signed, expiring allow interval and gives the child visible local confirmation; macOS remains responsible for authentication and unlocking.
+
+## 0.6.0-rc.1 — 2026-08-26
+
+Status: **STAGE-06 ready for developer test**
+
+- Adds canonical Ed25519-signed per-device schedules with deterministic IANA-time-zone evaluation, precedence golden tests, version replay/tamper rejection, and root-protected offline persistence.
+- Adds bounded warnings and grace, daily active-session quota, bonus revisions, protected six-digit adult override with three-attempt/five-minute lockout, clock-change fail-closed behavior, and sleep/reboot continuity.
+- Adds allowlisted Lock, Log Out, Restart, and Shut Down requests with capability checks, expiry, receipts, content-free audit records, parent confirmation for high-impact actions, and no force behavior.
+- Adds visible parent schedule/action controls and a read-only child policy/override view. Lock preserves applications; loginwindow confirmation dialogs preserve macOS unsaved-work handling for logoff/restart/shutdown.
+- Retains the Stage-05 visible extension and packages a current-version companion ZIP for clean-install developer testing; no browser permissions or collection scope changed.
+
 ## 0.5.0-rc.9 — 2026-08-26
 
 Status: **STAGE-05 merged after developer physical retest and approval**

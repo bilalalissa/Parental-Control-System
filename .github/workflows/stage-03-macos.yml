@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: stage-05-macos-${{ github.ref }}
+  group: stage-06-macos-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -26,8 +26,8 @@ jobs:
     timeout-minutes: 30
     env:
       SWIFT_WORKERS: "2"
-      CLANG_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-05/module-cache
-      SWIFT_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-05/module-cache
+      CLANG_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-06/module-cache
+      SWIFT_MODULE_CACHE_PATH: ${{ github.workspace }}/.artifacts/derived-data/stage-06/module-cache
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -76,10 +76,10 @@ jobs:
         run: swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests
       - name: Test controller and hub
         if: steps.scope.outputs.build == 'true'
-        run: swift test --disable-sandbox --package-path apps/controller-macos --scratch-path "$PWD/.artifacts/derived-data/stage-05/controller-tests" --jobs "$SWIFT_WORKERS"
+        run: swift test --disable-sandbox --package-path apps/controller-macos --scratch-path "$PWD/.artifacts/derived-data/stage-06/controller-tests" --jobs "$SWIFT_WORKERS"
       - name: Test endpoint core
         if: steps.scope.outputs.build == 'true'
-        run: swift test --disable-sandbox --package-path agents/endpoint-macos --scratch-path "$PWD/.artifacts/derived-data/stage-05/endpoint-tests" --jobs "$SWIFT_WORKERS"
+        run: swift test --disable-sandbox --package-path agents/endpoint-macos --scratch-path "$PWD/.artifacts/derived-data/stage-06/endpoint-tests" --jobs "$SWIFT_WORKERS"
       - name: Build selectable system installer
         if: steps.scope.outputs.build == 'true'
         run: ./script/package_endpoint_release.sh
@@ -93,40 +93,62 @@ jobs:
       - name: Verify selectable package choices
         if: steps.scope.outputs.build == 'true'
         run: |
-          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.9.pkg" -target / | /usr/bin/plutil -lint -
-          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.9.pkg" || true
-          /usr/bin/unzip -t ".artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.9.zip"
+          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg" -target / | /usr/bin/plutil -lint -
+          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg" || true
+          /usr/bin/unzip -t ".artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.9.zip"
       - name: Install default parent choice
         if: steps.scope.outputs.build == 'true'
         run: |
           sudo /usr/sbin/installer \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.9.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg" \
             -target /
           test -x "/Applications/Parental Control.app/Contents/MacOS/ParentalControlController"
           test ! -e "/Applications/Parental Control Child.app"
           /usr/bin/codesign --verify --deep --strict "/Applications/Parental Control.app"
           sudo /bin/rm -rf -- "/Applications/Parental Control.app"
           sudo /usr/sbin/pkgutil --forget com.bilalalissa.ParentalControlController.component >/dev/null
-      - name: Install, diagnose, and uninstall child choice
+      - name: Install, verify upgrade persistence, and uninstall child choice
         if: steps.scope.outputs.build == 'true'
         run: |
           sudo /usr/sbin/installer \
             -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.9.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg" \
             -target /
           console_user="$(/usr/bin/stat -f '%Su' /dev/console)"
           console_user_home="$(/usr/bin/dscl . -read "/Users/$console_user" NFSHomeDirectory | /usr/bin/awk '{print $2}')"
           status_ok=false
-          for attempt in 1 2 3; do
-            if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status.json; then
+          for attempt in {1..12}; do
+            if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status.json && \
+              node -e 'const s = JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status.json", "utf8")); if (s.helperHealthy !== true || s.sessionState === "unknown") process.exit(1)'; then
               status_ok=true
               break
             fi
-            if [[ "$attempt" != 3 ]]; then sleep 2; fi
+            if [[ "$attempt" != 12 ]]; then sleep 2; fi
           done
           status_exit=0
           if [[ "$status_ok" == true ]]; then
-            node -e 'const fs = require("node:fs"); const status = JSON.parse(fs.readFileSync(".artifacts/endpoint-status.json", "utf8")); if (status.daemonHealthy !== true || status.connectionState !== "unpaired" || !status.deviceID || status.activityCollectionEnabled !== true || status.activityRetentionDays !== 7 || status.browserCollectionEnabled !== false || status.browserRetentionDays !== 7 || status.browserTabs.length !== 0) process.exit(1)'
+            node -e 'const fs = require("node:fs"); const status = JSON.parse(fs.readFileSync(".artifacts/endpoint-status.json", "utf8")); if (status.daemonHealthy !== true || status.helperHealthy !== true || status.sessionState === "unknown" || status.connectionState !== "unpaired" || !status.deviceID || status.activityCollectionEnabled !== true || status.activityRetentionDays !== 7 || status.browserCollectionEnabled !== false || status.browserRetentionDays !== 7 || status.browserTabs.length !== 0) process.exit(1)'
+            first_device_id="$(node -p 'JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status.json", "utf8")).deviceID')"
+            # Verify child in-place upgrade preserves endpoint identity and protected state.
+            if ! sudo /usr/sbin/installer \
+              -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
+              -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg" \
+              -target /; then
+              sudo /usr/bin/tail -n 200 /var/log/install.log || true
+              exit 1
+            fi
+            upgrade_status_ok=false
+            for attempt in {1..12}; do
+              if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status-upgrade.json && \
+                node -e 'const s = JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status-upgrade.json", "utf8")); if (s.helperHealthy !== true || s.sessionState === "unknown") process.exit(1)'; then
+                upgrade_status_ok=true
+                break
+              fi
+              if [[ "$attempt" != 12 ]]; then sleep 2; fi
+            done
+            test "$upgrade_status_ok" = true
+            second_device_id="$(node -p 'JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status-upgrade.json", "utf8")).deviceID')"
+            test "$first_device_id" = "$second_device_id"
             /bin/launchctl print system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null
             helper_ok=false
             for attempt in 1 2 3; do
@@ -142,10 +164,31 @@ jobs:
               /usr/bin/log show --style compact --last 10m \
                 --predicate 'process == "ParentalControlAgentUser"' || true
             fi
+            # Restart only the daemon while leaving the GUI helper alive. Its XPC client must
+            # recreate an invalidated connection and publish a fresh session observation.
+            sudo /bin/launchctl kickstart -k system/com.bilalalissa.ParentalControlAgent.daemon
+            reconnect_ok=false
+            for attempt in {1..12}; do
+              if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status-reconnect.json && \
+                node -e 'const s = JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status-reconnect.json", "utf8")); if (s.helperHealthy !== true || s.sessionState === "unknown") process.exit(1)'; then
+                reconnect_ok=true
+                break
+              fi
+              if [[ "$attempt" != 12 ]]; then sleep 2; fi
+            done
+            if [[ "$reconnect_ok" != true ]]; then
+              status_exit=1
+              /bin/launchctl print "gui/$(/usr/bin/id -u "$console_user")/com.bilalalissa.ParentalControlAgent.user" || true
+              /usr/bin/log show --style compact --last 10m \
+                --predicate 'process == "ParentalControlAgentUser" OR process == "ParentalControlAgentDaemon"' || true
+            fi
             test -x "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost"
             test -f "/Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json"
             test -f "/Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json"
             test -f "$console_user_home/Library/Application Support/Arc/User Data/NativeMessagingHosts/com.bilalalissa.parental_control.json"
+            # The child upgrade updates the native host in place and never removes or edits
+            # browser-profile extension state, so no extension reinstall/reload is required.
+            node -e 'const fs = require("node:fs"); for (const path of ["/Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json", "/Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json"]) { const manifest = JSON.parse(fs.readFileSync(path, "utf8")); if (manifest.name !== "com.bilalalissa.parental_control" || !manifest.path.endsWith("/ParentalControlBrowserHost") || manifest.allowed_origins.length !== 1 || manifest.allowed_origins[0] !== "chrome-extension://pdcjgejgdjomjjemejhjhmdkcabkidmi/") process.exit(1); }'
           else
             status_exit=1
             sudo /bin/launchctl print system/com.bilalalissa.ParentalControlAgent.daemon || true
@@ -190,12 +233,12 @@ jobs:
         if: steps.scope.outputs.build == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ParentalControlSystem-0.5.0-rc.9
+          name: ParentalControlSystem-0.6.0-rc.9
           path: |
-            .artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.9.pkg
-            .artifacts/release-candidate/ParentalControlSystem-0.5.0-rc.9.pkg.sha256
-            .artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.9.zip
-            .artifacts/release-candidate/ParentalControlBrowserSharing-0.5.0-rc.9.zip.sha256
+            .artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg
+            .artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg.sha256
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.9.zip
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.9.zip.sha256
           if-no-files-found: error
           retention-days: 7
       - name: Clean project-owned generated output
