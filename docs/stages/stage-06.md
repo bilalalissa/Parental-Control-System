@@ -66,7 +66,7 @@ Resource limits are one checkout, one stage branch, two build workers, sequentia
 - `ParentalControlBrowserSharing-0.6.0-rc.9.zip`: SHA-256 `c62b1f874107f68513ac48cb34f202c2770f861827ea0f12e7fe54a2ac2567d1`; ZIP integrity and its exact eight expected extension files passed; its manifest is `0.6.0-rc.9`, retains the stable public key/extension identifier, and contains no signing-key file extensions.
 - The existing local hub database was inspected only through aggregate read-only queries: it contained four pending rows for no active paired identity and zero pending rows for the active pairing. This reproduced the stuck count without exposing device IDs or request contents; the rc.5 migration and store-level filter both have focused regressions.
 - The prior rc.4 isolated unpaired-daemon measurement remains the current Stage-06 runtime evidence: 6.03 seconds elapsed, 0.00 seconds user CPU, 0.00 seconds system CPU, 14,811,136-byte maximum resident set size, and no swaps. RC9 changes only failure-path XPC connection recreation and package-time GUI-helper registration; it does not add a polling loop.
-- The existing draft pull request is updated on the same Stage-06 branch. RC9 remote CI is reported separately after the pushed commit finishes; no result is claimed before it completes.
+- Draft PR #7 is updated on the same Stage-06 branch. The rc.9 macOS build/install/upgrade/reconnect/uninstall workflow passed in run `33471390385`; contracts plus POSIX and Windows cleanup-safety checks passed in run `33471390376`.
 - Physical-device installation, policy timing, warning UI, OS confirmation dialogs, sleep/reboot, and offline enforcement remain developer-test evidence and are not claimed by local automation.
 
 ## Clean-install developer checklist
