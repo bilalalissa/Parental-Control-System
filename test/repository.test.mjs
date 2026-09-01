@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06-macos-policy-enforcement");
-  assert.equal(active[0].version, "0.6.0-rc.8");
+  assert.equal(active[0].version, "0.6.0-rc.9");
 });
 
 test("Stage 04 installer defaults to the parent and offers an explicit child choice", async () => {
@@ -60,6 +60,7 @@ test("Stage 04 keeps the visible helper alive and refreshes its launch registrat
   assert.match(launchAgent, /<key>KeepAlive<\/key>/);
   assert.match(launchAgent, /<key>KeepAlive<\/key><true\/>/);
   assert.match(postinstall, /for attempt in 1 2 3/);
+  assert.match(postinstall, /launchctl bootout "\$USER_SERVICE"/);
   assert.match(postinstall, /launchctl bootstrap "gui\/\$CONSOLE_UID"/);
   assert.match(postinstall, /launchctl kickstart -k "\$USER_SERVICE"/);
   const rc5Daemon = /0bb256f6135e59e5b217d11894d9848c6f64529ec5dccd6c4c0d14d853b52a66/;
@@ -164,8 +165,8 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
     read("agents/endpoint-macos/Sources/EndpointCore/BrowserNativeMessaging.swift"),
   ]);
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.6.0.8");
-  assert.equal(manifest.version_name, "0.6.0-rc.8");
+  assert.equal(manifest.version, "0.6.0.9");
+  assert.equal(manifest.version_name, "0.6.0-rc.9");
   assert.deepEqual(manifest.permissions.sort(), ["alarms", "nativeMessaging", "storage", "tabs"]);
   for (const forbidden of ["history", "webRequest", "cookies", "downloads", "debugger"])
     assert.ok(!manifest.permissions.includes(forbidden));
@@ -178,17 +179,26 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /configuration\.browser \|\| browser/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.0-rc\.8\.zip"/);
+  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.0-rc\.9\.zip"/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
   assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
   assert.match(postinstall, /Arc\/User Data\/NativeMessagingHosts/);
   assert.match(postinstall, /launchctl print "\$DAEMON_SERVICE"/);
   assert.match(postinstall, /launchctl kickstart -k "\$DAEMON_SERVICE"/);
-  assert.doesNotMatch(postinstall, /launchctl bootout/);
+  assert.doesNotMatch(postinstall, /launchctl bootout system/);
   assert.doesNotMatch(postinstall, /(?:Chrome|Edge|Arc)[^\n]*Extensions\//);
   assert.match(authorization, /company\.thebrowser\.Browser/);
   assert.match(authorization, /S6N382Y83G/);
+});
+
+test("endpoint XPC clients reconnect after the privileged daemon is replaced", async () => {
+  const xpc = await read("agents/endpoint-macos/Sources/EndpointCore/EndpointXPC.swift");
+  assert.match(xpc, /next\.interruptionHandler/);
+  assert.match(xpc, /next\.invalidationHandler/);
+  assert.match(xpc, /private func discard\(_ candidate: NSXPCConnection\)/);
+  assert.match(xpc, /private func remoteProxy/);
+  assert.doesNotMatch(xpc, /private let connection: NSXPCConnection/);
 });
 
 test("Stage 05 chat feedback uses system-controlled audio, unread badges, and explicit read visibility", async () => {
@@ -389,7 +399,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–05 are merged; STAGE-06 `0\.6\.0-rc\.8` is being prepared for developer retesting/);
+  assert.match(readme, /Stages 00–05 are merged; STAGE-06 `0\.6\.0-rc\.9` is being prepared for developer retesting/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);

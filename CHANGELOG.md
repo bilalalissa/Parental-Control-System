@@ -2,6 +2,15 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.0-rc.9 — 2026-08-31
+
+Status: **STAGE-06 ready for developer retest**
+
+- Recreates the visible per-user child helper registration after an in-place package upgrade instead of retaining a stale interrupted launchd job.
+- Reconnects authenticated local XPC clients after the privileged child daemon is restarted, restoring session reporting and durable allowlisted action delivery without re-pairing.
+- Strengthens the disposable package-upgrade check to require a healthy helper and a real graphical session report after both a double install and an isolated daemon restart.
+- Preserves the endpoint identity, signed policy, pairing, current browser-profile extension installation, and all existing Stage-06 scope boundaries.
+
 ## 0.6.0-rc.5 — 2026-08-30
 
 Status: **STAGE-06 ready for developer retest**

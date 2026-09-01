@@ -61,22 +61,26 @@ if [[ "$TARGET_VOLUME" == "/" ]]; then
       /bin/chmod 644 "$ARC_HOST_DIRECTORY/com.bilalalissa.parental_control.json"
     fi
     USER_SERVICE="gui/$CONSOLE_UID/com.bilalalissa.ParentalControlAgent.user"
+    # Refresh the current GUI-domain registration after replacing the helper executable. A plain
+    # kickstart can retain an interrupted pre-upgrade job and leave session/action XPC silent even
+    # though the process remains visible to pgrep.
     if /bin/launchctl print "$USER_SERVICE" >/dev/null 2>&1; then
-      /bin/launchctl kickstart -k "$USER_SERVICE"
-    else
-      helper_started=false
-      for attempt in 1 2 3; do
-        if /bin/launchctl bootstrap "gui/$CONSOLE_UID" \
-          /Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist; then
-          helper_started=true
-          break
-        fi
-        if [[ "$attempt" != 3 ]]; then /bin/sleep 2; fi
-      done
-      if [[ "$helper_started" != true ]]; then
-        echo "Unable to start the visible-session endpoint helper after three attempts." >&2
-        exit 1
-      fi
+      /bin/launchctl bootout "$USER_SERVICE" >/dev/null 2>&1 || true
+      /bin/sleep 1
     fi
+    helper_started=false
+    for attempt in 1 2 3; do
+      if /bin/launchctl bootstrap "gui/$CONSOLE_UID" \
+        /Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist; then
+        helper_started=true
+        break
+      fi
+      if [[ "$attempt" != 3 ]]; then /bin/sleep 2; fi
+    done
+    if [[ "$helper_started" != true ]]; then
+      echo "Unable to start the visible-session endpoint helper after three attempts." >&2
+      exit 1
+    fi
+    /bin/launchctl kickstart -k "$USER_SERVICE"
   fi
 fi

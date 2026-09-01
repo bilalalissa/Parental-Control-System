@@ -734,18 +734,64 @@ public final class EndpointXPCService: NSObject, NSXPCListenerDelegate, @uncheck
 }
 
 public final class EndpointXPCClient: @unchecked Sendable {
-  private let connection: NSXPCConnection
-  public init() {
-    connection = NSXPCConnection(
-      machServiceName: EndpointMachService.name, options: EndpointMachService.clientOptions)
-    connection.remoteObjectInterface = NSXPCInterface(with: EndpointXPCProtocol.self)
-    connection.resume()
+  private let connectionLock = NSLock()
+  private var connection: NSXPCConnection?
+  public init() {}
+  deinit {
+    connectionLock.lock()
+    let current = connection
+    connection = nil
+    connectionLock.unlock()
+    current?.invalidate()
   }
-  deinit { connection.invalidate() }
+
+  private func activeConnection() -> NSXPCConnection {
+    connectionLock.lock()
+    if let connection {
+      connectionLock.unlock()
+      return connection
+    }
+    let next = NSXPCConnection(
+      machServiceName: EndpointMachService.name, options: EndpointMachService.clientOptions)
+    next.remoteObjectInterface = NSXPCInterface(with: EndpointXPCProtocol.self)
+    next.interruptionHandler = { [weak self, weak next] in
+      guard let next else { return }
+      self?.discard(next)
+    }
+    next.invalidationHandler = { [weak self, weak next] in
+      guard let next else { return }
+      self?.discard(next)
+    }
+    connection = next
+    connectionLock.unlock()
+    next.resume()
+    return next
+  }
+
+  private func discard(_ candidate: NSXPCConnection) {
+    connectionLock.lock()
+    if connection === candidate { connection = nil }
+    connectionLock.unlock()
+  }
+
+  private func remoteProxy(
+    errorHandler: @escaping @Sendable (Error) -> Void
+  ) -> EndpointXPCProtocol? {
+    let current = activeConnection()
+    let object = current.remoteObjectProxyWithErrorHandler { [weak self, weak current] error in
+      if let current { self?.discard(current) }
+      errorHandler(error)
+    }
+    guard let proxy = object as? EndpointXPCProtocol else {
+      discard(current)
+      errorHandler(EndpointXPCError.malformed)
+      return nil
+    }
+    return proxy
+  }
+
   public func fetchStatus(completion: @escaping @Sendable (Result<EndpointStatus, Error>) -> Void) {
-    let proxy =
-      connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-      as? EndpointXPCProtocol
+    let proxy = remoteProxy { completion(.failure($0)) }
     proxy?.status { data, error in
       do {
         if let error { throw EndpointXPCError.remote(error) }
@@ -757,9 +803,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   public func fetchDashboard(
     completion: @escaping @Sendable (Result<EndpointDashboardSnapshot, Error>) -> Void
   ) {
-    let proxy =
-      connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-      as? EndpointXPCProtocol
+    let proxy = remoteProxy { completion(.failure($0)) }
     proxy?.dashboard { data, error in
       do {
         if let error { throw EndpointXPCError.remote(error) }
@@ -774,9 +818,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   ) {
     do {
       let data = try JSONEncoder.endpoint.encode(update)
-      let proxy =
-        connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-        as? EndpointXPCProtocol
+      let proxy = remoteProxy { completion(.failure($0)) }
       proxy?.updateSession(data) { accepted, error in
         if accepted {
           completion(.success(()))
@@ -793,9 +835,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   ) {
     do {
       let data = try JSONEncoder.endpoint.encode(update)
-      let proxy =
-        connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-        as? EndpointXPCProtocol
+      let proxy = remoteProxy { completion(.failure($0)) }
       proxy?.updateActivity(data) { accepted, error in
         accepted
           ? completion(.success(()))
@@ -807,9 +847,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   public func fetchBrowserConfiguration(
     completion: @escaping @Sendable (Result<EndpointBrowserConfiguration, Error>) -> Void
   ) {
-    let proxy =
-      connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-      as? EndpointXPCProtocol
+    let proxy = remoteProxy { completion(.failure($0)) }
     proxy?.browserConfiguration { data, error in
       do {
         if let error { throw EndpointXPCError.remote(error) }
@@ -826,9 +864,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   ) {
     do {
       let data = try JSONEncoder.endpoint.encode(update)
-      let proxy =
-        connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-        as? EndpointXPCProtocol
+      let proxy = remoteProxy { completion(.failure($0)) }
       proxy?.updateBrowser(data) { accepted, error in
         accepted
           ? completion(.success(()))
@@ -843,9 +879,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   ) {
     do {
       let data = try JSONEncoder.endpoint.encode(request)
-      let proxy =
-        connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-        as? EndpointXPCProtocol
+      let proxy = remoteProxy { completion(.failure($0)) }
       proxy?.sendChat(data) { accepted, error in
         accepted
           ? completion(.success(()))
@@ -857,9 +891,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   public func markChatRead(
     completion: @escaping @Sendable (Result<Void, Error>) -> Void
   ) {
-    let proxy =
-      connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-      as? EndpointXPCProtocol
+    let proxy = remoteProxy { completion(.failure($0)) }
     proxy?.markChatRead { accepted, error in
       accepted
         ? completion(.success(()))
@@ -873,9 +905,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   ) {
     do {
       let data = try JSONEncoder.endpoint.encode(request)
-      let proxy =
-        connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-        as? EndpointXPCProtocol
+      let proxy = remoteProxy { completion(.failure($0)) }
       proxy?.requestMoreTime(data) { accepted, error in
         accepted
           ? completion(.success(()))
@@ -890,9 +920,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   ) {
     do {
       let data = try JSONEncoder.endpoint.encode(request)
-      let proxy =
-        connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-        as? EndpointXPCProtocol
+      let proxy = remoteProxy { completion(.failure($0)) }
       proxy?.submitAdultCode(data) { data, error in
         do {
           if let error { throw EndpointXPCError.remote(error) }
@@ -906,9 +934,7 @@ public final class EndpointXPCClient: @unchecked Sendable {
   public func claimPolicyEvents(
     completion: @escaping @Sendable (Result<[EndpointPolicyEvent], Error>) -> Void
   ) {
-    let proxy =
-      connection.remoteObjectProxyWithErrorHandler { completion(.failure($0)) }
-      as? EndpointXPCProtocol
+    let proxy = remoteProxy { completion(.failure($0)) }
     proxy?.claimPolicyEvents { data, error in
       do {
         if let error { throw EndpointXPCError.remote(error) }

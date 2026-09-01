@@ -93,14 +93,14 @@ jobs:
       - name: Verify selectable package choices
         if: steps.scope.outputs.build == 'true'
         run: |
-          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg" -target / | /usr/bin/plutil -lint -
-          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg" || true
-          /usr/bin/unzip -t ".artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.8.zip"
+          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg" -target / | /usr/bin/plutil -lint -
+          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg" || true
+          /usr/bin/unzip -t ".artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.9.zip"
       - name: Install default parent choice
         if: steps.scope.outputs.build == 'true'
         run: |
           sudo /usr/sbin/installer \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg" \
             -target /
           test -x "/Applications/Parental Control.app/Contents/MacOS/ParentalControlController"
           test ! -e "/Applications/Parental Control Child.app"
@@ -112,37 +112,39 @@ jobs:
         run: |
           sudo /usr/sbin/installer \
             -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg" \
             -target /
           console_user="$(/usr/bin/stat -f '%Su' /dev/console)"
           console_user_home="$(/usr/bin/dscl . -read "/Users/$console_user" NFSHomeDirectory | /usr/bin/awk '{print $2}')"
           status_ok=false
-          for attempt in 1 2 3; do
-            if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status.json; then
+          for attempt in {1..12}; do
+            if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status.json && \
+              node -e 'const s = JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status.json", "utf8")); if (s.helperHealthy !== true || s.sessionState === "unknown") process.exit(1)'; then
               status_ok=true
               break
             fi
-            if [[ "$attempt" != 3 ]]; then sleep 2; fi
+            if [[ "$attempt" != 12 ]]; then sleep 2; fi
           done
           status_exit=0
           if [[ "$status_ok" == true ]]; then
-            node -e 'const fs = require("node:fs"); const status = JSON.parse(fs.readFileSync(".artifacts/endpoint-status.json", "utf8")); if (status.daemonHealthy !== true || status.connectionState !== "unpaired" || !status.deviceID || status.activityCollectionEnabled !== true || status.activityRetentionDays !== 7 || status.browserCollectionEnabled !== false || status.browserRetentionDays !== 7 || status.browserTabs.length !== 0) process.exit(1)'
+            node -e 'const fs = require("node:fs"); const status = JSON.parse(fs.readFileSync(".artifacts/endpoint-status.json", "utf8")); if (status.daemonHealthy !== true || status.helperHealthy !== true || status.sessionState === "unknown" || status.connectionState !== "unpaired" || !status.deviceID || status.activityCollectionEnabled !== true || status.activityRetentionDays !== 7 || status.browserCollectionEnabled !== false || status.browserRetentionDays !== 7 || status.browserTabs.length !== 0) process.exit(1)'
             first_device_id="$(node -p 'JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status.json", "utf8")).deviceID')"
             # Verify child in-place upgrade preserves endpoint identity and protected state.
             if ! sudo /usr/sbin/installer \
               -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
-              -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg" \
+              -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg" \
               -target /; then
               sudo /usr/bin/tail -n 200 /var/log/install.log || true
               exit 1
             fi
             upgrade_status_ok=false
-            for attempt in 1 2 3; do
-              if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status-upgrade.json; then
+            for attempt in {1..12}; do
+              if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status-upgrade.json && \
+                node -e 'const s = JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status-upgrade.json", "utf8")); if (s.helperHealthy !== true || s.sessionState === "unknown") process.exit(1)'; then
                 upgrade_status_ok=true
                 break
               fi
-              if [[ "$attempt" != 3 ]]; then sleep 2; fi
+              if [[ "$attempt" != 12 ]]; then sleep 2; fi
             done
             test "$upgrade_status_ok" = true
             second_device_id="$(node -p 'JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status-upgrade.json", "utf8")).deviceID')"
@@ -161,6 +163,24 @@ jobs:
               /bin/launchctl print "gui/$(/usr/bin/id -u "$console_user")/com.bilalalissa.ParentalControlAgent.user" || true
               /usr/bin/log show --style compact --last 10m \
                 --predicate 'process == "ParentalControlAgentUser"' || true
+            fi
+            # Restart only the daemon while leaving the GUI helper alive. Its XPC client must
+            # recreate an invalidated connection and publish a fresh session observation.
+            sudo /bin/launchctl kickstart -k system/com.bilalalissa.ParentalControlAgent.daemon
+            reconnect_ok=false
+            for attempt in {1..12}; do
+              if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status-reconnect.json && \
+                node -e 'const s = JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status-reconnect.json", "utf8")); if (s.helperHealthy !== true || s.sessionState === "unknown") process.exit(1)'; then
+                reconnect_ok=true
+                break
+              fi
+              if [[ "$attempt" != 12 ]]; then sleep 2; fi
+            done
+            if [[ "$reconnect_ok" != true ]]; then
+              status_exit=1
+              /bin/launchctl print "gui/$(/usr/bin/id -u "$console_user")/com.bilalalissa.ParentalControlAgent.user" || true
+              /usr/bin/log show --style compact --last 10m \
+                --predicate 'process == "ParentalControlAgentUser" OR process == "ParentalControlAgentDaemon"' || true
             fi
             test -x "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost"
             test -f "/Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json"
@@ -213,12 +233,12 @@ jobs:
         if: steps.scope.outputs.build == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ParentalControlSystem-0.6.0-rc.7
+          name: ParentalControlSystem-0.6.0-rc.9
           path: |
-            .artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg
-            .artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.8.pkg.sha256
-            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.8.zip
-            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.8.zip.sha256
+            .artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg
+            .artifacts/release-candidate/ParentalControlSystem-0.6.0-rc.9.pkg.sha256
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.9.zip
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.0-rc.9.zip.sha256
           if-no-files-found: error
           retention-days: 7
       - name: Clean project-owned generated output
