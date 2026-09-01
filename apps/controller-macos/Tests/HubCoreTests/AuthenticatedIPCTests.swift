@@ -53,7 +53,9 @@ struct AuthenticatedIPCTests {
   @Test("oversized hub history is compacted without losing a pairing invitation")
   func oversizedStatusCompaction() throws {
     let key = Data(repeating: 0x3D, count: 32)
-    let now = Date()
+    // Use whole-second precision because the authenticated wire codec intentionally stores
+    // dates as milliseconds and Swift Foundation versions differ in sub-millisecond equality.
+    let now = Date(timeIntervalSince1970: 1_788_000_000)
     let invitation = PairingInvitation(
       code: "482913",
       expiresAt: now.addingTimeInterval(300),
