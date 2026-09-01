@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–06 are merged; STAGE-06A is the active bounded feasibility review; STAGE-07 has not begun.** Stage 06A evaluates manual third-party MDM enrollment for scheduled macOS login and changes no application binary or external account. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–06 are merged; STAGE-06A is approved and awaiting a separate merge command; STAGE-07 has not begun.** Stage 06A evaluated manual third-party MDM enrollment for scheduled macOS login and changed no application binary or external account. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 

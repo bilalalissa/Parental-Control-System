@@ -2,6 +2,15 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.1-rc.1 — 2026-09-01
+
+Status: **STAGE-06A approved; awaiting separate merge authorization**
+
+- Documents the source-evidenced no-go result for selectively scheduling an ordinary local child account through the macOS Login Window MDM payload while preserving an offline local adult recovery administrator.
+- Records SimpleMDM and Jamf Now as researched candidates only; no vendor account, APNs certificate, API key, enrollment profile, device record, or product integration was created.
+- Preserves the local-first Stage-06 enforcement path and leaves managed network/mobile identity or Platform SSO evaluation to a separately authorized stage.
+- Approved with the exact command `APPROVED: STAGE-06A 0.6.1-rc.1` on 2026-09-01; approval does not imply merge, release, or permission to begin another stage.
+
 ## 0.6.0-rc.9 — 2026-08-31
 
 Status: **STAGE-06 merged; unreleased**
