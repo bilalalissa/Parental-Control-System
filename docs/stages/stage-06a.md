@@ -1,8 +1,8 @@
 # STAGE-06A — Manual third-party MDM feasibility for managed macOS login
 
-- Version: `0.6.1-rc.1`
+- Version: `0.6.1-rc.2`
 - Branch: `stage/06a-manual-mdm-feasibility`
-- Status: `READY_FOR_RETEST`
+- Status: `CHANGES_REQUESTED`
 - Authorized: `2026-09-01` via `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06A MANUAL-MDM FEASIBILITY BEFORE STAGE-07` and `PROCEED: STAGE-06A`
 - Installer amendment authorized: `2026-09-01` via `AUTHORIZE STAGE-06A SCOPE AMENDMENT: PRODUCE 0.6.1-rc.1 TRANSITION INSTALLER` and `PROCEED: STAGE-06A INSTALLER RETEST`
 - Platform evaluated: macOS 15 documentation and third-party MDM documentation; no device enrolled
@@ -18,6 +18,10 @@ Excluded are Automated Device Enrollment, Apple Business Manager or Apple School
 Assumptions were one disposable Mac, one ordinary local standard child account, one separate local adult recovery administrator, recoverable data, and administrator-approved manual enrollment. No vendor account, APNs certificate, API key, or enrolled device is created without separate explicit approval.
 
 Resource limits are one checkout and branch, one Release build tree, two build workers, no simulator, VM, container, device enrollment, or additional dependency, and at least 5 GiB free. Only one new PKG and checksum may replace the prior local package after verification; the unchanged browser-extension ZIP is retained without rebuilding.
+
+## RC2 retest feedback
+
+The developer confirmed that the first lock was delivered but the blocked child session was not locked again after returning through the login/Screen Saver UI. The runtime already re-armed a restriction for an inactive-to-active workspace transition, but helper startup and Screen Saver exit can occur while the daemon's last state remains `active`. RC2 adds an authenticated activation-boundary marker from the installed GUI helper at startup, wake/session activation, and termination of Apple's public `ScreenSaverEngine`. The daemon immediately re-evaluates the existing signed policy at that boundary; it does not change policy authority, add a hidden process, or claim control of Login Window authentication.
 
 ## Result: no-go for the proposed local-account mechanism
 

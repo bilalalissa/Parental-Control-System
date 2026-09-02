@@ -61,8 +61,8 @@
     {
       "id": "STAGE-06A",
       "name": "Manual third-party MDM feasibility for managed macOS login",
-      "version": "0.6.1-rc.1",
-      "status": "READY_FOR_RETEST",
+      "version": "0.6.1-rc.2",
+      "status": "CHANGES_REQUESTED",
       "branch": "stage/06a-manual-mdm-feasibility",
       "document": "stage-06a.md"
     }

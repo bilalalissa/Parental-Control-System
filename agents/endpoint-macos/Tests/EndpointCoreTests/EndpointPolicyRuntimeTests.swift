@@ -165,9 +165,16 @@ struct EndpointPolicyRuntimeTests {
         .contains(.enforce(action: .lock, explanation: "Synthetic bedtime")))
     #expect(
       restored.tick(now: start.addingTimeInterval(61), uptime: 161, sessionActive: true).isEmpty)
-    restored.rearmRestrictionForActiveSession()
+    restored.rearmRestrictionForActiveSession(now: start.addingTimeInterval(62))
     #expect(
       restored.tick(now: start.addingTimeInterval(62), uptime: 162, sessionActive: true)
+        .contains(.enforce(action: .lock, explanation: "Synthetic bedtime")))
+    restored.rearmRestrictionForActiveSession(now: start.addingTimeInterval(63))
+    #expect(
+      restored.tick(now: start.addingTimeInterval(63), uptime: 163, sessionActive: true).isEmpty)
+    restored.rearmRestrictionForActiveSession(now: start.addingTimeInterval(65))
+    #expect(
+      restored.tick(now: start.addingTimeInterval(65), uptime: 165, sessionActive: true)
         .contains(.enforce(action: .lock, explanation: "Synthetic bedtime")))
 
     let rebooted = EndpointPolicyRuntime(

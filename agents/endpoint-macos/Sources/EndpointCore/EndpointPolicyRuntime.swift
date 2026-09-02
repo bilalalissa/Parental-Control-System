@@ -57,6 +57,7 @@ public struct EndpointPolicyRuntimeState: Codable, Equatable, Sendable {
   public var restrictionSource: PolicyDecisionSource?
   public var restrictionAction: PolicyAction?
   public var restrictionEnforced: Bool?
+  public var lastRestrictionRearmAt: Date?
   public var pendingUserEvents: [EndpointPolicyEvent]?
 
   public init(
@@ -67,7 +68,8 @@ public struct EndpointPolicyRuntimeState: Codable, Equatable, Sendable {
     issuedWarnings: [Int] = [], immediateAction: PolicyAction? = nil,
     immediateActionExpiresAt: Date? = nil, restrictionBeganAt: Date? = nil,
     restrictionSource: PolicyDecisionSource? = nil, restrictionAction: PolicyAction? = nil,
-    restrictionEnforced: Bool? = nil, pendingUserEvents: [EndpointPolicyEvent] = []
+    restrictionEnforced: Bool? = nil, lastRestrictionRearmAt: Date? = nil,
+    pendingUserEvents: [EndpointPolicyEvent] = []
   ) {
     self.usageDay = usageDay
     self.activeUseSeconds = activeUseSeconds
@@ -85,6 +87,7 @@ public struct EndpointPolicyRuntimeState: Codable, Equatable, Sendable {
     self.restrictionSource = restrictionSource
     self.restrictionAction = restrictionAction
     self.restrictionEnforced = restrictionEnforced
+    self.lastRestrictionRearmAt = lastRestrictionRearmAt
     self.pendingUserEvents = Array(pendingUserEvents.suffix(32))
   }
 }
@@ -173,11 +176,15 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
   /// A lock does not prevent an authorized macOS login. Re-arm the current restriction when a
   /// standard child session becomes active so an unlock outside the allowed window is visibly
   /// warned/enforced again through the same allowlisted lock path.
-  public func rearmRestrictionForActiveSession() {
+  public func rearmRestrictionForActiveSession(now: Date = Date()) {
     lock.lock()
     defer { lock.unlock() }
     guard state.restrictionBeganAt != nil, state.restrictionEnforced == true else { return }
+    guard state.lastRestrictionRearmAt.map({ now.timeIntervalSince($0) >= 2 }) ?? true else {
+      return
+    }
     state.restrictionEnforced = false
+    state.lastRestrictionRearmAt = now
     try? persistLocked()
   }
 
@@ -430,6 +437,7 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
     state.restrictionSource = nil
     state.restrictionAction = nil
     state.restrictionEnforced = nil
+    state.lastRestrictionRearmAt = nil
   }
 
   private static func readPolicy(root: URL) throws -> ParentalControlPolicy {

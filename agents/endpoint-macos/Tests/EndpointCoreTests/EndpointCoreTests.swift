@@ -278,6 +278,10 @@ struct EndpointCoreTests {
     #expect(!repository.applySession(SessionUpdate(state: .active, consoleUser: "child")))
     #expect(!repository.applySession(SessionUpdate(state: .inactive, consoleUser: "child")))
     #expect(repository.applySession(SessionUpdate(state: .active, consoleUser: "child")))
+    #expect(
+      repository.applySession(
+        SessionUpdate(state: .active, consoleUser: "child", activationBoundary: true)))
+    #expect(!repository.applySession(SessionUpdate(state: .active, consoleUser: "child")))
   }
 
   @Test("protected configuration is mode 0700 with mode 0600 contents")

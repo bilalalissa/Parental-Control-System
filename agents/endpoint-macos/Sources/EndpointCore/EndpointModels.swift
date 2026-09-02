@@ -334,11 +334,18 @@ public struct EndpointAdultOverrideRequest: Codable, Equatable, Sendable {
 public struct SessionUpdate: Codable, Equatable, Sendable {
   public let state: EndpointSessionState
   public let consoleUser: String?
+  /// True when the authenticated GUI helper observed a new graphical-session boundary even if
+  /// the daemon's last reported state was already active. Older helpers omit this field.
+  public let activationBoundary: Bool?
   public let observedAt: Date
 
-  public init(state: EndpointSessionState, consoleUser: String?, observedAt: Date = Date()) {
+  public init(
+    state: EndpointSessionState, consoleUser: String?, activationBoundary: Bool = false,
+    observedAt: Date = Date()
+  ) {
     self.state = state
     self.consoleUser = consoleUser
+    self.activationBoundary = activationBoundary ? true : nil
     self.observedAt = observedAt
   }
 }

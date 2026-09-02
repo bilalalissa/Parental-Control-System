@@ -42,13 +42,13 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     center.addObserver(
       self, selector: #selector(active), name: NSWorkspace.didWakeNotification, object: nil)
     center.addObserver(
-      self, selector: #selector(applicationsChanged),
+      self, selector: #selector(applicationsChanged(_:)),
       name: NSWorkspace.didLaunchApplicationNotification, object: nil)
     center.addObserver(
-      self, selector: #selector(applicationsChanged),
+      self, selector: #selector(applicationsChanged(_:)),
       name: NSWorkspace.didTerminateApplicationNotification, object: nil)
     center.addObserver(
-      self, selector: #selector(applicationsChanged),
+      self, selector: #selector(applicationsChanged(_:)),
       name: NSWorkspace.didActivateApplicationNotification, object: nil)
     DistributedNotificationCenter.default().addObserver(
       self, selector: #selector(chatReceived),
@@ -60,7 +60,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       EndpointPolicyWake.name as CFString,
       nil,
       .deliverImmediately)
-    report(.active)
+    report(.active, activationBoundary: true)
     reportApplications()
     primeMessages()
     claimPolicyEvents()
@@ -91,13 +91,22 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   }
   @objc private func active() {
     currentState = .active
-    report(currentState)
+    report(currentState, activationBoundary: true)
   }
   @objc private func inactive() {
     currentState = .inactive
     report(currentState)
   }
-  @objc private func applicationsChanged() { reportApplications() }
+  @objc private func applicationsChanged(_ notification: Notification) {
+    reportApplications()
+    guard notification.name == NSWorkspace.didTerminateApplicationNotification,
+      let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+        as? NSRunningApplication,
+      application.bundleIdentifier == "com.apple.ScreenSaver.Engine"
+    else { return }
+    currentState = .active
+    report(currentState, activationBoundary: true)
+  }
   @objc private func chatReceived() {
     // A raw LaunchAgent has no application bundle registration for UserNotifications. Calling
     // UNUserNotificationCenter.current() here asserts on macOS and makes launchd crash-loop the
@@ -317,9 +326,11 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       }
     }
   }
-  private func report(_ state: EndpointSessionState) {
+  private func report(_ state: EndpointSessionState, activationBoundary: Bool = false) {
     client.updateSession(
-      SessionUpdate(state: state, consoleUser: DeviceSnapshotCollector.consoleUser())
+      SessionUpdate(
+        state: state, consoleUser: DeviceSnapshotCollector.consoleUser(),
+        activationBoundary: activationBoundary)
     ) { _ in }
   }
   private func reportApplications() {
