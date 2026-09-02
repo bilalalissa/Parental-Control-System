@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–06 are merged; STAGE-06A retest changes are in progress; STAGE-07 has not begun.** Stage 06A documents the manual-MDM feasibility result and adds a transition build that distinguishes active-session enforcement from unconfigured managed pre-login enforcement. It creates no external account or enrollment. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–06 are merged; STAGE-06A `0.6.1-rc.2` is ready for installer retest; STAGE-07 has not begun.** Stage 06A documents the manual-MDM feasibility result and adds a transition build that distinguishes active-session enforcement from unconfigured managed pre-login enforcement. It creates no external account or enrollment. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 

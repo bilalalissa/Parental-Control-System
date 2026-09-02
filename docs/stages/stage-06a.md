@@ -2,7 +2,7 @@
 
 - Version: `0.6.1-rc.2`
 - Branch: `stage/06a-manual-mdm-feasibility`
-- Status: `CHANGES_REQUESTED`
+- Status: `READY_FOR_RETEST`
 - Authorized: `2026-09-01` via `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06A MANUAL-MDM FEASIBILITY BEFORE STAGE-07` and `PROCEED: STAGE-06A`
 - Installer amendment authorized: `2026-09-01` via `AUTHORIZE STAGE-06A SCOPE AMENDMENT: PRODUCE 0.6.1-rc.1 TRANSITION INSTALLER` and `PROCEED: STAGE-06A INSTALLER RETEST`
 - Platform evaluated: macOS 15 documentation and third-party MDM documentation; no device enrolled
@@ -68,34 +68,35 @@ Safe cleanup removes only repository-owned `dist`, Stage 06A derived data, and p
 ## Verification evidence
 
 - The full dependency-free repository suite passed: 46 tests passed and the Windows-only cleanup test was skipped on macOS. It covers the Stage 06A platform boundary, release version, package contract, upgrade preservation, active-stage tracker, protocol/policy/security regressions, JSON parsing, and local Markdown links.
-- The controller/HubCore Swift suite passed 50 tests in 14 suites with normal Keychain and loopback access. The endpoint Swift suite passed 22 tests in three suites, including authenticated pairing and the assertion that a current macOS endpoint advertises `session-enforcement` but not `managed-identity-login`.
+- The controller/HubCore Swift suite passed 50 tests in 14 suites with normal Keychain and loopback access. The endpoint Swift suite passed 22 tests in three suites, including authenticated pairing, upgrade identity preservation, activation-boundary re-arming with duplicate suppression, and the assertion that a current macOS endpoint advertises `session-enforcement` but not `managed-identity-login`.
 - Swift formatting lint, Bash syntax, installer-distribution XML validation, `git diff --check`, and the bounded secret scan passed.
-- The expanded installer contains both selectable components, the native browser host manifests, launchd definitions, and the universal endpoint helpers. Both apps report `0.6.1-rc.1` build `6101` and source commit `88841bfcb4dc`. The Parent Controller is `arm64`; the child app and its four helpers are `x86_64 arm64`.
+- The expanded installer contains both selectable components, the native browser host manifests, launchd definitions, and the universal endpoint helpers. Both apps report `0.6.1-rc.2` build `6102` and source commit `43c1434d7d84`. The Parent Controller is `arm64`; the child app and its four helpers are `x86_64 arm64`.
 - Deep strict code-signature verification passed for both app bundles, and strict verification passed for the separately installed daemon and CLI copy. These are ad-hoc signatures with no Team ID because no valid local signing identity is configured. The product package is unsigned and not notarized.
 - Installer-choice inspection passed: Parent Controller is selected by default; Child Endpoint is visible and optional. The child choice explicitly documents in-place pairing preservation. No enrollment profile, MDM integration, or managed pre-login capability is included.
-- Transition installer: `.artifacts/release-candidate/ParentalControlSystem-0.6.1-rc.1.pkg`; 15,328,767 bytes; SHA-256 `f4de0603aac14e41ebe1c0937964c717e83b95a13b30e84d32ce0125ef99eefa`.
+- Transition installer: `.artifacts/release-candidate/ParentalControlSystem-0.6.1-rc.2.pkg`; 15,346,498 bytes; SHA-256 `feb3fa07f91ae688ff10380522c9188c30f24ab394063023bdbd06d8dad18f2d`.
 - The unchanged browser-extension archive remains `ParentalControlBrowserSharing-0.6.0-rc.9.zip`. It is not a new Stage 06A artifact; the installer updates its native host in place, so an installed extension does not require removal, reinstallation, or manual reload.
 - Official Apple and vendor documentation was reviewed on 2026-09-01. This remains source evidence, not MDM-console or enrolled-device evidence. Feasibility ADR: `docs/adr/0001-manual-mdm-login-window-feasibility.md`; SHA-256 `cefe54c0c88b25b37d71bf013773f9f6a86a1840958928af54821f54964af963`.
 
 ## Resource evidence
 
-- Installer-amendment preflight: 15 GiB free; repository 25 MiB; retained candidate set 15 MiB; endpoint build path 0 B.
-- Peak observed repository-owned output before cleanup: 535 MiB derived data, 46 MiB package verification staging, 36 MiB `dist`, and a 15 MiB release-candidate set. The development volume remained above the 5 GiB floor.
-- After cleanup: 14 GiB free; repository 26 MiB; retained candidate set 15 MiB. `dist`, Stage 06A derived data, and package-staging output were removed, and the cleanup dry run reports no remaining generated output.
+- RC2 retest preflight: 13 GiB free; repository 26 MiB excluding generated artifacts; retained candidate set 15 MiB; no generated build output.
+- Peak observed repository-owned output before cleanup: 544 MiB derived data, 46 MiB package verification staging, 36 MiB `dist`, and a 15 MiB release-candidate set. The development volume remained above the 5 GiB floor.
+- After cleanup: 12 GiB free; repository 26 MiB; retained candidate set 15 MiB. `dist`, Stage 06A derived data, endpoint SwiftPM output, and package-staging output were removed, and the cleanup dry run reports no remaining generated output.
 - Retained files are the single current native package and checksum plus the unchanged Stage 06 browser-extension ZIP and checksum. No duplicate native RC is retained.
 - No simulator, VM, container, worktree, MDM account, profile, APNs certificate, or enrolled device was created. No project service or GUI process was intentionally launched.
 
 ## Developer review checklist
 
 1. Verify the package SHA-256 before installation.
-2. Install Parent Controller over `0.6.0-rc.9` and confirm About reports `0.6.1-rc.1` build `6101`.
+2. Install Parent Controller over the currently installed version and confirm About reports `0.6.1-rc.2` build `6102`.
 3. On the already paired child Mac, choose **Customize**, deselect **Parent Controller**, select **Child Endpoint**, and install without uninstalling or unpairing first. Confirm pairing, online state, signed policy, messages, and retained browser observations remain available.
 4. Confirm the Parent Controller device detail and child Status view both report active-session enforcement as available and managed pre-login enforcement as not configured.
-5. Recheck one signed schedule decision, one immediate lock action, and one time-extension request/decision. Existing Stage 06 behavior must remain unchanged.
-6. Open a new browser tab and confirm it appears without removing, reinstalling, or manually reloading the already installed extension.
-7. Repeat-install the same Child Endpoint choice and confirm identity and protected state remain intact.
-8. Confirm no profile is installed, no MDM account is requested, and the app makes no claim that it can deny an ordinary local account at Login Window.
-9. On a clean Mac, confirm the endpoint still requires one explicit pairing, as designed.
+5. Apply a blocked signed schedule and confirm the first lock. Unlock or return through the macOS Screen Saver/login UI while the schedule remains blocked; confirm the endpoint promptly re-locks. Repeat once and confirm there is no rapid duplicate-lock loop.
+6. Approve bonus time and confirm the allowed session is not re-locked during the approved interval. Then recheck one immediate lock action and one time-extension request/decision.
+7. Open a new browser tab and confirm it appears without removing, reinstalling, or manually reloading the already installed extension.
+8. Repeat-install the same Child Endpoint choice and confirm identity and protected state remain intact.
+9. Confirm no profile is installed, no MDM account is requested, and the app makes no claim that it can deny an ordinary local account at Login Window.
+10. On a clean Mac, confirm the endpoint still requires one explicit pairing, as designed.
 
 ## Sources
 
