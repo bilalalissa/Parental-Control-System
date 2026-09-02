@@ -57,35 +57,41 @@ No managed-identity alternative is selected or implemented by STAGE-06A. The tra
 
 ## Validation plan
 
-Lightest-to-heaviest checks are JSON parsing, repository contract tests, the focused MDM feasibility assertions, Markdown/link review, `git diff --check`, and a bounded secret scan. No native build, installer, profile lint, MDM account, or physical-device test is justified after the platform gate fails.
+Lightest-to-heaviest checks are JSON parsing, repository contract tests, focused MDM and transition-readiness assertions, Swift formatting, controller and endpoint Swift tests, bounded Release builds, package expansion and metadata inspection, architecture and embedded-signature verification, installer-choice inspection, `git diff --check`, and a bounded secret scan. A physical in-place upgrade is reserved for the developer retest because it changes installed system services and the paired endpoint under test.
 
-Safe cleanup removes only temporary test output. The approved Stage 06 package and browser-extension artifacts remain untouched. No simulator is booted and no project process is started.
+Safe cleanup removes only repository-owned `dist`, Stage 06A derived data, and package-staging output after verification. The new package replaces the prior Stage 06 native package only after its checksum and expanded contents pass; the unchanged Stage 06 browser-extension ZIP remains available and is not rebuilt. No simulator, VM, container, browser driver, or GUI app is started.
 
 ## Verification evidence
 
-- The full dependency-free repository suite passed: 45 tests passed and the Windows-only cleanup test was skipped on macOS. Three focused Stage 06A tests require the account-type limit, recovery rejection, optional boundary, and absence of vendor/product integration.
-- JSON parsing, local Markdown-link resolution, the existing protocol/policy/cleanup/security regressions, and the active-stage tracker passed in the same run.
-- `git diff --check` and the bounded secret scan passed.
-- Official Apple and vendor documentation was reviewed on 2026-09-01. This is source evidence, not MDM console or physical-device evidence.
-- No native application code changed, so no PKG, app, extension ZIP, signing operation, entitlement check, or installer smoke test applies. The ADR is the single feasibility artifact.
-- Feasibility artifact: `docs/adr/0001-manual-mdm-login-window-feasibility.md`; SHA-256 `cefe54c0c88b25b37d71bf013773f9f6a86a1840958928af54821f54964af963`; source Markdown, so signing and entitlements are not applicable.
+- The full dependency-free repository suite passed: 46 tests passed and the Windows-only cleanup test was skipped on macOS. It covers the Stage 06A platform boundary, release version, package contract, upgrade preservation, active-stage tracker, protocol/policy/security regressions, JSON parsing, and local Markdown links.
+- The controller/HubCore Swift suite passed 50 tests in 14 suites with normal Keychain and loopback access. The endpoint Swift suite passed 22 tests in three suites, including authenticated pairing and the assertion that a current macOS endpoint advertises `session-enforcement` but not `managed-identity-login`.
+- Swift formatting lint, Bash syntax, installer-distribution XML validation, `git diff --check`, and the bounded secret scan passed.
+- The expanded installer contains both selectable components, the native browser host manifests, launchd definitions, and the universal endpoint helpers. Both apps report `0.6.1-rc.1` build `6101` and source commit `88841bfcb4dc`. The Parent Controller is `arm64`; the child app and its four helpers are `x86_64 arm64`.
+- Deep strict code-signature verification passed for both app bundles, and strict verification passed for the separately installed daemon and CLI copy. These are ad-hoc signatures with no Team ID because no valid local signing identity is configured. The product package is unsigned and not notarized.
+- Installer-choice inspection passed: Parent Controller is selected by default; Child Endpoint is visible and optional. The child choice explicitly documents in-place pairing preservation. No enrollment profile, MDM integration, or managed pre-login capability is included.
+- Transition installer: `.artifacts/release-candidate/ParentalControlSystem-0.6.1-rc.1.pkg`; 15,328,767 bytes; SHA-256 `f4de0603aac14e41ebe1c0937964c717e83b95a13b30e84d32ce0125ef99eefa`.
+- The unchanged browser-extension archive remains `ParentalControlBrowserSharing-0.6.0-rc.9.zip`. It is not a new Stage 06A artifact; the installer updates its native host in place, so an installed extension does not require removal, reinstallation, or manual reload.
+- Official Apple and vendor documentation was reviewed on 2026-09-01. This remains source evidence, not MDM-console or enrolled-device evidence. Feasibility ADR: `docs/adr/0001-manual-mdm-login-window-feasibility.md`; SHA-256 `cefe54c0c88b25b37d71bf013773f9f6a86a1840958928af54821f54964af963`.
 
 ## Resource evidence
 
-- Free disk before work: 13 GiB. Repository: 25 MiB, including the retained approved Stage 06 candidate set at 15 MiB; its separate endpoint build path was 0 B.
-- Peak temporary output estimate: less than 1 MiB for Node test process output; no build tree or package staging was created.
-- Free disk after cleanup: 12 GiB. The difference from preflight is system-volume fluctuation; repository size remained 25 MiB and the stage created no build output.
-- Cleanup removed two confirmed empty repository-owned directories, `.artifacts/derived-data` and `.artifacts/package-staging`. The approved Stage 06 PKG, extension ZIP, and checksums remain the only retained binary candidate set.
-- No simulator, VM, container, worktree, MDM account, profile, APNs certificate, or enrolled device was created.
-- Process listing was restricted by the local sandbox. A read-only launch-service inspection showed the developer's pre-existing installed Parent Controller and macOS CoreSimulator support services; none was started or stopped by Stage 06A.
+- Installer-amendment preflight: 15 GiB free; repository 25 MiB; retained candidate set 15 MiB; endpoint build path 0 B.
+- Peak observed repository-owned output before cleanup: 535 MiB derived data, 46 MiB package verification staging, 36 MiB `dist`, and a 15 MiB release-candidate set. The development volume remained above the 5 GiB floor.
+- After cleanup: 14 GiB free; repository 26 MiB; retained candidate set 15 MiB. `dist`, Stage 06A derived data, and package-staging output were removed, and the cleanup dry run reports no remaining generated output.
+- Retained files are the single current native package and checksum plus the unchanged Stage 06 browser-extension ZIP and checksum. No duplicate native RC is retained.
+- No simulator, VM, container, worktree, MDM account, profile, APNs certificate, or enrolled device was created. No project service or GUI process was intentionally launched.
 
 ## Developer review checklist
 
-1. Open Apple's `LoginWindow` property documentation and confirm that `AllowList` and `DenyList` apply only to network accounts and mobile accounts.
-2. Confirm the intended child account is an ordinary local account, not a directory-backed mobile account.
-3. Confirm no MDM enrollment profile or vendor account was created for this feasibility review.
-4. Confirm broad denial of all local users is unacceptable because the adult recovery administrator must always retain access.
-5. Choose whether to retain Stage 06 local re-lock behavior or authorize a separately scoped managed-identity feasibility proposal.
+1. Verify the package SHA-256 before installation.
+2. Install Parent Controller over `0.6.0-rc.9` and confirm About reports `0.6.1-rc.1` build `6101`.
+3. On the already paired child Mac, choose **Customize**, deselect **Parent Controller**, select **Child Endpoint**, and install without uninstalling or unpairing first. Confirm pairing, online state, signed policy, messages, and retained browser observations remain available.
+4. Confirm the Parent Controller device detail and child Status view both report active-session enforcement as available and managed pre-login enforcement as not configured.
+5. Recheck one signed schedule decision, one immediate lock action, and one time-extension request/decision. Existing Stage 06 behavior must remain unchanged.
+6. Open a new browser tab and confirm it appears without removing, reinstalling, or manually reloading the already installed extension.
+7. Repeat-install the same Child Endpoint choice and confirm identity and protected state remain intact.
+8. Confirm no profile is installed, no MDM account is requested, and the app makes no claim that it can deny an ordinary local account at Login Window.
+9. On a clean Mac, confirm the endpoint still requires one explicit pairing, as designed.
 
 ## Sources
 
