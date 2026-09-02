@@ -58,6 +58,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var policyReason: String?
   public var policyLastEvaluatedAt: Date?
   public var policyNextRestrictionAt: Date?
+  public var policyNextAllowanceAt: Date?
   public var policyClockTrusted: Bool
   public var adultOverrideUntil: Date?
   public var collectedAt: Date
@@ -86,6 +87,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     policyDecision: PolicyDecisionKind? = nil, policyAction: PolicyAction? = nil,
     policyReason: String? = nil, policyLastEvaluatedAt: Date? = nil,
     policyNextRestrictionAt: Date? = nil, policyClockTrusted: Bool = true,
+    policyNextAllowanceAt: Date? = nil,
     adultOverrideUntil: Date? = nil,
     collectedAt: Date = Date()
   ) {
@@ -115,6 +117,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     self.policyReason = policyReason.map { String($0.prefix(500)) }
     self.policyLastEvaluatedAt = policyLastEvaluatedAt
     self.policyNextRestrictionAt = policyNextRestrictionAt
+    self.policyNextAllowanceAt = policyNextAllowanceAt
     self.policyClockTrusted = policyClockTrusted
     self.adultOverrideUntil = adultOverrideUntil
     self.collectedAt = collectedAt

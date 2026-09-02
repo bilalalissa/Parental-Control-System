@@ -241,6 +241,33 @@ struct EndpointPolicyRuntimeTests {
     #expect(inactiveRestriction > activeRestriction)
   }
 
+  @Test("projected allowance countdown follows the end of a blocked interval")
+  func projectedAllowanceCountdown() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let start = Date(timeIntervalSince1970: 1_800_000_000)
+    let blockedPolicy = ParentalControlPolicy(
+      version: 1, deviceID: "child-policy-test", timezone: "UTC",
+      effectiveAt: Date(timeIntervalSince1970: 1_700_000_000),
+      expiresAt: Date(timeIntervalSince1970: 2_100_000_000), defaultAction: .lock,
+      weeklyAllowed: PolicyWeekday.allCases.map {
+        PolicyWeeklyWindow(day: $0, start: "00:00", end: "23:59")
+      },
+      blockedIntervals: [
+        PolicyBlockedInterval(
+          start: start.addingTimeInterval(-60), end: start.addingTimeInterval(10 * 60),
+          action: .lock, reason: "Synthetic countdown block")
+      ], dailyQuotaMinutes: 1_440, childExplanation: "Synthetic countdown",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.install(
+      identity.sign(policy: blockedPolicy), controllerPublicKey: identity.publicKeyData)
+    _ = runtime.tick(now: start, uptime: 100, sessionActive: true)
+    #expect(runtime.projectedRestrictionDate(now: start, sessionActive: true) == nil)
+    #expect(runtime.projectedAllowanceDate(now: start) == start.addingTimeInterval(10 * 60))
+  }
+
   private func policy(version: UInt64) -> ParentalControlPolicy {
     ParentalControlPolicy(
       version: version, deviceID: "child-policy-test", timezone: "UTC",

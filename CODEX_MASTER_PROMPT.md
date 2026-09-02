@@ -705,7 +705,7 @@ Acceptance is an evidence-backed go/no-go ADR, focused threat-model and privacy 
 
 The developer separately authorized a `0.6.1-rc.1` transition installer on 2026-09-01. It may preserve the approved Stage-06 behavior, add a versioned readiness model and visible distinction between active-session enforcement and unavailable managed pre-login enforcement, and prove clean/repeat-install upgrade safety. It must not enroll a device, install a profile, configure managed identity, or claim pre-login enforcement.
 
-Version: `0.6.1-rc.2`.
+Version: `0.6.1-rc.3`.
 
 ### STAGE-07 — Windows Child Agent foundation
 

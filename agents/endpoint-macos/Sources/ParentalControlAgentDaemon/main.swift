@@ -202,6 +202,7 @@ private final class EndpointPolicyScheduler: @unchecked Sendable {
     let snapshot = runtime.snapshot()
     let nextRestriction = runtime.projectedRestrictionDate(
       now: now, sessionActive: sessionActive)
+    let nextAllowance = runtime.projectedAllowanceDate(now: now)
     repository.update {
       $0.policyVersion = snapshot.0?.version
       $0.policyDecision = snapshot.2?.decision
@@ -209,6 +210,7 @@ private final class EndpointPolicyScheduler: @unchecked Sendable {
       $0.policyReason = snapshot.2?.reason
       $0.policyLastEvaluatedAt = now
       $0.policyNextRestrictionAt = nextRestriction
+      $0.policyNextAllowanceAt = nextAllowance
       $0.policyClockTrusted = snapshot.1.clockTrusted
       $0.adultOverrideUntil = snapshot.1.adultOverrideUntil
     }

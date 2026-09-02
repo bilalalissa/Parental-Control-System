@@ -284,88 +284,108 @@ struct ChildDashboard: View {
   }
 
   private func statusView(_ status: EndpointStatus) -> some View {
-    VStack(alignment: .leading, spacing: 14) {
-      Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 9) {
-        row("Controller", status.connectionState.rawValue.capitalized)
-        row("Last contact", status.lastControllerContact?.formatted() ?? "Never")
-        row("This Mac", "\(status.deviceName) · \(status.model)")
-        row("System", "\(status.operatingSystem) · \(status.architecture)")
-        row("Session", status.sessionState.rawValue.capitalized)
-        row("Applications", status.activityCollectionEnabled ? "Shared (names only)" : "Not shared")
-        row("Retention", "\(status.activityRetentionDays) days on parent controller")
-        row("Browser tabs", status.browserCollectionEnabled ? "Shared by extension" : "Not shared")
-        row("Tab retention", "\(status.browserRetentionDays) days on parent controller")
-      }
-      GroupBox("Schedule") {
-        VStack(alignment: .leading, spacing: 8) {
-          if let version = status.policyVersion {
-            LabeledContent("Signed policy", value: "Version \(version)")
-            LabeledContent(
-              "Current decision", value: status.policyDecision?.rawValue.capitalized ?? "Pending")
-            LabeledContent(
-              "Restriction", value: status.policyAction?.rawValue.capitalized ?? "None")
-            if status.policyDecision == .allow, let restrictionAt = status.policyNextRestrictionAt {
-              TimelineView(.periodic(from: .now, by: 1)) { context in
-                LabeledContent(
-                  "Next restriction",
-                  value: Self.countdown(until: restrictionAt, now: context.date)
-                )
-                .monospacedDigit()
+    ScrollView(.vertical) {
+      VStack(alignment: .leading, spacing: 14) {
+        Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 9) {
+          row("Controller", status.connectionState.rawValue.capitalized)
+          row("Last contact", status.lastControllerContact?.formatted() ?? "Never")
+          row("This Mac", "\(status.deviceName) · \(status.model)")
+          row("System", "\(status.operatingSystem) · \(status.architecture)")
+          row("Session", status.sessionState.rawValue.capitalized)
+          row(
+            "Applications", status.activityCollectionEnabled ? "Shared (names only)" : "Not shared")
+          row("Retention", "\(status.activityRetentionDays) days on parent controller")
+          row(
+            "Browser tabs", status.browserCollectionEnabled ? "Shared by extension" : "Not shared")
+          row("Tab retention", "\(status.browserRetentionDays) days on parent controller")
+        }
+        GroupBox("Schedule") {
+          VStack(alignment: .leading, spacing: 8) {
+            if let version = status.policyVersion {
+              LabeledContent("Signed policy", value: "Version \(version)")
+              LabeledContent(
+                "Current decision", value: status.policyDecision?.rawValue.capitalized ?? "Pending")
+              LabeledContent(
+                "Restriction", value: status.policyAction?.rawValue.capitalized ?? "None")
+              if status.policyDecision == .allow, let restrictionAt = status.policyNextRestrictionAt
+              {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                  LabeledContent(
+                    "Next restriction",
+                    value: Self.countdown(until: restrictionAt, now: context.date)
+                  )
+                  .monospacedDigit()
+                }
+              } else if status.policyDecision == .block,
+                let allowanceAt = status.policyNextAllowanceAt
+              {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                  LabeledContent(
+                    "Available in",
+                    value: Self.countdown(until: allowanceAt, now: context.date)
+                  )
+                  .monospacedDigit()
+                }
+              } else if status.policyDecision == .block {
+                LabeledContent("Countdown", value: "No allowed window within 8 days")
+              } else {
+                LabeledContent("Next restriction", value: "Not within the next 8 days")
               }
-            } else if status.policyDecision == .block {
-              LabeledContent("Countdown", value: "Restriction active")
-            } else {
-              LabeledContent("Next restriction", value: "Not within the next 8 days")
-            }
-            Text(status.policyReason ?? "The policy is evaluated locally, including while offline.")
+              Text(
+                status.policyReason ?? "The policy is evaluated locally, including while offline."
+              )
               .font(.caption).foregroundStyle(.secondary)
-            if let until = status.adultOverrideUntil, until > Date() {
-              Label(
-                "Adult override until \(until.formatted(date: .omitted, time: .shortened))",
-                systemImage: "checkmark.shield")
-            }
-            HStack {
-              SecureField("Adult code", text: $adultCode)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 180)
-              Button("Allow 15 Minutes") {
-                model.submitAdultCode(adultCode)
-                adultCode = ""
+              if let until = status.adultOverrideUntil, until > Date() {
+                Label(
+                  "Adult override until \(until.formatted(date: .omitted, time: .shortened))",
+                  systemImage: "checkmark.shield")
               }
-              .disabled(adultCode.filter(\.isNumber).count < 4)
+              HStack {
+                SecureField("Adult code", text: $adultCode)
+                  .textFieldStyle(.roundedBorder)
+                  .frame(maxWidth: 180)
+                Button("Allow 15 Minutes") {
+                  model.submitAdultCode(adultCode)
+                  adultCode = ""
+                }
+                .disabled(adultCode.filter(\.isNumber).count < 4)
+              }
+              Text(
+                "Three failed attempts trigger a five-minute lockout. Settings are read-only here."
+              )
+              .font(.caption2).foregroundStyle(.secondary)
+            } else {
+              Text("Waiting for a signed family schedule from the parent controller.")
             }
-            Text(
-              "Three failed attempts trigger a five-minute lockout. Settings are read-only here."
-            )
-            .font(.caption2).foregroundStyle(.secondary)
-          } else {
-            Text("Waiting for a signed family schedule from the parent controller.")
           }
+          .frame(maxWidth: .infinity, alignment: .leading).padding(6)
         }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(6)
-      }
-      GroupBox("Enforcement coverage") {
-        let readiness = HubLoginEnforcementReadiness.currentMacEndpoint
-        VStack(alignment: .leading, spacing: 8) {
-          LabeledContent(
-            "After sign-in",
-            value: readiness.sessionEnforcementAvailable
-              ? "Signed schedule available" : "Unavailable")
-          LabeledContent(
-            "Before sign-in",
-            value: readiness.managedIdentityConfigured
-              ? "Managed identity configured" : "Not configured")
-          Text(
-            "This version can warn and re-lock the standard child session after it becomes active. It does not replace macOS Login Window authentication."
-          )
-          .font(.caption)
-          .foregroundStyle(.secondary)
+        GroupBox("Enforcement coverage") {
+          let readiness = HubLoginEnforcementReadiness.currentMacEndpoint
+          VStack(alignment: .leading, spacing: 8) {
+            LabeledContent(
+              "After sign-in",
+              value: readiness.sessionEnforcementAvailable
+                ? "Signed schedule available" : "Unavailable")
+            LabeledContent(
+              "Before sign-in",
+              value: readiness.managedIdentityConfigured
+                ? "Managed identity configured" : "Not configured")
+            Text(
+              "This version can warn and re-lock the standard child session after it becomes active. It does not replace macOS Login Window authentication."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(6)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(6)
       }
-      Spacer()
-    }.padding(.top, 14)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.top, 14)
+      .padding(.trailing, 6)
+    }
   }
 
   private var chatView: some View {
