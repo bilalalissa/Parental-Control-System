@@ -62,7 +62,13 @@ struct EndpointCoreTests {
       print("integration agent log: \(log)")
     }
     #expect(pairingResult == .success)
-    #expect(try database.device(id: configuration.deviceID) != nil)
+    let pairedDevice = try database.device(id: configuration.deviceID)
+    #expect(pairedDevice != nil)
+    #expect(
+      pairedDevice?.capabilities.contains(HubLoginEnforcementCapability.session.rawValue) == true)
+    #expect(
+      pairedDevice?.capabilities.contains(HubLoginEnforcementCapability.managedIdentity.rawValue)
+        == false)
     let pairingDeadline = Date().addingTimeInterval(2)
     while try store.load().invitation != nil, Date() < pairingDeadline {
       Thread.sleep(forTimeInterval: 0.02)

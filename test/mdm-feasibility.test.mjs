@@ -32,6 +32,6 @@ test("Stage 06A rejects unsafe broad local-login denial and cloud-only recovery"
 test("the roadmap amendment remains bounded and preserves the local-first core", () => {
   assert.match(masterPrompt, /STAGE-06A — Manual third-party MDM feasibility/i);
   assert.match(masterPrompt, /optional feasibility exception/i);
-  assert.match(stage, /No Parent Controller or child-endpoint integration/i);
+  assert.match(stage, /No Parent Controller or child-endpoint MDM integration/i);
   assert.match(stage, /No vendor account, APNs certificate, API key, or enrolled device/i);
 });

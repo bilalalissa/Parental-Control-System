@@ -3,11 +3,11 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–06 are merged; STAGE-06A is the active bounded feasibility review; STAGE-07 has not begun.** Stage 06A evaluates manual third-party MDM enrollment for scheduled macOS login and changes no application binary or external account. See [Stage status](docs/stages/stage-status.json).
+> **Stages 00–06 are merged; STAGE-06A is ready for installer retest; STAGE-07 has not begun.** Stage 06A documents the manual-MDM feasibility result and adds a transition build that distinguishes active-session enforcement from unconfigured managed pre-login enforcement. It creates no external account or enrollment. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
-The planned system has a native Apple-silicon macOS Parent Controller plus visible child endpoints for macOS, Windows, and iPadOS. Desktop devices communicate directly with the controller over an authenticated local network connection and enforce the last valid signed policy while offline. A public relay, hosted database, SaaS telemetry, and mandatory cloud account are outside stages 00–12. Stage 06A is an optional documentation-only feasibility exception; it does not make third-party MDM part of the local-first core.
+The planned system has a native Apple-silicon macOS Parent Controller plus visible child endpoints for macOS, Windows, and iPadOS. Desktop devices communicate directly with the controller over an authenticated local network connection and enforce the last valid signed policy while offline. A public relay, hosted database, SaaS telemetry, and mandatory cloud account are outside stages 00–12. Stage 06A is an optional bounded feasibility exception with a local transition installer; it does not make third-party MDM part of the local-first core.
 
 The project is intentionally visible and bounded. It will not implement hidden installation, keylogging, screenshots, camera or microphone capture, message or file reading, TLS interception, private APIs, security bypasses, or arbitrary remote command execution.
 
@@ -44,7 +44,9 @@ Stage 06 keeps all communication and policy authority local-first. The controlle
 
 Stage 06A found that Apple's macOS Login Window `AllowList` and `DenyList` apply only to network and mobile accounts, not an ordinary local child account, and provide no weekly schedule or automatic expiry. Broadly disabling local logins could also deny the adult recovery administrator. The proposed manual-MDM mechanism is therefore a documented no-go before enrollment; no MDM account, APNs certificate, API key, profile, or device record is created.
 
-The Stage 06 package remains one selectable clean-install installer. It installs the Apple-silicon Parent Controller by default; on a child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. The universal `arm64`/`x86_64` endpoint has a visible read-only policy dashboard, boot daemon, login helper, authenticated XPC, protected configuration/policy/queue files, Keychain-backed identity, adaptive delta heartbeats, bounded/redacted logs, native browser host, and administrator uninstaller. Lock starts the system screen saver and preserves open applications. Logoff, restart, and shutdown use documented loginwindow confirmation dialogs and never force-terminate applications; unsaved-work prompts remain under macOS control.
+The `0.6.1-rc.1` transition build keeps the Stage-06 enforcement behavior and pairing format unchanged. Both visible apps now distinguish signed schedule enforcement after a child session becomes active from managed pre-login enforcement, which remains explicitly not configured. The endpoint announces a versioned `session-enforcement` capability for future negotiation without claiming or enabling managed identity.
+
+The Stage 06A package remains one selectable clean-install and in-place-upgrade installer. It installs the Apple-silicon Parent Controller by default; on a child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. The universal `arm64`/`x86_64` endpoint has a visible read-only policy dashboard, boot daemon, login helper, authenticated XPC, protected configuration/policy/queue files, Keychain-backed identity, adaptive delta heartbeats, bounded/redacted logs, native browser host, and administrator uninstaller. Lock starts the system screen saver and preserves open applications. Logoff, restart, and shutdown use documented loginwindow confirmation dialogs and never force-terminate applications; unsaved-work prompts remain under macOS control.
 
 To test one mock after installing the developer candidate:
 
@@ -76,7 +78,7 @@ npm test
 npm run cleanup:list
 ```
 
-Building the Stage 06 macOS candidate requires macOS 14 or newer with Xcode and Swift installed. Build work is constrained to two workers and one project-owned output tree:
+Building the Stage 06A macOS transition candidate requires macOS 14 or newer with Xcode and Swift installed. Build work is constrained to two workers and one project-owned output tree:
 
 ```sh
 swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests
@@ -85,11 +87,10 @@ swift format lint --recursive agents/endpoint-macos/Sources agents/endpoint-maco
 swift test --package-path agents/endpoint-macos --jobs 2
 ./script/build_endpoint_app.sh Release
 ./script/build_and_run.sh
-./script/package_browser_extension.sh
 ./script/package_endpoint_release.sh
 ```
 
-The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; protected XPC and enforcement require the installed daemon/helper. `package_browser_extension.sh` creates the companion Chrome/Edge/Arc ZIP for a fresh tester; `package_endpoint_release.sh` creates the selectable Stage 06 `.pkg`. Builders default to ad-hoc app/helper signing for credential-free CI; a physical developer candidate can set `MACOS_SIGNING_IDENTITY` to one stable local Apple Development identity. The installer and extension ZIP remain unsigned and not notarized.
+The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; protected XPC and enforcement require the installed daemon/helper. `package_endpoint_release.sh` creates the selectable Stage 06A `.pkg`; the already-installed browser extension does not need removal, reinstallation, or manual reload because its native host is updated in place. Builders default to ad-hoc app/helper signing for credential-free CI; a physical developer candidate can set `MACOS_SIGNING_IDENTITY` to one stable local Apple Development identity. The product package remains unsigned and not notarized.
 
 Install the same package on the parent Mac with its default **Parent Controller** choice. On the child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. Confirm the endpoint service before pairing:
 

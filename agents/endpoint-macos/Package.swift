@@ -30,6 +30,7 @@ let package = Package(
       name: "ParentalControlChild",
       dependencies: [
         "EndpointCore", .product(name: "DesignSystem", package: "controller-macos"),
+        .product(name: "HubCore", package: "controller-macos"),
       ],
       linkerSettings: [.linkedFramework("UserNotifications")]),
     .executableTarget(name: "ParentalControlAgentDaemon", dependencies: ["EndpointCore"]),

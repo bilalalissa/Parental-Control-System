@@ -36,7 +36,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06a-manual-mdm-feasibility");
   assert.equal(active[0].version, "0.6.1-rc.1");
-  assert.equal(active[0].status, "READY_FOR_DEVELOPER_TEST");
+  assert.equal(active[0].status, "READY_FOR_RETEST");
   const idPattern = new RegExp(schema.properties.stages.items.properties.id.pattern);
   assert.ok(tracker.stages.every((stage) => idPattern.test(stage.id)));
 });
@@ -325,6 +325,52 @@ test("Stage 06 policy enforcement is signed, bounded, visible, and allowlisted",
   assert.match(security, /Receipts acknowledge endpoint acceptance, not completion/);
 });
 
+test("Stage 06A transition installer is versioned, upgrade-safe, and capability-honest", async () => {
+  const [
+    controllerBuild,
+    endpointBuild,
+    packaging,
+    distribution,
+    preinstall,
+    postinstall,
+    readiness,
+    agent,
+    devices,
+    child,
+    workflow,
+  ] = await Promise.all([
+    read("script/build_app.sh"),
+    read("script/build_endpoint_app.sh"),
+    read("script/package_endpoint_release.sh"),
+    read("agents/endpoint-macos/Installer/Distribution.xml"),
+    read("agents/endpoint-macos/Installer/preinstall"),
+    read("agents/endpoint-macos/Installer/postinstall"),
+    read("apps/controller-macos/Sources/HubCore/Models/LoginEnforcementReadiness.swift"),
+    read("agents/endpoint-macos/Sources/EndpointCore/EndpointAgent.swift"),
+    read("apps/controller-macos/Sources/ParentalControlController/Views/DevicesView.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift"),
+    read(".github/workflows/stage-03-macos.yml"),
+  ]);
+  for (const build of [controllerBuild, endpointBuild]) {
+    assert.match(build, /VERSION="0\.6\.1-rc\.1"/);
+    assert.match(build, /CFBundleVersion string 6101/);
+    assert.match(build, /derived-data\/stage-06a/);
+  }
+  assert.match(packaging, /ParentalControlSystem-\$VERSION\.pkg/);
+  assert.match(packaging, /--version 0\.6\.1\.1/);
+  assert.doesNotMatch(packaging, /package_browser_extension\.sh/);
+  assert.match(distribution, /version="0\.6\.1\.1"/);
+  assert.match(preinstall, /configuration\.json/);
+  assert.doesNotMatch(preinstall + postinstall, /delete-generic-password|rm[^\n]*configuration\.json/);
+  assert.match(readiness, /session-enforcement/);
+  assert.match(readiness, /managed-identity-login/);
+  assert.match(agent, /HubLoginEnforcementCapability\.session\.rawValue/);
+  assert.match(devices, /Managed pre-login enforcement not configured/);
+  assert.match(child, /It does not replace macOS Login Window authentication/);
+  assert.match(workflow, /ParentalControlSystem-0\.6\.1-rc\.1\.pkg/);
+  assert.doesNotMatch(workflow, /ParentalControlBrowserSharing-0\.6\.1-rc\.1/);
+});
+
 test("local Markdown links resolve inside the repository", async () => {
   const markdownFiles = await walk(root, ".md");
   const missing = [];
@@ -402,7 +448,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–06 are merged; STAGE-06A is the active bounded feasibility review; STAGE-07 has not begun/);
+  assert.match(readme, /Stages 00–06 are merged; STAGE-06A is ready for installer retest; STAGE-07 has not begun/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);

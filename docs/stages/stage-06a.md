@@ -2,21 +2,22 @@
 
 - Version: `0.6.1-rc.1`
 - Branch: `stage/06a-manual-mdm-feasibility`
-- Status: `READY_FOR_DEVELOPER_TEST`
+- Status: `READY_FOR_RETEST`
 - Authorized: `2026-09-01` via `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06A MANUAL-MDM FEASIBILITY BEFORE STAGE-07` and `PROCEED: STAGE-06A`
+- Installer amendment authorized: `2026-09-01` via `AUTHORIZE STAGE-06A SCOPE AMENDMENT: PRODUCE 0.6.1-rc.1 TRANSITION INSTALLER` and `PROCEED: STAGE-06A INSTALLER RETEST`
 - Platform evaluated: macOS 15 documentation and third-party MDM documentation; no device enrolled
 
 ## Objective, included scope, and acceptance
 
 Determine whether manual enrollment with one third-party MDM can safely prevent an ordinary local standard child account from logging in outside a signed weekly schedule while an adult recovery administrator can always log in.
 
-Included work is a vendor-neutral Apple-platform capability review, candidate MDM comparison, focused threat-model update, recovery and privacy gates, and an honest go/no-go decision before any external account or physical enrollment. Acceptance requires selective child-account denial, bounded restoration, an offline local adult recovery route, observable delivery, no destructive credential exposure, and no change to the local-first controller/endpoint path.
+Included work is a vendor-neutral Apple-platform capability review, candidate MDM comparison, focused threat-model update, recovery and privacy gates, and an honest go/no-go decision before any external account or physical enrollment. The separately authorized transition work preserves Stage-06 behavior, adds a versioned login-enforcement readiness model, visibly distinguishes active-session enforcement from managed pre-login enforcement, and produces one upgrade-safe package. Acceptance requires truthful capability presentation, preserved endpoint identity and protected state across in-place installation, unchanged local-first policy behavior, universal endpoint binaries, verified package contents, and no unsupported pre-login claim.
 
-Excluded are Automated Device Enrollment, Apple Business Manager or Apple School Manager, Platform SSO, directory/network-account deployment, FileVault or secure-token changes, scripts, a public relay, product MDM API integration, device erase, application/network blocking, and STAGE-07 work. No Parent Controller or child-endpoint integration is included.
+Excluded are Automated Device Enrollment, Apple Business Manager or Apple School Manager, Platform SSO, directory/network-account deployment, FileVault or secure-token changes, privileged MDM scripts, a public relay, product MDM API integration, device erase, application/network blocking, actual pre-login enforcement, and STAGE-07 work. No Parent Controller or child-endpoint MDM integration is included.
 
 Assumptions were one disposable Mac, one ordinary local standard child account, one separate local adult recovery administrator, recoverable data, and administrator-approved manual enrollment. No vendor account, APNs certificate, API key, or enrolled device is created without separate explicit approval.
 
-Resource limits are one checkout and branch, no native build, simulator, VM, container, device enrollment, or additional dependency; at least 5 GiB free; and only source documentation plus dependency-free validation tests.
+Resource limits are one checkout and branch, one Release build tree, two build workers, no simulator, VM, container, device enrollment, or additional dependency, and at least 5 GiB free. Only one new PKG and checksum may replace the prior local package after verification; the unchanged browser-extension ZIP is retained without rebuilding.
 
 ## Result: no-go for the proposed local-account mechanism
 
@@ -52,7 +53,7 @@ The proposed mechanism fails gates 1–3 and cannot yet prove gate 4.
 2. Propose a separate managed-identity feasibility stage using a network/mobile account or Platform SSO. This is materially larger and requires identity-provider, FileVault, secure-token, offline-authentication, migration, privacy, and recovery analysis.
 3. Use Apple's built-in Screen Time/Downtime for the OS-supported consumer control boundary, alongside this app's visible family workflow.
 
-No alternative is selected or implemented by STAGE-06A.
+No managed-identity alternative is selected or implemented by STAGE-06A. The transition installer only exposes the boundary required for a later decision.
 
 ## Validation plan
 

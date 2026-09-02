@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 SOURCE_SVG="$ROOT_DIR/packages/design-assets/controller-icon.svg"
-OUTPUT_ICNS="${1:-$ROOT_DIR/.artifacts/derived-data/stage-06/ControllerIcon.icns}"
-WORK_DIR="$ROOT_DIR/.artifacts/derived-data/stage-06/controller-icon-generation"
+OUTPUT_ICNS="${1:-$ROOT_DIR/.artifacts/derived-data/stage-06a/ControllerIcon.icns}"
+WORK_DIR="$ROOT_DIR/.artifacts/derived-data/stage-06a/controller-icon-generation"
 ICONSET_DIR="$WORK_DIR/ControllerIcon.iconset"
 
 if [[ ! -f "$SOURCE_SVG" ]]; then

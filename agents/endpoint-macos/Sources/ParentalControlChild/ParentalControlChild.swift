@@ -1,6 +1,7 @@
 import AppKit
 import DesignSystem
 import EndpointCore
+import HubCore
 import SwiftUI
 import UserNotifications
 
@@ -342,6 +343,26 @@ struct ChildDashboard: View {
           }
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(6)
+      }
+      GroupBox("Enforcement coverage") {
+        let readiness = HubLoginEnforcementReadiness.currentMacEndpoint
+        VStack(alignment: .leading, spacing: 8) {
+          LabeledContent(
+            "After sign-in",
+            value: readiness.sessionEnforcementAvailable
+              ? "Signed schedule available" : "Unavailable")
+          LabeledContent(
+            "Before sign-in",
+            value: readiness.managedIdentityConfigured
+              ? "Managed identity configured" : "Not configured")
+          Text(
+            "This version can warn and re-lock the standard child session after it becomes active. It does not replace macOS Login Window authentication."
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(6)
       }
       Spacer()
     }.padding(.top, 14)

@@ -118,6 +118,7 @@ public final class EndpointAgent: @unchecked Sendable {
         .string("browser-tabs"), .string("request-more-time"), .string("notifications"),
         .string("time-request-resolution"),
         .string("signed-policy"), .string("offline-enforcement"), .string("policy-warning"),
+        .string(HubLoginEnforcementCapability.session.rawValue),
         .string("lock"), .string("logoff"), .string("restart"), .string("shutdown"),
         .string("adult-override"), .string("bonus-time"),
       ]),
