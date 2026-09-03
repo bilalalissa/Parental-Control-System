@@ -2,7 +2,7 @@
 
 - Version: `0.6.1-rc.5`
 - Branch: `stage/06a-manual-mdm-feasibility`
-- Status: `CHANGES_REQUESTED`
+- Status: `READY_FOR_RETEST`
 - Authorized: `2026-09-01` via `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06A MANUAL-MDM FEASIBILITY BEFORE STAGE-07` and `PROCEED: STAGE-06A`
 - Installer amendment authorized: `2026-09-01` via `AUTHORIZE STAGE-06A SCOPE AMENDMENT: PRODUCE 0.6.1-rc.1 TRANSITION INSTALLER` and `PROCEED: STAGE-06A INSTALLER RETEST`
 - Platform evaluated: macOS 15 documentation and third-party MDM documentation; no device enrolled
@@ -80,37 +80,38 @@ Safe cleanup removes only repository-owned `dist`, Stage 06A derived data, and p
 ## Verification evidence
 
 - The full dependency-free repository suite passed: 46 tests passed and the Windows-only cleanup test was skipped on macOS. It covers the Stage 06A platform boundary, release version, package contract, upgrade preservation, active-stage tracker, protocol/policy/security regressions, JSON parsing, and local Markdown links.
-- The controller/HubCore Swift suite passed 50 tests in 14 suites with normal Keychain and loopback access. The endpoint Swift suite passed 25 tests in three suites, including authenticated pairing, upgrade identity preservation, activation-boundary re-arming, exact-minute allowed-window projection, rejection of stale repeat-lock decisions, and the assertion that a current macOS endpoint advertises `session-enforcement` but not `managed-identity-login`.
+- The controller/HubCore Swift suite passed 50 tests in 14 suites with normal Keychain and loopback access. The endpoint Swift suite passed 26 tests in three suites, including authenticated pairing, upgrade identity preservation, activation-boundary re-arming, exact-minute allowed-window projection, rejection of stale repeat-lock decisions, and an exact America/Regina test separating a Thursday 06:58–21:50 weekly window from an earlier active-use quota limit.
 - Swift formatting lint, Bash syntax, installer-distribution XML validation, `git diff --check`, and the bounded secret scan passed.
-- The expanded installer contains both selectable components, the native browser host manifests, launchd definitions, and the universal endpoint helpers. Both apps report `0.6.1-rc.4` build `6104` and source commit `e9c096a6c475`. The Parent Controller is `arm64`; the child app and its four helpers are `x86_64 arm64`.
+- The expanded installer contains both selectable components, the native browser host manifests, launchd definitions, and the universal endpoint helpers. Both apps report `0.6.1-rc.5` build `6105` and source commit `ce7428e6a0b2`. The Parent Controller is `arm64`; the child app and its four helpers are `x86_64 arm64`.
 - Deep strict code-signature verification passed for both app bundles, and strict verification passed for the separately installed daemon and CLI copy. These are ad-hoc signatures with no Team ID because no valid local signing identity is configured. The product package is unsigned and not notarized.
 - Installer-choice inspection passed: Parent Controller is selected by default; Child Endpoint is visible and optional. The child choice explicitly documents in-place pairing preservation. No enrollment profile, MDM integration, or managed pre-login capability is included.
-- Transition installer: `.artifacts/release-candidate/ParentalControlSystem-0.6.1-rc.4.pkg`; 15,398,452 bytes; SHA-256 `f735620392f97f979e1deeda2edf7a51359b463fc3e4a5b9d4436eacd9e85939`.
+- Transition installer: `.artifacts/release-candidate/ParentalControlSystem-0.6.1-rc.5.pkg`; 15,627,326 bytes; SHA-256 `e835e4fc5023737eb5b19386afd3e4318d8700dc96db0f9392a0e3fd3ca56aa9`.
 - The unchanged browser-extension archive remains `ParentalControlBrowserSharing-0.6.0-rc.9.zip`. It is not a new Stage 06A artifact; the installer updates its native host in place, so an installed extension does not require removal, reinstallation, or manual reload.
 - Official Apple and vendor documentation was reviewed on 2026-09-01. This remains source evidence, not MDM-console or enrolled-device evidence. Feasibility ADR: `docs/adr/0001-manual-mdm-login-window-feasibility.md`; SHA-256 `cefe54c0c88b25b37d71bf013773f9f6a86a1840958928af54821f54964af963`.
 
 ## Resource evidence
 
-- RC4 retest preflight: 13 GiB free; repository 26 MiB excluding generated artifacts; retained candidate set 15 MiB; no generated build output.
-- Peak observed repository size before cleanup was 647 MiB, including the bounded controller and endpoint test/build output. The development volume remained above the 5 GiB floor.
-- After cleanup: 13 GiB free; repository 26 MiB; retained candidate set 15 MiB. `dist`, root and package-local Stage 06A test/derived data, endpoint SwiftPM output, package-staging output, and incidental release-folder metadata were removed, and the cleanup dry run reports no remaining generated output.
+- RC5 retest preflight: 12 GiB free; repository 26 MiB excluding generated artifacts; retained candidate set 15 MiB; no generated build output.
+- Peak observed repository size before cleanup was 889 MiB, including the bounded controller and endpoint test/build output. The development volume remained above the 5 GiB floor.
+- After cleanup: 15 GiB free; repository 27 MiB excluding generated artifacts; retained candidate set 15 MiB. `dist`, root and package-local Stage 06A test/derived data, endpoint SwiftPM output, package-staging output, and incidental release-folder metadata were removed, and the cleanup dry run reports no remaining generated output.
 - Retained files are the single current native package and checksum plus the unchanged Stage 06 browser-extension ZIP and checksum. No duplicate native RC is retained.
 - No simulator, VM, container, worktree, MDM account, profile, APNs certificate, or enrolled device was created. No project service or GUI process was intentionally launched. The developer's previously installed Parent Controller and its Hub helper remained running and were not modified or stopped by build verification.
 
 ## Developer review checklist
 
 1. Verify the package SHA-256 before installation.
-2. Install Parent Controller over the currently installed version and confirm About reports `0.6.1-rc.4` build `6104`.
+2. Install Parent Controller over the currently installed version and confirm About reports `0.6.1-rc.5` build `6105`.
 3. On the already paired child Mac, choose **Customize**, deselect **Parent Controller**, select **Child Endpoint**, and install without uninstalling or unpairing first. Confirm pairing, online state, signed policy, messages, and retained browser observations remain available.
 4. Confirm the Parent Controller device detail and child Status view both report active-session enforcement as available and managed pre-login enforcement as not configured.
 5. For a pure weekly-window test, set the daily quota to 1,440 minutes and configure no explicit blocked interval. Apply a weekly allowed window spanning the current time and confirm the child remains unlocked.
 6. Apply a window that excludes the current time and confirm the first lock after the configured warning/grace period. Authenticate through the macOS Screen Saver/login UI while the schedule remains blocked; initial authentication is expected to succeed, but confirm the active desktop is re-locked within 15 seconds. Repeat once and confirm there is no rapid duplicate-lock loop.
-7. Configure the next allowed boundary a few minutes ahead. While blocked, confirm the child Status view and visible menu-bar item count down to it; at the exact boundary, authenticate and confirm the app stops re-locking the session. If the child reports `Daily active-use quota reached`, reset/increase that quota before judging weekly-window direction.
-8. Resize the child window vertically and horizontally and confirm all Status content wraps or remains readable through vertical scrolling. Approve bonus time and confirm the allowed session is not re-locked during the approved interval and the countdown changes to the next restriction. Then recheck one immediate lock action and one time-extension request/decision.
-9. Open a new browser tab and confirm it appears without removing, reinstalling, or manually reloading the already installed extension.
-10. Repeat-install the same Child Endpoint choice and confirm identity and protected state remain intact.
-11. Confirm no profile is installed, no MDM account is requested, and the app makes no claim that it can deny an ordinary local account at Login Window.
-12. On a clean Mac, confirm the endpoint still requires one explicit pairing, as designed.
+7. Configure the next allowed boundary a few minutes ahead. While blocked, confirm the child Status view and visible menu-bar item count down to it; at the exact boundary, authenticate and confirm the app stops re-locking the session.
+8. During an allowed window, confirm **Schedule time zone** and **Policy time** match the signed parent policy and local wall clock. Confirm **Current scheduled window**, **Planned window duration**, and **Scheduled time remaining** agree with the parent editor. **Effective time remaining** may be earlier only when **Next limiting rule** identifies a daily quota, blocked interval, or temporary allowance boundary. For a pure weekly-window test, use a 1,440-minute quota, no blocked interval, and no active temporary allowance.
+9. Resize the child window vertically and horizontally and confirm all Status content wraps or remains readable through vertical scrolling. Approve bonus time and confirm the child separately shows the base quota, bonus, total active-use allowance, and temporary parent allowance. Then recheck one immediate lock action and one time-extension request/decision.
+10. Open a new browser tab and confirm it appears without removing, reinstalling, or manually reloading the already installed extension.
+11. Repeat-install the same Child Endpoint choice and confirm identity and protected state remain intact.
+12. Confirm no profile is installed, no MDM account is requested, and the app makes no claim that it can deny an ordinary local account at Login Window.
+13. On a clean Mac, confirm the endpoint still requires one explicit pairing, as designed.
 
 ## Sources
 

@@ -36,7 +36,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06a-manual-mdm-feasibility");
   assert.equal(active[0].version, "0.6.1-rc.5");
-  assert.equal(active[0].status, "CHANGES_REQUESTED");
+  assert.equal(active[0].status, "READY_FOR_RETEST");
   const idPattern = new RegExp(schema.properties.stages.items.properties.id.pattern);
   assert.ok(tracker.stages.every((stage) => idPattern.test(stage.id)));
 });
@@ -468,7 +468,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–06 are merged; STAGE-06A `0\.6\.1-rc\.5` is being prepared for installer retest; STAGE-07 has not begun/);
+  assert.match(readme, /Stages 00–06 are merged; STAGE-06A `0\.6\.1-rc\.5` is ready for installer retest; STAGE-07 has not begun/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
