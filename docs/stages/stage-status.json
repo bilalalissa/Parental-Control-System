@@ -1,6 +1,6 @@
 {
   "$schema": "./stage-status.schema.json",
-  "activeStage": "STAGE-06A",
+  "activeStage": "STAGE-06B",
   "stages": [
     {
       "id": "STAGE-00",
@@ -65,6 +65,14 @@
       "status": "MERGED",
       "branch": "stage/06a-manual-mdm-feasibility",
       "document": "stage-06a.md"
+    },
+    {
+      "id": "STAGE-06B",
+      "name": "Managed-identity feasibility for scheduled macOS login",
+      "version": "0.6.2-rc.1",
+      "status": "READY_FOR_DEVELOPER_TEST",
+      "branch": "stage/06b-managed-identity-feasibility",
+      "document": "stage-06b.md"
     }
   ]
 }

@@ -25,6 +25,8 @@ Stage 06 adds one current per-device signed policy and a small protected runtime
 
 Stage 06A is a source-only feasibility review. It creates no third-party MDM account, APNs certificate, enrollment profile, API key, device record, or external data transfer. A future separately approved MDM test would necessarily disclose limited device and management inventory to that vendor; it must use synthetic account names, exclude chat/app/browser/family content, document vendor retention, and delete the test record afterward. The local-first product must continue working without the vendor.
 
+Stage 06B is also source-only. It creates no IdP/MDM account, managed identity, SSO extension, registration, attestation, profile, credential, device record, or external data transfer. A separately approved Platform SSO pilot would disclose a synthetic account and limited device/registration state to the named providers. Device identifiers in attestation remain disabled unless separately justified. The pilot must exclude real names and all chat, app, browser, schedule, network-address, and family content; document provider purpose and retention; and delete the synthetic identity and device record after rollback. The local-first product continues without the provider.
+
 ## Transparency and control
 
 The installed endpoint must identify itself, show that parental controls are active, explain what it shares, show the effective schedule, and offer a way to contact the parent or request time. Child settings are read-only; changes require authenticated adult approval and any administrator authorization required by the operating system.

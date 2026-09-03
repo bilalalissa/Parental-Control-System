@@ -3,11 +3,11 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **Stages 00–06A are merged; STAGE-07 has not begun.** Stage 06A documents the manual-MDM feasibility result and its approved `0.6.1-rc.5` transition build, which distinguishes active-session enforcement from unconfigured managed pre-login enforcement. It creates no external account or enrollment. See [Stage status](docs/stages/stage-status.json).
+> **STAGE-06B is ready for developer review; STAGE-07 has not begun.** Stage 06B evaluates managed identity and Platform SSO using documentation and synthetic checks only. It creates no account, enrollment, profile, external data flow, or installer. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 
-The planned system has a native Apple-silicon macOS Parent Controller plus visible child endpoints for macOS, Windows, and iPadOS. Desktop devices communicate directly with the controller over an authenticated local network connection and enforce the last valid signed policy while offline. A public relay, hosted database, SaaS telemetry, and mandatory cloud account are outside stages 00–12. Stage 06A is an optional bounded feasibility exception with a local transition installer; it does not make third-party MDM part of the local-first core.
+The planned system has a native Apple-silicon macOS Parent Controller plus visible child endpoints for macOS, Windows, and iPadOS. Desktop devices communicate directly with the controller over an authenticated local network connection and enforce the last valid signed policy while offline. A public relay, hosted database, SaaS telemetry, and mandatory cloud account are outside stages 00–12. Stages 06A and 06B are bounded feasibility exceptions; they do not make third-party MDM or managed identity part of the local-first core.
 
 The project is intentionally visible and bounded. It will not implement hidden installation, keylogging, screenshots, camera or microphone capture, message or file reading, TLS interception, private APIs, security bypasses, or arbitrary remote command execution.
 
@@ -44,6 +44,8 @@ Stage 06 keeps all communication and policy authority local-first. The controlle
 
 Stage 06A found that Apple's macOS Login Window `AllowList` and `DenyList` apply only to network and mobile accounts, not an ordinary local child account, and provide no weekly schedule or automatic expiry. Broadly disabling local logins could also deny the adult recovery administrator. The proposed manual-MDM mechanism is therefore a documented no-go before enrollment; no MDM account, APNs certificate, API key, profile, or device record is created.
 
+Stage 06B finds that Platform SSO can require live identity-provider authentication at Login Window on macOS 15 or later and can exclude a local adult recovery account. That is a meaningful conditional path for an online, managed child identity. It is not an offline family-schedule solution: Apple's policy has no weekly time-window field, its offline grace is measured in days since successful authentication, and disabling grace denies all offline login rather than evaluating the signed local schedule. FileVault policy is limited to Apple silicon, so the currently tested Intel class also needs a separate post-FileVault Login Window step. The stage therefore recommends no product integration and no physical enrollment yet. See [ADR-0002](docs/adr/0002-managed-identity-scheduled-login-feasibility.md).
+
 The `0.6.1-rc.5` transition build keeps the Stage-06 enforcement behavior and pairing format unchanged. Both visible apps distinguish signed schedule enforcement after a child session becomes active from managed pre-login enforcement, which remains explicitly not configured. The authenticated GUI helper marks startup, wake/unlock, and public Screen Saver termination as activation boundaries, uses a fresh public Screen Saver instance for each lock request, and performs a bounded active-session re-lock check only while a recent signed-policy evaluation remains blocked and its next allowed boundary has not arrived. The child Status view scrolls and separately reports scheduled-window time, daily active-use quota, approved bonus time, temporary allowance, effective remaining time, and the rule that limits it first. It also exposes signed-policy time zone and policy-local time so system-time mismatches are visible. The endpoint announces a versioned `session-enforcement` capability without claiming or enabling managed identity.
 
 The Stage 06A package remains one selectable clean-install and in-place-upgrade installer. It installs the Apple-silicon Parent Controller by default; on a child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. The universal `arm64`/`x86_64` endpoint has a visible read-only policy dashboard, boot daemon, login helper, authenticated XPC, protected configuration/policy/queue files, Keychain-backed identity, adaptive delta heartbeats, bounded/redacted logs, native browser host, and administrator uninstaller. Lock starts the system screen saver and preserves open applications. Logoff, restart, and shutdown use documented loginwindow confirmation dialogs and never force-terminate applications; unsaved-work prompts remain under macOS control.
@@ -78,7 +80,7 @@ npm test
 npm run cleanup:list
 ```
 
-Building the Stage 06A macOS transition candidate requires macOS 14 or newer with Xcode and Swift installed. Build work is constrained to two workers and one project-owned output tree:
+Building the latest approved Stage 06A macOS transition candidate requires macOS 14 or newer with Xcode and Swift installed. Stage 06B itself is documentation-only and requires only the dependency-free repository checks. Native build work remains constrained to two workers and one project-owned output tree:
 
 ```sh
 swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests

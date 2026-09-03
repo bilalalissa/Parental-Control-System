@@ -63,7 +63,7 @@ The first production architecture is local-first, not cloud-first.
 - Pairing, policy distribution, status, supported commands, and desktop chat must work on the LAN without a hosted database or third-party service.
 - Child endpoints cache the last valid signed policy and enforce it locally while disconnected.
 - Messages and receipts use bounded local queues.
-- No public relay, hosted API, remote database, SaaS telemetry, Docker deployment, Kubernetes deployment, or mandatory account service may be introduced in stages 00–12. STAGE-06A is an explicitly authorized optional feasibility exception for evaluating manual third-party MDM enrollment and producing a separately authorized transition installer that truthfully exposes the current enforcement boundary; it must not make the core product depend on an external account, create an MDM account without separate approval, install an MDM profile, or transmit family data.
+- No public relay, hosted API, remote database, SaaS telemetry, Docker deployment, Kubernetes deployment, or mandatory account service may be introduced in stages 00–12. STAGE-06A is an explicitly authorized optional feasibility exception for evaluating manual third-party MDM enrollment and producing a separately authorized transition installer that truthfully exposes the current enforcement boundary. STAGE-06B is an explicitly authorized source-only feasibility exception for evaluating managed identity and Platform SSO. Neither stage may make the core product depend on an external account, create an MDM or identity-provider account without separate approval, install an MDM/SSO profile, register a real user or device, or transmit family data.
 - APNs may be used for iPad notifications because iPadOS background delivery requires Apple infrastructure, but iPad scheduling and shielding must not depend on a custom cloud database.
 - Stage 13 may design an optional relay. Building or deploying it requires a separate explicit approval. The controller remains the policy authority and the relay must not be able to invent commands.
 - A future remote feature must degrade cleanly to local operation and must not make LAN operation unavailable.
@@ -706,6 +706,18 @@ Acceptance is an evidence-backed go/no-go ADR, focused threat-model and privacy 
 The developer separately authorized a `0.6.1-rc.1` transition installer on 2026-09-01. It may preserve the approved Stage-06 behavior, add a versioned readiness model and visible distinction between active-session enforcement and unavailable managed pre-login enforcement, and prove clean/repeat-install upgrade safety. It must not enroll a device, install a profile, configure managed identity, or claim pre-login enforcement.
 
 Version: `0.6.1-rc.5`.
+
+### STAGE-06B — Managed-identity feasibility for scheduled macOS login
+
+Evaluate whether Apple Platform SSO or a managed network/mobile identity can prevent a managed standard child account from logging in outside a weekly schedule while preserving an independently recoverable local adult administrator, FileVault recovery, and the existing local-first product.
+
+Start with current official Apple and representative identity-provider documentation. Define the account lifecycle, Platform SSO authentication method, Login/Unlock/FileVault policies, offline behavior, secure-token/bootstrap-token implications, existing-local-account migration, unenrollment behavior, and recovery runbook. Distinguish a platform authentication policy from an identity provider that can actually decide a family time window. Do not create an account, tenant, certificate, profile, enrollment, managed user, or product integration. Do not modify Login Window, FileVault, local accounts, secure tokens, or the installed applications.
+
+Reject a design that has no documented schedule-aware decision point, permits a child to bypass the schedule offline, makes the adult recovery account subject to the child policy, cannot recover with the identity provider or network unavailable, or relocates the mandatory local policy authority without explicit later approval. Any physical pilot requires a separate approval and must use a disposable synthetic managed identity on eligible hardware.
+
+Acceptance is an evidence-backed go/no-go ADR, focused security/privacy and capability updates, a vendor/account/FileVault/offline/recovery matrix, dependency-free repository tests, and an honest pilot recommendation. No installer is required because this stage changes no product code; the reviewed feasibility dossier is the stage artifact.
+
+Version: `0.6.2-rc.1`.
 
 ### STAGE-07 — Windows Child Agent foundation
 
