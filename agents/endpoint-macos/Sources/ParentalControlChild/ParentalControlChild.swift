@@ -307,14 +307,61 @@ struct ChildDashboard: View {
                 "Current decision", value: status.policyDecision?.rawValue.capitalized ?? "Pending")
               LabeledContent(
                 "Restriction", value: status.policyAction?.rawValue.capitalized ?? "None")
+              if let allowance = status.policyAllowanceSummary {
+                LabeledContent("Schedule time zone", value: allowance.timezone)
+                LabeledContent(
+                  "Policy time",
+                  value: Self.scheduleTime(Date(), timezone: allowance.timezone))
+                if let start = allowance.scheduledWindowStartAt,
+                  let end = allowance.scheduledWindowEndAt,
+                  let duration = allowance.plannedWindowSeconds
+                {
+                  LabeledContent(
+                    "Current scheduled window",
+                    value:
+                      "\(Self.scheduleTime(start, timezone: allowance.timezone)) – \(Self.scheduleTime(end, timezone: allowance.timezone))"
+                  )
+                  LabeledContent("Planned window duration", value: Self.duration(duration))
+                  TimelineView(.periodic(from: .now, by: 1)) { context in
+                    LabeledContent(
+                      "Scheduled time remaining",
+                      value: Self.countdown(until: end, now: context.date)
+                    )
+                    .monospacedDigit()
+                  }
+                } else {
+                  LabeledContent("Current scheduled window", value: "Outside weekly hours")
+                }
+                LabeledContent(
+                  "Daily active-use allowance",
+                  value:
+                    allowance.bonusMinutes > 0
+                    ? "\(allowance.dailyQuotaMinutes) min + \(allowance.bonusMinutes) min bonus = \(allowance.totalQuotaMinutes) min"
+                    : "\(allowance.dailyQuotaMinutes) min"
+                )
+                LabeledContent(
+                  "Active-use remaining", value: "About \(allowance.quotaRemainingMinutes) min")
+                if let until = allowance.temporaryAllowanceUntil, until > Date() {
+                  LabeledContent(
+                    "Temporary parent allowance",
+                    value: "Until \(Self.scheduleTime(until, timezone: allowance.timezone))")
+                  if allowance.extensionSeconds > 0 {
+                    LabeledContent(
+                      "Extension beyond schedule", value: Self.duration(allowance.extensionSeconds))
+                  }
+                }
+              }
               if status.policyDecision == .allow, let restrictionAt = status.policyNextRestrictionAt
               {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                   LabeledContent(
-                    "Next restriction",
+                    "Effective time remaining",
                     value: Self.countdown(until: restrictionAt, now: context.date)
                   )
                   .monospacedDigit()
+                }
+                if let limitingReason = status.policyAllowanceSummary?.limitingReason {
+                  LabeledContent("Next limiting rule", value: limitingReason)
                 }
               } else if status.policyDecision == .block,
                 let allowanceAt = status.policyNextAllowanceAt
@@ -536,6 +583,23 @@ struct ChildDashboard: View {
     let seconds = total % 60
     if days > 0 { return String(format: "%dd %02d:%02d:%02d", days, hours, minutes, seconds) }
     return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+  }
+
+  static func duration(_ interval: TimeInterval) -> String {
+    let totalMinutes = max(0, Int(interval / 60))
+    let hours = totalMinutes / 60
+    let minutes = totalMinutes % 60
+    if hours > 0, minutes > 0 { return "\(hours)h \(minutes)m" }
+    if hours > 0 { return "\(hours)h" }
+    return "\(minutes)m"
+  }
+
+  static func scheduleTime(_ date: Date, timezone: String) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = .autoupdatingCurrent
+    formatter.timeZone = TimeZone(identifier: timezone) ?? .autoupdatingCurrent
+    formatter.setLocalizedDateFormatFromTemplate("EEE h:mm a")
+    return formatter.string(from: date)
   }
 }
 

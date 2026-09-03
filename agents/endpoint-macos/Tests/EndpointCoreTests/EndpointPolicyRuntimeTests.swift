@@ -241,6 +241,45 @@ struct EndpointPolicyRuntimeTests {
     #expect(inactiveRestriction > activeRestriction)
   }
 
+  @Test("allowance summary separates the weekly window from the effective quota limit")
+  func allowanceSummaryExplainsEarlierQuotaRestriction() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let now = try #require(ISO8601DateFormatter().date(from: "2026-09-03T14:12:00Z"))
+    let policy = ParentalControlPolicy(
+      version: 1, deviceID: "child-policy-test", timezone: "America/Regina",
+      effectiveAt: now.addingTimeInterval(-3_600),
+      expiresAt: now.addingTimeInterval(86_400), defaultAction: .lock,
+      weeklyAllowed: [
+        PolicyWeeklyWindow(day: .thursday, start: "06:58", end: "21:50")
+      ], dailyQuotaMinutes: 120, bonusMinutes: 150,
+      childExplanation: "Synthetic allowance summary",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.install(identity.sign(policy: policy), controllerPublicKey: identity.publicKeyData)
+    _ = runtime.tick(now: now, uptime: 100, sessionActive: true)
+
+    let nextRestriction = try #require(
+      runtime.projectedRestrictionDate(now: now, sessionActive: true))
+    #expect(nextRestriction == now.addingTimeInterval(270 * 60))
+    let summary = try #require(
+      runtime.allowanceSummary(
+        now: now, sessionActive: true, nextRestrictionAt: nextRestriction))
+    #expect(summary.timezone == "America/Regina")
+    #expect(
+      summary.scheduledWindowStartAt
+        == ISO8601DateFormatter().date(from: "2026-09-03T12:58:00Z"))
+    #expect(
+      summary.scheduledWindowEndAt
+        == ISO8601DateFormatter().date(from: "2026-09-04T03:50:00Z"))
+    let plannedWindowSeconds = try #require(summary.plannedWindowSeconds)
+    #expect(abs(plannedWindowSeconds - TimeInterval((14 * 60 + 52) * 60)) < 0.001)
+    #expect(summary.totalQuotaMinutes == 270)
+    #expect(summary.quotaRemainingMinutes == 270)
+    #expect(summary.limitingReason == "Daily active-use quota reached")
+  }
+
   @Test("projected allowance countdown follows the end of a blocked interval")
   func projectedAllowanceCountdown() throws {
     let root = temporaryRoot()

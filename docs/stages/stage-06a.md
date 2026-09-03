@@ -1,8 +1,8 @@
 # STAGE-06A — Manual third-party MDM feasibility for managed macOS login
 
-- Version: `0.6.1-rc.4`
+- Version: `0.6.1-rc.5`
 - Branch: `stage/06a-manual-mdm-feasibility`
-- Status: `READY_FOR_RETEST`
+- Status: `CHANGES_REQUESTED`
 - Authorized: `2026-09-01` via `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06A MANUAL-MDM FEASIBILITY BEFORE STAGE-07` and `PROCEED: STAGE-06A`
 - Installer amendment authorized: `2026-09-01` via `AUTHORIZE STAGE-06A SCOPE AMENDMENT: PRODUCE 0.6.1-rc.1 TRANSITION INSTALLER` and `PROCEED: STAGE-06A INSTALLER RETEST`
 - Platform evaluated: macOS 15 documentation and third-party MDM documentation; no device enrolled
@@ -30,6 +30,10 @@ The developer confirmed that the child can still authenticate at Login Window, t
 ## RC4 retest feedback
 
 The developer confirmed that repeated active-session locking works, but observed a lock during a configured weekly allowed window. RC3 could briefly act on a cached Block decision after wake or when the allowed boundary had just arrived, before the daemon's next 15-second evaluation. RC4 requires a recent daemon evaluation before repeating a schedule lock, aligns projected allowances to the exact scheduled minute, and suppresses the repeat lock as soon as that allowed boundary arrives. Signed daily quota and explicit blocked-interval precedence remain unchanged.
+
+## RC5 retest feedback
+
+The developer confirmed that allowed-window direction and repeated locking are correct, but a Thursday 06:58–21:50 window displayed an apparently inconsistent 04:42 countdown at 08:12. The countdown was the earlier daily active-use quota limit, including approved bonus time, rather than the end of the weekly window; the child UI did not identify that precedence. RC5 keeps the established fail-closed policy order and makes it inspectable: the child shows the signed-policy time zone and current policy-local time, the exact scheduled interval and its independent remaining time, planned window duration, base and bonus quota, active-use remainder, temporary allowance, effective remaining time, and the next limiting rule. The visible menu-bar helper also identifies the effective limit in its menu and tooltip.
 
 ## Result: no-go for the proposed local-account mechanism
 

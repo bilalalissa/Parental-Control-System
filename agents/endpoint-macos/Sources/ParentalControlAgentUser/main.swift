@@ -28,6 +28,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   private var countdownMenuItem: NSMenuItem?
   private var nextRestrictionAt: Date?
   private var nextAllowanceAt: Date?
+  private var nextLimitingReason: String?
   private var currentDecision: PolicyDecisionKind?
   private var lastScheduleLockAttemptAt: Date?
   private static let screenSaverBundleIdentifier = "com.apple.ScreenSaver.Engine"
@@ -232,6 +233,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       DispatchQueue.main.async {
         self.nextRestrictionAt = status.policyNextRestrictionAt
         self.nextAllowanceAt = status.policyNextAllowanceAt
+        self.nextLimitingReason = status.policyAllowanceSummary?.limitingReason
         self.currentDecision = status.policyDecision
         self.enforceBlockedScheduleIfNeeded(status, now: Date())
         self.renderStatusItem()
@@ -265,11 +267,12 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       return
     }
     let remaining = Self.shortCountdown(until: nextRestrictionAt, now: now)
+    let limit = nextLimitingReason.map { "; limited by \($0.lowercased())" } ?? ""
     button.image = NSImage(
       systemSymbolName: "hourglass", accessibilityDescription: "Time until family restriction")
     button.title = " \(remaining)"
-    button.toolTip = "Next family restriction in \(remaining)"
-    countdownMenuItem?.title = "Next restriction in \(remaining)"
+    button.toolTip = "Effective time remaining \(remaining)\(limit)"
+    countdownMenuItem?.title = "Effective time remaining \(remaining)\(limit)"
   }
 
   private static func shortCountdown(until date: Date, now: Date) -> String {

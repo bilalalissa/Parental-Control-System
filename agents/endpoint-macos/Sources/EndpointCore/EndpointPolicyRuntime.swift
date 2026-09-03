@@ -288,6 +288,35 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
     return nil
   }
 
+  public func allowanceSummary(
+    now: Date = Date(), sessionActive: Bool, nextRestrictionAt: Date?
+  ) -> EndpointAllowanceSummary? {
+    lock.lock()
+    defer { lock.unlock() }
+    guard let policy else { return nil }
+    let scheduled = PolicyEvaluator.weeklyAllowedInterval(policy, containing: now)
+    let temporaryAllowanceUntil = policy.exceptions.filter {
+      $0.decision == .allow && now >= $0.start && now < $0.end
+    }.map(\.end).max()
+    let activeUseMinutes = Int(state.activeUseSeconds / 60)
+    let limitingReason = nextRestrictionAt.flatMap { restrictionAt -> String? in
+      let elapsed = max(0, restrictionAt.timeIntervalSince(now))
+      let projectedActiveSeconds =
+        state.activeUseSeconds + (sessionActive ? elapsed : 0)
+      let decision = PolicyEvaluator.evaluate(
+        policy,
+        input: PolicyEvaluationInput(
+          at: restrictionAt, activeUseMinutes: Int(projectedActiveSeconds / 60),
+          adultOverrideActive: state.adultOverrideUntil.map { $0 > restrictionAt } ?? false))
+      return decision.decision == .block ? decision.reason : nil
+    }
+    return EndpointAllowanceSummary(
+      timezone: policy.timezone, scheduledWindowStartAt: scheduled?.start,
+      scheduledWindowEndAt: scheduled?.end, dailyQuotaMinutes: policy.dailyQuotaMinutes,
+      bonusMinutes: policy.bonusMinutes, activeUseMinutes: activeUseMinutes,
+      temporaryAllowanceUntil: temporaryAllowanceUntil, limitingReason: limitingReason)
+  }
+
   public func projectedAllowanceDate(
     now: Date = Date(), horizonMinutes: Int = 8 * 24 * 60
   ) -> Date? {

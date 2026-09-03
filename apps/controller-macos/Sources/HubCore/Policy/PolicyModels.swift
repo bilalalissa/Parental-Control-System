@@ -270,7 +270,7 @@ public enum PolicyEvaluator {
         decision: .block, action: policy.defaultAction, source: .dailyQuota,
         reason: "Daily active-use quota reached")
     }
-    if isInsideWeeklyWindow(policy, at: input.at) {
+    if weeklyAllowedInterval(policy, containing: input.at) != nil {
       return PolicyDecision(
         decision: .allow, source: .weeklyWindow, reason: policy.childExplanation)
     }
@@ -287,32 +287,42 @@ public enum PolicyEvaluator {
     }
   }
 
-  private static func isInsideWeeklyWindow(_ policy: ParentalControlPolicy, at date: Date) -> Bool {
-    guard let zone = TimeZone(identifier: policy.timezone) else { return false }
+  public static func weeklyAllowedInterval(
+    _ policy: ParentalControlPolicy, containing date: Date
+  ) -> DateInterval? {
+    guard let zone = TimeZone(identifier: policy.timezone) else { return nil }
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = zone
-    let components = calendar.dateComponents([.weekday, .hour, .minute], from: date)
-    guard let weekdayNumber = components.weekday,
-      let weekday = PolicyWeekday.from(calendarWeekday: weekdayNumber),
-      let hour = components.hour, let minute = components.minute
-    else { return false }
-    let localMinute = hour * 60 + minute
-    for window in policy.weeklyAllowed {
-      guard let start = minutes(window.start), let end = minutes(window.end), start != end else {
-        continue
-      }
-      if start < end, window.day == weekday, localMinute >= start, localMinute < end {
-        return true
-      }
-      if start > end {
-        if window.day == weekday, localMinute >= start { return true }
-        let prior = calendar.date(byAdding: .day, value: -1, to: date).flatMap {
-          PolicyWeekday.from(calendarWeekday: calendar.component(.weekday, from: $0))
-        }
-        if window.day == prior, localMinute < end { return true }
+    let today = calendar.startOfDay(for: date)
+    for dayOffset in [-1, 0] {
+      guard let anchor = calendar.date(byAdding: .day, value: dayOffset, to: today),
+        let weekday = PolicyWeekday.from(
+          calendarWeekday: calendar.component(.weekday, from: anchor))
+      else { continue }
+      for window in policy.weeklyAllowed where window.day == weekday {
+        guard let startMinute = minutes(window.start), let endMinute = minutes(window.end),
+          startMinute != endMinute,
+          let start = localTime(
+            startMinute, on: anchor, calendar: calendar, repeatedTimePolicy: .first),
+          let endDay = startMinute < endMinute
+            ? Optional(anchor) : calendar.date(byAdding: .day, value: 1, to: anchor),
+          let end = localTime(
+            endMinute, on: endDay, calendar: calendar, repeatedTimePolicy: .last)
+        else { continue }
+        let interval = DateInterval(start: start, end: end)
+        if date >= interval.start, date < interval.end { return interval }
       }
     }
-    return false
+    return nil
+  }
+
+  private static func localTime(
+    _ minuteOfDay: Int, on day: Date, calendar: Calendar,
+    repeatedTimePolicy: Calendar.RepeatedTimePolicy
+  ) -> Date? {
+    calendar.date(
+      bySettingHour: minuteOfDay / 60, minute: minuteOfDay % 60, second: 0, of: day,
+      matchingPolicy: .nextTime, repeatedTimePolicy: repeatedTimePolicy, direction: .forward)
   }
 
   private static func minutes(_ value: String) -> Int? {

@@ -227,6 +227,7 @@ public final class EndpointAgent: @unchecked Sendable {
     refreshed.policyLastEvaluatedAt = former.policyLastEvaluatedAt
     refreshed.policyNextRestrictionAt = former.policyNextRestrictionAt
     refreshed.policyNextAllowanceAt = former.policyNextAllowanceAt
+    refreshed.policyAllowanceSummary = former.policyAllowanceSummary
     refreshed.policyClockTrusted = former.policyClockTrusted
     refreshed.adultOverrideUntil = former.adultOverrideUntil
     repository.update { $0 = refreshed }
