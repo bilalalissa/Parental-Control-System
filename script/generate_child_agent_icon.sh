@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 SOURCE_SVG="$ROOT_DIR/packages/design-assets/child-agent-icon.svg"
-OUTPUT_ICNS="${1:-$ROOT_DIR/.artifacts/derived-data/stage-06/ChildAgentIcon.icns}"
-WORK_DIR="$ROOT_DIR/.artifacts/derived-data/stage-06/icon-generation"
+OUTPUT_ICNS="${1:-$ROOT_DIR/.artifacts/derived-data/stage-06a/ChildAgentIcon.icns}"
+WORK_DIR="$ROOT_DIR/.artifacts/derived-data/stage-06a/icon-generation"
 ICONSET_DIR="$WORK_DIR/ChildAgentIcon.iconset"
 rm -rf -- "$WORK_DIR"
 mkdir -p "$ICONSET_DIR" "$(dirname "$OUTPUT_ICNS")"

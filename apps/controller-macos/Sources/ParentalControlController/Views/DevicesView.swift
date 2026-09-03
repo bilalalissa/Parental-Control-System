@@ -160,6 +160,7 @@ private struct PairedDeviceDetailView: View {
         deviceHeader
         networkSection
         capabilitySection
+        loginEnforcementSection
         immediateActionsSection
         activitySection
         browserSection
@@ -296,6 +297,40 @@ private struct PairedDeviceDetailView: View {
               .background(ControlTheme.success.opacity(0.10), in: Capsule())
           }
         }
+      }
+    }
+  }
+
+  private var loginEnforcementSection: some View {
+    let readiness = HubLoginEnforcementReadiness(capabilities: device.capabilities)
+    return SectionCard {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Login enforcement coverage").font(ControlTheme.sectionTitle)
+        HStack(spacing: 18) {
+          Label(
+            readiness.sessionEnforcementAvailable
+              ? "Active-session schedule available" : "Active-session schedule unavailable",
+            systemImage: readiness.sessionEnforcementAvailable
+              ? "checkmark.circle.fill" : "xmark.circle.fill"
+          )
+          .foregroundStyle(
+            readiness.sessionEnforcementAvailable ? ControlTheme.success : ControlTheme.textMuted)
+          Label(
+            readiness.managedIdentityConfigured
+              ? "Managed pre-login enforcement configured"
+              : "Managed pre-login enforcement not configured",
+            systemImage: readiness.managedIdentityConfigured
+              ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+          )
+          .foregroundStyle(
+            readiness.managedIdentityConfigured ? ControlTheme.success : ControlTheme.accentSoft)
+        }
+        .font(.caption.weight(.semibold))
+        Text(
+          "This release applies signed schedules after the standard child session becomes active. It does not replace macOS Login Window authentication. Managed-identity support remains separately gated future work."
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
       }
     }
   }

@@ -118,6 +118,7 @@ public final class EndpointAgent: @unchecked Sendable {
         .string("browser-tabs"), .string("request-more-time"), .string("notifications"),
         .string("time-request-resolution"),
         .string("signed-policy"), .string("offline-enforcement"), .string("policy-warning"),
+        .string(HubLoginEnforcementCapability.session.rawValue),
         .string("lock"), .string("logoff"), .string("restart"), .string("shutdown"),
         .string("adult-override"), .string("bonus-time"),
       ]),
@@ -225,6 +226,8 @@ public final class EndpointAgent: @unchecked Sendable {
     refreshed.policyReason = former.policyReason
     refreshed.policyLastEvaluatedAt = former.policyLastEvaluatedAt
     refreshed.policyNextRestrictionAt = former.policyNextRestrictionAt
+    refreshed.policyNextAllowanceAt = former.policyNextAllowanceAt
+    refreshed.policyAllowanceSummary = former.policyAllowanceSummary
     refreshed.policyClockTrusted = former.policyClockTrusted
     refreshed.adultOverrideUntil = former.adultOverrideUntil
     repository.update { $0 = refreshed }

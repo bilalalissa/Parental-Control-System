@@ -63,7 +63,7 @@ The first production architecture is local-first, not cloud-first.
 - Pairing, policy distribution, status, supported commands, and desktop chat must work on the LAN without a hosted database or third-party service.
 - Child endpoints cache the last valid signed policy and enforce it locally while disconnected.
 - Messages and receipts use bounded local queues.
-- No public relay, hosted API, remote database, SaaS telemetry, Docker deployment, Kubernetes deployment, or mandatory account service may be introduced in stages 00–12.
+- No public relay, hosted API, remote database, SaaS telemetry, Docker deployment, Kubernetes deployment, or mandatory account service may be introduced in stages 00–12. STAGE-06A is an explicitly authorized optional feasibility exception for evaluating manual third-party MDM enrollment and producing a separately authorized transition installer that truthfully exposes the current enforcement boundary; it must not make the core product depend on an external account, create an MDM account without separate approval, install an MDM profile, or transmit family data.
 - APNs may be used for iPad notifications because iPadOS background delivery requires Apple infrastructure, but iPad scheduling and shielding must not depend on a custom cloud database.
 - Stage 13 may design an optional relay. Building or deploying it requires a separate explicit approval. The controller remains the policy authority and the relay must not be able to invent commands.
 - A future remote feature must degrade cleanly to local operation and must not make LAN operation unavailable.
@@ -694,6 +694,18 @@ Implement signed policy storage/evaluation, warnings, lock, logoff, optional res
 Acceptance includes policy golden tests, warning timing, tamper/replay rejection, protected child settings, rate-limited adult code, documented unsaved-work behavior, isolated action tests, runtime measurements, and one updated package per affected app.
 
 Version: `0.6.0-rc.1`.
+
+### STAGE-06A — Manual third-party MDM feasibility for managed macOS login
+
+Evaluate whether manual enrollment with one third-party MDM can safely prevent an ordinary local standard child account from logging in outside a schedule while preserving an always-available local adult recovery administrator. This is an optional feasibility exception, not a change to the local-first policy authority.
+
+Start with official platform and vendor documentation. Do not create an MDM account, APNs certificate, API key, enrollment profile, or device record without separate explicit approval. Do not integrate a vendor API into the Parent Controller or endpoint in this stage. Reject a design that cannot selectively target the child account, cannot expire or recover locally, requires destructive or overly broad credentials, or can deny the recovery administrator.
+
+Acceptance is an evidence-backed go/no-go ADR, focused threat-model and privacy updates, a vendor/recovery test matrix, dependency-free repository validation, and an honest statement of whether physical enrollment remains justified. No installer is required when no product code is affected; the reviewed feasibility dossier is the stage artifact.
+
+The developer separately authorized a `0.6.1-rc.1` transition installer on 2026-09-01. It may preserve the approved Stage-06 behavior, add a versioned readiness model and visible distinction between active-session enforcement and unavailable managed pre-login enforcement, and prove clean/repeat-install upgrade safety. It must not enroll a device, install a profile, configure managed identity, or claim pre-login enforcement.
+
+Version: `0.6.1-rc.5`.
 
 ### STAGE-07 — Windows Child Agent foundation
 

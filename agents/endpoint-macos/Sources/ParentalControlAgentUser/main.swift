@@ -27,7 +27,11 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   private var statusItem: NSStatusItem?
   private var countdownMenuItem: NSMenuItem?
   private var nextRestrictionAt: Date?
+  private var nextAllowanceAt: Date?
+  private var nextLimitingReason: String?
   private var currentDecision: PolicyDecisionKind?
+  private var lastScheduleLockAttemptAt: Date?
+  private static let screenSaverBundleIdentifier = "com.apple.ScreenSaver.Engine"
   @MainActor func start() {
     configureStatusItem()
     let center = NSWorkspace.shared.notificationCenter
@@ -42,13 +46,13 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     center.addObserver(
       self, selector: #selector(active), name: NSWorkspace.didWakeNotification, object: nil)
     center.addObserver(
-      self, selector: #selector(applicationsChanged),
+      self, selector: #selector(applicationsChanged(_:)),
       name: NSWorkspace.didLaunchApplicationNotification, object: nil)
     center.addObserver(
-      self, selector: #selector(applicationsChanged),
+      self, selector: #selector(applicationsChanged(_:)),
       name: NSWorkspace.didTerminateApplicationNotification, object: nil)
     center.addObserver(
-      self, selector: #selector(applicationsChanged),
+      self, selector: #selector(applicationsChanged(_:)),
       name: NSWorkspace.didActivateApplicationNotification, object: nil)
     DistributedNotificationCenter.default().addObserver(
       self, selector: #selector(chatReceived),
@@ -60,7 +64,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       EndpointPolicyWake.name as CFString,
       nil,
       .deliverImmediately)
-    report(.active)
+    report(.active, activationBoundary: true)
     reportApplications()
     primeMessages()
     claimPolicyEvents()
@@ -91,13 +95,22 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   }
   @objc private func active() {
     currentState = .active
-    report(currentState)
+    report(currentState, activationBoundary: true)
   }
   @objc private func inactive() {
     currentState = .inactive
     report(currentState)
   }
-  @objc private func applicationsChanged() { reportApplications() }
+  @objc private func applicationsChanged(_ notification: Notification) {
+    reportApplications()
+    guard notification.name == NSWorkspace.didTerminateApplicationNotification,
+      let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+        as? NSRunningApplication,
+      application.bundleIdentifier == Self.screenSaverBundleIdentifier
+    else { return }
+    currentState = .active
+    report(currentState, activationBoundary: true)
+  }
   @objc private func chatReceived() {
     // A raw LaunchAgent has no application bundle registration for UserNotifications. Calling
     // UNUserNotificationCenter.current() here asserts on macOS and makes launchd crash-loop the
@@ -219,7 +232,10 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       guard let self, case .success(let status) = result else { return }
       DispatchQueue.main.async {
         self.nextRestrictionAt = status.policyNextRestrictionAt
+        self.nextAllowanceAt = status.policyNextAllowanceAt
+        self.nextLimitingReason = status.policyAllowanceSummary?.limitingReason
         self.currentDecision = status.policyDecision
+        self.enforceBlockedScheduleIfNeeded(status, now: Date())
         self.renderStatusItem()
       }
     }
@@ -230,9 +246,16 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     if currentDecision == .block {
       button.image = NSImage(
         systemSymbolName: "lock.fill", accessibilityDescription: "Family restriction active")
-      button.title = " Restricted"
-      button.toolTip = "A family restriction is active"
-      countdownMenuItem?.title = "Restriction active"
+      if let nextAllowanceAt, nextAllowanceAt > now {
+        let remaining = Self.shortCountdown(until: nextAllowanceAt, now: now)
+        button.title = " \(remaining)"
+        button.toolTip = "Family restriction active; available in \(remaining)"
+        countdownMenuItem?.title = "Available in \(remaining)"
+      } else {
+        button.title = " Restricted"
+        button.toolTip = "A family restriction is active"
+        countdownMenuItem?.title = "Restriction active"
+      }
       return
     }
     guard let nextRestrictionAt, nextRestrictionAt > now else {
@@ -244,11 +267,12 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       return
     }
     let remaining = Self.shortCountdown(until: nextRestrictionAt, now: now)
+    let limit = nextLimitingReason.map { "; limited by \($0.lowercased())" } ?? ""
     button.image = NSImage(
       systemSymbolName: "hourglass", accessibilityDescription: "Time until family restriction")
     button.title = " \(remaining)"
-    button.toolTip = "Next family restriction in \(remaining)"
-    countdownMenuItem?.title = "Next restriction in \(remaining)"
+    button.toolTip = "Effective time remaining \(remaining)\(limit)"
+    countdownMenuItem?.title = "Effective time remaining \(remaining)\(limit)"
   }
 
   private static func shortCountdown(until date: Date, now: Date) -> String {
@@ -262,15 +286,14 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     return String(format: "%02d:%02d", minutes, seconds)
   }
 
-  private func perform(_ action: String) {
+  @MainActor private func perform(_ action: String) {
     switch action {
     case "warningOnly":
       return
     case "lock":
       // macOS has no general public Lock Screen API. Starting the system screen saver preserves
       // the user's password-delay setting and never terminates apps or risks unsaved work.
-      let url = URL(fileURLWithPath: "/System/Library/CoreServices/ScreenSaverEngine.app")
-      NSWorkspace.shared.openApplication(at: url, configuration: .init())
+      requestScreenSaverLock()
     case "logoff":
       sendLoginWindowEvent(AEEventID(kAELogOut))
     case "restart":
@@ -280,6 +303,30 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     default:
       return
     }
+  }
+
+  @MainActor private func enforceBlockedScheduleIfNeeded(
+    _ status: EndpointStatus, now: Date
+  ) {
+    guard
+      EndpointScheduleRelockGate.shouldRelock(
+        status: status, sessionIsActive: currentState == .active,
+        screenSaverIsForeground: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+          == Self.screenSaverBundleIdentifier,
+        consoleUserPresent: DeviceSnapshotCollector.consoleUser() != nil, now: now,
+        lastAttemptAt: lastScheduleLockAttemptAt)
+    else { return }
+    requestScreenSaverLock(now: now)
+  }
+
+  @MainActor private func requestScreenSaverLock(now: Date = Date()) {
+    lastScheduleLockAttemptAt = now
+    let url = URL(fileURLWithPath: "/System/Library/CoreServices/ScreenSaverEngine.app")
+    let configuration = NSWorkspace.OpenConfiguration()
+    configuration.activates = true
+    configuration.addsToRecentItems = false
+    configuration.createsNewApplicationInstance = true
+    NSWorkspace.shared.openApplication(at: url, configuration: configuration)
   }
 
   private func sendLoginWindowEvent(_ eventID: AEEventID) {
@@ -317,9 +364,11 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       }
     }
   }
-  private func report(_ state: EndpointSessionState) {
+  private func report(_ state: EndpointSessionState, activationBoundary: Bool = false) {
     client.updateSession(
-      SessionUpdate(state: state, consoleUser: DeviceSnapshotCollector.consoleUser())
+      SessionUpdate(
+        state: state, consoleUser: DeviceSnapshotCollector.consoleUser(),
+        activationBoundary: activationBoundary)
     ) { _ in }
   }
   private func reportApplications() {

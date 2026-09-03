@@ -57,6 +57,7 @@ public struct EndpointPolicyRuntimeState: Codable, Equatable, Sendable {
   public var restrictionSource: PolicyDecisionSource?
   public var restrictionAction: PolicyAction?
   public var restrictionEnforced: Bool?
+  public var lastRestrictionRearmAt: Date?
   public var pendingUserEvents: [EndpointPolicyEvent]?
 
   public init(
@@ -67,7 +68,8 @@ public struct EndpointPolicyRuntimeState: Codable, Equatable, Sendable {
     issuedWarnings: [Int] = [], immediateAction: PolicyAction? = nil,
     immediateActionExpiresAt: Date? = nil, restrictionBeganAt: Date? = nil,
     restrictionSource: PolicyDecisionSource? = nil, restrictionAction: PolicyAction? = nil,
-    restrictionEnforced: Bool? = nil, pendingUserEvents: [EndpointPolicyEvent] = []
+    restrictionEnforced: Bool? = nil, lastRestrictionRearmAt: Date? = nil,
+    pendingUserEvents: [EndpointPolicyEvent] = []
   ) {
     self.usageDay = usageDay
     self.activeUseSeconds = activeUseSeconds
@@ -85,6 +87,7 @@ public struct EndpointPolicyRuntimeState: Codable, Equatable, Sendable {
     self.restrictionSource = restrictionSource
     self.restrictionAction = restrictionAction
     self.restrictionEnforced = restrictionEnforced
+    self.lastRestrictionRearmAt = lastRestrictionRearmAt
     self.pendingUserEvents = Array(pendingUserEvents.suffix(32))
   }
 }
@@ -95,6 +98,28 @@ public enum EndpointPolicyEvent: Codable, Equatable, Sendable {
   case clockChangeDetected
   case bonusGranted(minutes: Int, until: Date)
   case timeRequestRejected(minutes: Int)
+}
+
+/// Decides whether the visible login helper may repeat a schedule lock. A persisted decision can
+/// briefly outlive sleep, wake, or the start of a newly allowed window, so only a recent daemon
+/// evaluation whose projected allowance is still in the future may relock the active session.
+public enum EndpointScheduleRelockGate {
+  public static let maximumDecisionAge: TimeInterval = 30
+  public static let minimumRetryInterval: TimeInterval = 10
+
+  public static func shouldRelock(
+    status: EndpointStatus, sessionIsActive: Bool, screenSaverIsForeground: Bool,
+    consoleUserPresent: Bool, now: Date = Date(), lastAttemptAt: Date?
+  ) -> Bool {
+    guard sessionIsActive, status.sessionState == .active, consoleUserPresent,
+      !screenSaverIsForeground, status.policyDecision == .block, status.policyAction == .lock,
+      let evaluatedAt = status.policyLastEvaluatedAt
+    else { return false }
+    let decisionAge = now.timeIntervalSince(evaluatedAt)
+    guard decisionAge >= 0, decisionAge <= maximumDecisionAge else { return false }
+    if let nextAllowanceAt = status.policyNextAllowanceAt, nextAllowanceAt <= now { return false }
+    return lastAttemptAt.map { now.timeIntervalSince($0) >= minimumRetryInterval } ?? true
+  }
 }
 
 public final class EndpointPolicyRuntime: @unchecked Sendable {
@@ -173,11 +198,15 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
   /// A lock does not prevent an authorized macOS login. Re-arm the current restriction when a
   /// standard child session becomes active so an unlock outside the allowed window is visibly
   /// warned/enforced again through the same allowlisted lock path.
-  public func rearmRestrictionForActiveSession() {
+  public func rearmRestrictionForActiveSession(now: Date = Date()) {
     lock.lock()
     defer { lock.unlock() }
     guard state.restrictionBeganAt != nil, state.restrictionEnforced == true else { return }
+    guard state.lastRestrictionRearmAt.map({ now.timeIntervalSince($0) >= 2 }) ?? true else {
+      return
+    }
     state.restrictionEnforced = false
+    state.lastRestrictionRearmAt = now
     try? persistLocked()
   }
 
@@ -255,6 +284,67 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
           at: future, activeUseMinutes: Int(projectedActiveSeconds / 60),
           adultOverrideActive: overrideUntil.map { $0 > future } ?? false))
       if decision.decision == .block { return future }
+    }
+    return nil
+  }
+
+  public func allowanceSummary(
+    now: Date = Date(), sessionActive: Bool, nextRestrictionAt: Date?
+  ) -> EndpointAllowanceSummary? {
+    lock.lock()
+    defer { lock.unlock() }
+    guard let policy else { return nil }
+    let scheduled = PolicyEvaluator.weeklyAllowedInterval(policy, containing: now)
+    let temporaryAllowanceUntil = policy.exceptions.filter {
+      $0.decision == .allow && now >= $0.start && now < $0.end
+    }.map(\.end).max()
+    let activeUseMinutes = Int(state.activeUseSeconds / 60)
+    let limitingReason = nextRestrictionAt.flatMap { restrictionAt -> String? in
+      let elapsed = max(0, restrictionAt.timeIntervalSince(now))
+      let projectedActiveSeconds =
+        state.activeUseSeconds + (sessionActive ? elapsed : 0)
+      let decision = PolicyEvaluator.evaluate(
+        policy,
+        input: PolicyEvaluationInput(
+          at: restrictionAt, activeUseMinutes: Int(projectedActiveSeconds / 60),
+          adultOverrideActive: state.adultOverrideUntil.map { $0 > restrictionAt } ?? false))
+      return decision.decision == .block ? decision.reason : nil
+    }
+    return EndpointAllowanceSummary(
+      timezone: policy.timezone, scheduledWindowStartAt: scheduled?.start,
+      scheduledWindowEndAt: scheduled?.end, dailyQuotaMinutes: policy.dailyQuotaMinutes,
+      bonusMinutes: policy.bonusMinutes, activeUseMinutes: activeUseMinutes,
+      temporaryAllowanceUntil: temporaryAllowanceUntil, limitingReason: limitingReason)
+  }
+
+  public func projectedAllowanceDate(
+    now: Date = Date(), horizonMinutes: Int = 8 * 24 * 60
+  ) -> Date? {
+    lock.lock()
+    defer { lock.unlock() }
+    guard let policy, state.clockTrusted else { return nil }
+    let boundedHorizon = max(1, min(horizonMinutes, 8 * 24 * 60))
+    let currentActiveMinutes = Int(state.activeUseSeconds / 60)
+    let currentDay = dayKey(now, timezone: policy.timezone)
+    let overrideUntil = state.adultOverrideUntil
+    let current = PolicyEvaluator.evaluate(
+      policy,
+      input: PolicyEvaluationInput(
+        at: now, activeUseMinutes: currentActiveMinutes,
+        adultOverrideActive: overrideUntil.map { $0 > now } ?? false))
+    guard current.decision == .block else { return nil }
+    let firstMinuteBoundary = Date(
+      timeIntervalSince1970: floor(now.timeIntervalSince1970 / 60) * 60 + 60)
+    for minute in 0..<boundedHorizon {
+      let future = firstMinuteBoundary.addingTimeInterval(TimeInterval(minute * 60))
+      let projectedActiveMinutes =
+        dayKey(future, timezone: policy.timezone) == currentDay ? currentActiveMinutes : 0
+      let decision = PolicyEvaluator.evaluate(
+        policy,
+        input: PolicyEvaluationInput(
+          at: future, activeUseMinutes: projectedActiveMinutes,
+          adultOverrideActive: overrideUntil.map { $0 > future } ?? false))
+      if decision.decision == .allow { return future }
     }
     return nil
   }
@@ -430,6 +520,7 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
     state.restrictionSource = nil
     state.restrictionAction = nil
     state.restrictionEnforced = nil
+    state.lastRestrictionRearmAt = nil
   }
 
   private static func readPolicy(root: URL) throws -> ParentalControlPolicy {

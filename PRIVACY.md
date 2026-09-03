@@ -23,6 +23,8 @@ Stage 05 defaults to seven days for app and browser metadata and thirty days for
 
 Stage 06 adds one current per-device signed policy and a small protected runtime record containing quota timing, warning/grace state, clock continuity, and a salted adult-code verifier. The six-digit adult code is displayed only in the parent UI and is not written to endpoint logs, audit records, or the repository. Policy/action receipts contain state metadata, not family explanations or private activity. No Stage-06 action expands application, browser, chat, screenshot, microphone, camera, clipboard, keystroke, or content collection.
 
+Stage 06A is a source-only feasibility review. It creates no third-party MDM account, APNs certificate, enrollment profile, API key, device record, or external data transfer. A future separately approved MDM test would necessarily disclose limited device and management inventory to that vendor; it must use synthetic account names, exclude chat/app/browser/family content, document vendor retention, and delete the test record afterward. The local-first product must continue working without the vendor.
+
 ## Transparency and control
 
 The installed endpoint must identify itself, show that parental controls are active, explain what it shares, show the effective schedule, and offer a way to contact the parent or request time. Child settings are read-only; changes require authenticated adult approval and any administrator authorization required by the operating system.

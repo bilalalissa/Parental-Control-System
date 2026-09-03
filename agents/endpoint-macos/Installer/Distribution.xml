@@ -21,6 +21,6 @@
           start_selected="false" start_enabled="true" start_visible="true">
     <pkg-ref id="com.bilalalissa.ParentalControlChild.component"/>
   </choice>
-  <pkg-ref id="com.bilalalissa.ParentalControlController.component" version="0.6.0.9" onConclusion="none">ParentalControlController.pkg</pkg-ref>
-  <pkg-ref id="com.bilalalissa.ParentalControlChild.component" version="0.6.0.9" onConclusion="none">ParentalControlChild.pkg</pkg-ref>
+  <pkg-ref id="com.bilalalissa.ParentalControlController.component" version="0.6.1.5" onConclusion="none">ParentalControlController.pkg</pkg-ref>
+  <pkg-ref id="com.bilalalissa.ParentalControlChild.component" version="0.6.1.5" onConclusion="none">ParentalControlChild.pkg</pkg-ref>
 </installer-gui-script>

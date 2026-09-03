@@ -1,6 +1,6 @@
 # Capability matrix
 
-This matrix is the truthful Stage 06 capability contract and forward plan.
+This matrix is the truthful Stage 06 capability contract and Stage 06A feasibility result.
 
 | Capability | Parent Controller (Apple silicon) | macOS child endpoint | Windows child endpoint | Standard iPadOS child app | Optional supervised iPad MDM |
 | --- | --- | --- | --- | --- | --- |
@@ -22,5 +22,8 @@ This matrix is the truthful Stage 06 capability contract and forward plan.
 | Logoff | Explicit confirmation required | Stage 06 documented loginwindow confirmation; never forced | Planned | **Not available** | **Not available as desktop logoff** |
 | Restart/shutdown | Explicit confirmation required | Stage 06 documented loginwindow confirmation; never forced | Explicit supported action | **Not available** | Supported supervised commands only |
 | Startup | Login item | launchd/Service Management | Service plus per-user UI | **No persistent boot agent** | OS-managed profile/check-in |
+| Prevent ordinary local child login outside a weekly schedule | Not implemented | **Not provided by Stage 06; Stage 06A Login Window MDM proposal is a no-go** | Planned policy enforcement does not imply pre-logon denial | **Not available to a normal app** | Not an iPad login concept |
 
 Unknown and unsupported capabilities are disabled and explained in the controller UI. An unreachable endpoint is `Offline`, never inferred to be powered off.
+
+Stage 06A found that macOS `LoginWindow` payload `AllowList` and `DenyList` apply only to network and mobile accounts, not ordinary local accounts, and the payload contains no weekly schedule or automatic expiry. Broadly disabling local login would also threaten the required adult recovery administrator. Manual third-party MDM enrollment is therefore not represented as a supported local-child scheduling capability.

@@ -165,9 +165,16 @@ struct EndpointPolicyRuntimeTests {
         .contains(.enforce(action: .lock, explanation: "Synthetic bedtime")))
     #expect(
       restored.tick(now: start.addingTimeInterval(61), uptime: 161, sessionActive: true).isEmpty)
-    restored.rearmRestrictionForActiveSession()
+    restored.rearmRestrictionForActiveSession(now: start.addingTimeInterval(62))
     #expect(
       restored.tick(now: start.addingTimeInterval(62), uptime: 162, sessionActive: true)
+        .contains(.enforce(action: .lock, explanation: "Synthetic bedtime")))
+    restored.rearmRestrictionForActiveSession(now: start.addingTimeInterval(63))
+    #expect(
+      restored.tick(now: start.addingTimeInterval(63), uptime: 163, sessionActive: true).isEmpty)
+    restored.rearmRestrictionForActiveSession(now: start.addingTimeInterval(65))
+    #expect(
+      restored.tick(now: start.addingTimeInterval(65), uptime: 165, sessionActive: true)
         .contains(.enforce(action: .lock, explanation: "Synthetic bedtime")))
 
     let rebooted = EndpointPolicyRuntime(
@@ -232,6 +239,126 @@ struct EndpointPolicyRuntimeTests {
     let inactiveRestriction = try #require(
       runtime.projectedRestrictionDate(now: start, sessionActive: false))
     #expect(inactiveRestriction > activeRestriction)
+  }
+
+  @Test("allowance summary separates the weekly window from the effective quota limit")
+  func allowanceSummaryExplainsEarlierQuotaRestriction() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let now = try #require(ISO8601DateFormatter().date(from: "2026-09-03T14:12:00Z"))
+    let policy = ParentalControlPolicy(
+      version: 1, deviceID: "child-policy-test", timezone: "America/Regina",
+      effectiveAt: now.addingTimeInterval(-3_600),
+      expiresAt: now.addingTimeInterval(86_400), defaultAction: .lock,
+      weeklyAllowed: [
+        PolicyWeeklyWindow(day: .thursday, start: "06:58", end: "21:50")
+      ], dailyQuotaMinutes: 120, bonusMinutes: 150,
+      childExplanation: "Synthetic allowance summary",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.install(identity.sign(policy: policy), controllerPublicKey: identity.publicKeyData)
+    _ = runtime.tick(now: now, uptime: 100, sessionActive: true)
+
+    let nextRestriction = try #require(
+      runtime.projectedRestrictionDate(now: now, sessionActive: true))
+    #expect(nextRestriction == now.addingTimeInterval(270 * 60))
+    let summary = try #require(
+      runtime.allowanceSummary(
+        now: now, sessionActive: true, nextRestrictionAt: nextRestriction))
+    #expect(summary.timezone == "America/Regina")
+    #expect(
+      summary.scheduledWindowStartAt
+        == ISO8601DateFormatter().date(from: "2026-09-03T12:58:00Z"))
+    #expect(
+      summary.scheduledWindowEndAt
+        == ISO8601DateFormatter().date(from: "2026-09-04T03:50:00Z"))
+    let plannedWindowSeconds = try #require(summary.plannedWindowSeconds)
+    #expect(abs(plannedWindowSeconds - TimeInterval((14 * 60 + 52) * 60)) < 0.001)
+    #expect(summary.totalQuotaMinutes == 270)
+    #expect(summary.quotaRemainingMinutes == 270)
+    #expect(summary.limitingReason == "Daily active-use quota reached")
+  }
+
+  @Test("projected allowance countdown follows the end of a blocked interval")
+  func projectedAllowanceCountdown() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let start = Date(timeIntervalSince1970: 1_800_000_000)
+    let blockedPolicy = ParentalControlPolicy(
+      version: 1, deviceID: "child-policy-test", timezone: "UTC",
+      effectiveAt: Date(timeIntervalSince1970: 1_700_000_000),
+      expiresAt: Date(timeIntervalSince1970: 2_100_000_000), defaultAction: .lock,
+      weeklyAllowed: PolicyWeekday.allCases.map {
+        PolicyWeeklyWindow(day: $0, start: "00:00", end: "23:59")
+      },
+      blockedIntervals: [
+        PolicyBlockedInterval(
+          start: start.addingTimeInterval(-60), end: start.addingTimeInterval(10 * 60),
+          action: .lock, reason: "Synthetic countdown block")
+      ], dailyQuotaMinutes: 1_440, childExplanation: "Synthetic countdown",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.install(
+      identity.sign(policy: blockedPolicy), controllerPublicKey: identity.publicKeyData)
+    _ = runtime.tick(now: start, uptime: 100, sessionActive: true)
+    #expect(runtime.projectedRestrictionDate(now: start, sessionActive: true) == nil)
+    #expect(runtime.projectedAllowanceDate(now: start) == start.addingTimeInterval(10 * 60))
+  }
+
+  @Test("schedule relock stops at an allowed-window boundary and rejects stale decisions")
+  func scheduleRelockGate() throws {
+    let now = Date(timeIntervalSince1970: 1_800_000_030)
+    var status = EndpointStatus(
+      deviceID: "child-policy-test", deviceName: "Synthetic Mac", model: "Mac",
+      operatingSystem: "macOS", architecture: "arm64", uptimeSeconds: 100,
+      bootTime: now.addingTimeInterval(-100), sessionState: .active, consoleUser: "child",
+      policyVersion: 1, policyDecision: .block, policyAction: .lock,
+      policyLastEvaluatedAt: now.addingTimeInterval(-5),
+      policyNextAllowanceAt: now.addingTimeInterval(60))
+
+    #expect(
+      EndpointScheduleRelockGate.shouldRelock(
+        status: status, sessionIsActive: true, screenSaverIsForeground: false,
+        consoleUserPresent: true, now: now, lastAttemptAt: nil))
+
+    status.policyNextAllowanceAt = now
+    #expect(
+      !EndpointScheduleRelockGate.shouldRelock(
+        status: status, sessionIsActive: true, screenSaverIsForeground: false,
+        consoleUserPresent: true, now: now, lastAttemptAt: nil))
+
+    status.policyNextAllowanceAt = nil
+    status.policyLastEvaluatedAt = now.addingTimeInterval(
+      -(EndpointScheduleRelockGate.maximumDecisionAge + 1))
+    #expect(
+      !EndpointScheduleRelockGate.shouldRelock(
+        status: status, sessionIsActive: true, screenSaverIsForeground: false,
+        consoleUserPresent: true, now: now, lastAttemptAt: nil))
+  }
+
+  @Test("projected allowance aligns to the exact scheduled minute")
+  func projectedAllowanceUsesMinuteBoundary() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let now = try #require(
+      ISO8601DateFormatter().date(from: "2027-01-04T07:59:45Z"))
+    let policy = ParentalControlPolicy(
+      version: 1, deviceID: "child-policy-test", timezone: "UTC",
+      effectiveAt: now.addingTimeInterval(-3_600),
+      expiresAt: now.addingTimeInterval(86_400), defaultAction: .lock,
+      weeklyAllowed: [PolicyWeeklyWindow(day: .monday, start: "08:00", end: "20:00")],
+      dailyQuotaMinutes: 1_440, childExplanation: "Synthetic exact boundary",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.install(identity.sign(policy: policy), controllerPublicKey: identity.publicKeyData)
+    _ = runtime.tick(now: now, uptime: 100, sessionActive: true)
+
+    #expect(
+      runtime.projectedAllowanceDate(now: now)
+        == ISO8601DateFormatter().date(from: "2027-01-04T08:00:00Z"))
   }
 
   private func policy(version: UInt64) -> ParentalControlPolicy {

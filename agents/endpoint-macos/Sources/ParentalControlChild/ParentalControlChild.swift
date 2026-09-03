@@ -1,6 +1,7 @@
 import AppKit
 import DesignSystem
 import EndpointCore
+import HubCore
 import SwiftUI
 import UserNotifications
 
@@ -283,68 +284,155 @@ struct ChildDashboard: View {
   }
 
   private func statusView(_ status: EndpointStatus) -> some View {
-    VStack(alignment: .leading, spacing: 14) {
-      Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 9) {
-        row("Controller", status.connectionState.rawValue.capitalized)
-        row("Last contact", status.lastControllerContact?.formatted() ?? "Never")
-        row("This Mac", "\(status.deviceName) · \(status.model)")
-        row("System", "\(status.operatingSystem) · \(status.architecture)")
-        row("Session", status.sessionState.rawValue.capitalized)
-        row("Applications", status.activityCollectionEnabled ? "Shared (names only)" : "Not shared")
-        row("Retention", "\(status.activityRetentionDays) days on parent controller")
-        row("Browser tabs", status.browserCollectionEnabled ? "Shared by extension" : "Not shared")
-        row("Tab retention", "\(status.browserRetentionDays) days on parent controller")
-      }
-      GroupBox("Schedule") {
-        VStack(alignment: .leading, spacing: 8) {
-          if let version = status.policyVersion {
-            LabeledContent("Signed policy", value: "Version \(version)")
-            LabeledContent(
-              "Current decision", value: status.policyDecision?.rawValue.capitalized ?? "Pending")
-            LabeledContent(
-              "Restriction", value: status.policyAction?.rawValue.capitalized ?? "None")
-            if status.policyDecision == .allow, let restrictionAt = status.policyNextRestrictionAt {
-              TimelineView(.periodic(from: .now, by: 1)) { context in
-                LabeledContent(
-                  "Next restriction",
-                  value: Self.countdown(until: restrictionAt, now: context.date)
-                )
-                .monospacedDigit()
-              }
-            } else if status.policyDecision == .block {
-              LabeledContent("Countdown", value: "Restriction active")
-            } else {
-              LabeledContent("Next restriction", value: "Not within the next 8 days")
-            }
-            Text(status.policyReason ?? "The policy is evaluated locally, including while offline.")
-              .font(.caption).foregroundStyle(.secondary)
-            if let until = status.adultOverrideUntil, until > Date() {
-              Label(
-                "Adult override until \(until.formatted(date: .omitted, time: .shortened))",
-                systemImage: "checkmark.shield")
-            }
-            HStack {
-              SecureField("Adult code", text: $adultCode)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 180)
-              Button("Allow 15 Minutes") {
-                model.submitAdultCode(adultCode)
-                adultCode = ""
-              }
-              .disabled(adultCode.filter(\.isNumber).count < 4)
-            }
-            Text(
-              "Three failed attempts trigger a five-minute lockout. Settings are read-only here."
-            )
-            .font(.caption2).foregroundStyle(.secondary)
-          } else {
-            Text("Waiting for a signed family schedule from the parent controller.")
-          }
+    ScrollView(.vertical) {
+      VStack(alignment: .leading, spacing: 14) {
+        Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 9) {
+          row("Controller", status.connectionState.rawValue.capitalized)
+          row("Last contact", status.lastControllerContact?.formatted() ?? "Never")
+          row("This Mac", "\(status.deviceName) · \(status.model)")
+          row("System", "\(status.operatingSystem) · \(status.architecture)")
+          row("Session", status.sessionState.rawValue.capitalized)
+          row(
+            "Applications", status.activityCollectionEnabled ? "Shared (names only)" : "Not shared")
+          row("Retention", "\(status.activityRetentionDays) days on parent controller")
+          row(
+            "Browser tabs", status.browserCollectionEnabled ? "Shared by extension" : "Not shared")
+          row("Tab retention", "\(status.browserRetentionDays) days on parent controller")
         }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(6)
+        GroupBox("Schedule") {
+          VStack(alignment: .leading, spacing: 8) {
+            if let version = status.policyVersion {
+              LabeledContent("Signed policy", value: "Version \(version)")
+              LabeledContent(
+                "Current decision", value: status.policyDecision?.rawValue.capitalized ?? "Pending")
+              LabeledContent(
+                "Restriction", value: status.policyAction?.rawValue.capitalized ?? "None")
+              if let allowance = status.policyAllowanceSummary {
+                LabeledContent("Schedule time zone", value: allowance.timezone)
+                LabeledContent(
+                  "Policy time",
+                  value: Self.scheduleTime(Date(), timezone: allowance.timezone))
+                if let start = allowance.scheduledWindowStartAt,
+                  let end = allowance.scheduledWindowEndAt,
+                  let duration = allowance.plannedWindowSeconds
+                {
+                  LabeledContent(
+                    "Current scheduled window",
+                    value:
+                      "\(Self.scheduleTime(start, timezone: allowance.timezone)) – \(Self.scheduleTime(end, timezone: allowance.timezone))"
+                  )
+                  LabeledContent("Planned window duration", value: Self.duration(duration))
+                  TimelineView(.periodic(from: .now, by: 1)) { context in
+                    LabeledContent(
+                      "Scheduled time remaining",
+                      value: Self.countdown(until: end, now: context.date)
+                    )
+                    .monospacedDigit()
+                  }
+                } else {
+                  LabeledContent("Current scheduled window", value: "Outside weekly hours")
+                }
+                LabeledContent(
+                  "Daily active-use allowance",
+                  value:
+                    allowance.bonusMinutes > 0
+                    ? "\(allowance.dailyQuotaMinutes) min + \(allowance.bonusMinutes) min bonus = \(allowance.totalQuotaMinutes) min"
+                    : "\(allowance.dailyQuotaMinutes) min"
+                )
+                LabeledContent(
+                  "Active-use remaining", value: "About \(allowance.quotaRemainingMinutes) min")
+                if let until = allowance.temporaryAllowanceUntil, until > Date() {
+                  LabeledContent(
+                    "Temporary parent allowance",
+                    value: "Until \(Self.scheduleTime(until, timezone: allowance.timezone))")
+                  if allowance.extensionSeconds > 0 {
+                    LabeledContent(
+                      "Extension beyond schedule", value: Self.duration(allowance.extensionSeconds))
+                  }
+                }
+              }
+              if status.policyDecision == .allow, let restrictionAt = status.policyNextRestrictionAt
+              {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                  LabeledContent(
+                    "Effective time remaining",
+                    value: Self.countdown(until: restrictionAt, now: context.date)
+                  )
+                  .monospacedDigit()
+                }
+                if let limitingReason = status.policyAllowanceSummary?.limitingReason {
+                  LabeledContent("Next limiting rule", value: limitingReason)
+                }
+              } else if status.policyDecision == .block,
+                let allowanceAt = status.policyNextAllowanceAt
+              {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                  LabeledContent(
+                    "Available in",
+                    value: Self.countdown(until: allowanceAt, now: context.date)
+                  )
+                  .monospacedDigit()
+                }
+              } else if status.policyDecision == .block {
+                LabeledContent("Countdown", value: "No allowed window within 8 days")
+              } else {
+                LabeledContent("Next restriction", value: "Not within the next 8 days")
+              }
+              Text(
+                status.policyReason ?? "The policy is evaluated locally, including while offline."
+              )
+              .font(.caption).foregroundStyle(.secondary)
+              if let until = status.adultOverrideUntil, until > Date() {
+                Label(
+                  "Adult override until \(until.formatted(date: .omitted, time: .shortened))",
+                  systemImage: "checkmark.shield")
+              }
+              HStack {
+                SecureField("Adult code", text: $adultCode)
+                  .textFieldStyle(.roundedBorder)
+                  .frame(maxWidth: 180)
+                Button("Allow 15 Minutes") {
+                  model.submitAdultCode(adultCode)
+                  adultCode = ""
+                }
+                .disabled(adultCode.filter(\.isNumber).count < 4)
+              }
+              Text(
+                "Three failed attempts trigger a five-minute lockout. Settings are read-only here."
+              )
+              .font(.caption2).foregroundStyle(.secondary)
+            } else {
+              Text("Waiting for a signed family schedule from the parent controller.")
+            }
+          }
+          .frame(maxWidth: .infinity, alignment: .leading).padding(6)
+        }
+        GroupBox("Enforcement coverage") {
+          let readiness = HubLoginEnforcementReadiness.currentMacEndpoint
+          VStack(alignment: .leading, spacing: 8) {
+            LabeledContent(
+              "After sign-in",
+              value: readiness.sessionEnforcementAvailable
+                ? "Signed schedule available" : "Unavailable")
+            LabeledContent(
+              "Before sign-in",
+              value: readiness.managedIdentityConfigured
+                ? "Managed identity configured" : "Not configured")
+            Text(
+              "This version can warn and re-lock the standard child session after it becomes active. It does not replace macOS Login Window authentication."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(6)
+        }
       }
-      Spacer()
-    }.padding(.top, 14)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.top, 14)
+      .padding(.trailing, 6)
+    }
   }
 
   private var chatView: some View {
@@ -495,6 +583,23 @@ struct ChildDashboard: View {
     let seconds = total % 60
     if days > 0 { return String(format: "%dd %02d:%02d:%02d", days, hours, minutes, seconds) }
     return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+  }
+
+  static func duration(_ interval: TimeInterval) -> String {
+    let totalMinutes = max(0, Int(interval / 60))
+    let hours = totalMinutes / 60
+    let minutes = totalMinutes % 60
+    if hours > 0, minutes > 0 { return "\(hours)h \(minutes)m" }
+    if hours > 0 { return "\(hours)h" }
+    return "\(minutes)m"
+  }
+
+  static func scheduleTime(_ date: Date, timezone: String) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = .autoupdatingCurrent
+    formatter.timeZone = TimeZone(identifier: timezone) ?? .autoupdatingCurrent
+    formatter.setLocalizedDateFormatFromTemplate("EEE h:mm a")
+    return formatter.string(from: date)
   }
 }
 

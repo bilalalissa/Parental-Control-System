@@ -218,7 +218,9 @@ public final class EndpointStatusRepository: @unchecked Sendable {
   public func applySession(_ update: SessionUpdate) -> Bool {
     lock.lock()
     defer { lock.unlock() }
-    let becameActive = update.state == .active && value.sessionState != .active
+    let becameActive =
+      update.state == .active
+      && (value.sessionState != .active || update.activationBoundary == true)
     value.sessionState = update.state
     value.consoleUser = update.consoleUser.map { String($0.prefix(128)) }
     value.helperHealthy = true
@@ -530,7 +532,7 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
       }
       let becameActive = repository.applySession(update)
       if becameActive, let policyRuntime {
-        policyRuntime.rearmRestrictionForActiveSession()
+        policyRuntime.rearmRestrictionForActiveSession(now: update.observedAt)
         let events = policyRuntime.tick(now: update.observedAt, sessionActive: true)
         if !events.isEmpty { EndpointPolicyWake.post() }
       }

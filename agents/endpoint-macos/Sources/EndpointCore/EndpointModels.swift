@@ -19,6 +19,48 @@ public enum EndpointSessionState: String, Codable, Sendable {
   case unknown
 }
 
+public struct EndpointAllowanceSummary: Codable, Equatable, Sendable {
+  public let timezone: String
+  public let scheduledWindowStartAt: Date?
+  public let scheduledWindowEndAt: Date?
+  public let dailyQuotaMinutes: Int
+  public let bonusMinutes: Int
+  public let activeUseMinutes: Int
+  public let temporaryAllowanceUntil: Date?
+  public let limitingReason: String?
+
+  public init(
+    timezone: String, scheduledWindowStartAt: Date?, scheduledWindowEndAt: Date?,
+    dailyQuotaMinutes: Int, bonusMinutes: Int, activeUseMinutes: Int,
+    temporaryAllowanceUntil: Date?, limitingReason: String?
+  ) {
+    self.timezone = timezone
+    self.scheduledWindowStartAt = scheduledWindowStartAt
+    self.scheduledWindowEndAt = scheduledWindowEndAt
+    self.dailyQuotaMinutes = max(0, dailyQuotaMinutes)
+    self.bonusMinutes = max(0, bonusMinutes)
+    self.activeUseMinutes = max(0, activeUseMinutes)
+    self.temporaryAllowanceUntil = temporaryAllowanceUntil
+    self.limitingReason = limitingReason.map { String($0.prefix(500)) }
+  }
+
+  public var plannedWindowSeconds: TimeInterval? {
+    guard let scheduledWindowStartAt, let scheduledWindowEndAt else { return nil }
+    return max(0, scheduledWindowEndAt.timeIntervalSince(scheduledWindowStartAt))
+  }
+
+  public var extensionSeconds: TimeInterval {
+    guard let temporaryAllowanceUntil, let scheduledWindowEndAt else { return 0 }
+    return max(0, temporaryAllowanceUntil.timeIntervalSince(scheduledWindowEndAt))
+  }
+
+  public var totalQuotaMinutes: Int { dailyQuotaMinutes + bonusMinutes }
+
+  public var quotaRemainingMinutes: Int {
+    max(0, dailyQuotaMinutes + bonusMinutes - activeUseMinutes)
+  }
+}
+
 public struct NetworkMetadata: Codable, Equatable, Sendable {
   public let interface: String
   public let addresses: [String]
@@ -58,6 +100,8 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var policyReason: String?
   public var policyLastEvaluatedAt: Date?
   public var policyNextRestrictionAt: Date?
+  public var policyNextAllowanceAt: Date?
+  public var policyAllowanceSummary: EndpointAllowanceSummary?
   public var policyClockTrusted: Bool
   public var adultOverrideUntil: Date?
   public var collectedAt: Date
@@ -86,6 +130,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     policyDecision: PolicyDecisionKind? = nil, policyAction: PolicyAction? = nil,
     policyReason: String? = nil, policyLastEvaluatedAt: Date? = nil,
     policyNextRestrictionAt: Date? = nil, policyClockTrusted: Bool = true,
+    policyNextAllowanceAt: Date? = nil, policyAllowanceSummary: EndpointAllowanceSummary? = nil,
     adultOverrideUntil: Date? = nil,
     collectedAt: Date = Date()
   ) {
@@ -115,6 +160,8 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     self.policyReason = policyReason.map { String($0.prefix(500)) }
     self.policyLastEvaluatedAt = policyLastEvaluatedAt
     self.policyNextRestrictionAt = policyNextRestrictionAt
+    self.policyNextAllowanceAt = policyNextAllowanceAt
+    self.policyAllowanceSummary = policyAllowanceSummary
     self.policyClockTrusted = policyClockTrusted
     self.adultOverrideUntil = adultOverrideUntil
     self.collectedAt = collectedAt
@@ -334,11 +381,18 @@ public struct EndpointAdultOverrideRequest: Codable, Equatable, Sendable {
 public struct SessionUpdate: Codable, Equatable, Sendable {
   public let state: EndpointSessionState
   public let consoleUser: String?
+  /// True when the authenticated GUI helper observed a new graphical-session boundary even if
+  /// the daemon's last reported state was already active. Older helpers omit this field.
+  public let activationBoundary: Bool?
   public let observedAt: Date
 
-  public init(state: EndpointSessionState, consoleUser: String?, observedAt: Date = Date()) {
+  public init(
+    state: EndpointSessionState, consoleUser: String?, activationBoundary: Bool = false,
+    observedAt: Date = Date()
+  ) {
     self.state = state
     self.consoleUser = consoleUser
+    self.activationBoundary = activationBoundary ? true : nil
     self.observedAt = observedAt
   }
 }
