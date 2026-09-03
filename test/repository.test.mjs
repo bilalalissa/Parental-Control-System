@@ -428,11 +428,13 @@ test("CI is least-privilege, cancellable, pinned, and short-retention", async ()
 
 test("Stage 06 CI verifies the fresh default install before child customization", async () => {
   const workflow = await read(".github/workflows/stage-03-macos.yml");
+  const fixtureReset = workflow.indexOf("- name: Reset macOS installer test fixture");
   const parentInstall = workflow.indexOf("- name: Install default parent choice");
   const childInstall = workflow.indexOf(
     "- name: Install, verify upgrade persistence, and uninstall child choice",
   );
-  assert.ok(parentInstall >= 0);
+  assert.ok(fixtureReset >= 0);
+  assert.ok(parentInstall > fixtureReset);
   assert.ok(childInstall > parentInstall);
   assert.match(workflow, /BEFORE_SHA: \$\{\{ github\.event\.before \}\}/);
   assert.match(workflow, /git diff --quiet "\$BASE_SHA" HEAD/);
@@ -443,6 +445,14 @@ test("Stage 06 CI verifies the fresh default install before child customization"
   );
   assert.match(workflow, /Verify child in-place upgrade preserves endpoint identity/);
   assert.match(workflow, /test "\$first_device_id" = "\$second_device_id"/);
+  assert.match(
+    workflow,
+    /Reset macOS installer test fixture[\s\S]*?launchctl bootout "gui\/\$console_uid\/com\.bilalalissa\.ParentalControlAgent\.user"[\s\S]*?test ! -e "\/Applications\/Parental Control Child\.app"/,
+  );
+  assert.match(
+    workflow,
+    /Install, verify upgrade persistence, and uninstall child choice[\s\S]*?if ! sudo \/usr\/sbin\/installer[\s\S]*?tail -n 200 \/var\/log\/install\.log/,
+  );
   assert.match(workflow, /test "\$PWD" = "\$GITHUB_WORKSPACE"/);
   assert.match(
     workflow,

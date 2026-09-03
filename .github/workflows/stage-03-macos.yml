@@ -95,6 +95,33 @@ jobs:
         run: |
           /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.1-rc.5.pkg" -target / | /usr/bin/plutil -lint -
           /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.6.1-rc.5.pkg" || true
+      - name: Reset macOS installer test fixture
+        if: steps.scope.outputs.build == 'true'
+        run: |
+          console_uid="$(/usr/bin/stat -f '%u' /dev/console)"
+          if [[ "$console_uid" =~ ^[0-9]+$ ]] && (( console_uid >= 500 )); then
+            sudo /bin/launchctl bootout "gui/$console_uid/com.bilalalissa.ParentalControlAgent.user" >/dev/null 2>&1 || true
+          fi
+          sudo /bin/launchctl bootout system/com.bilalalissa.ParentalControlAgent.daemon >/dev/null 2>&1 || true
+          if [[ -x "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh" ]]; then
+            sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh"
+          else
+            sudo /usr/bin/pkill -x ParentalControlAgentUser >/dev/null 2>&1 || true
+            sudo /usr/bin/pkill -x ParentalControlChild >/dev/null 2>&1 || true
+            sudo /bin/rm -rf -- "/Applications/Parental Control Child.app" "/Library/Application Support/ParentalControlAgent"
+            sudo /bin/rm -f -- \
+              /Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist \
+              /Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist \
+              /Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon \
+              /usr/local/bin/parental-control-agentctl \
+              /Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json \
+              /Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json
+            sudo /usr/sbin/pkgutil --forget com.bilalalissa.ParentalControlChild.component >/dev/null 2>&1 || true
+          fi
+          sudo /bin/rm -rf -- "/Applications/Parental Control.app"
+          sudo /usr/sbin/pkgutil --forget com.bilalalissa.ParentalControlController.component >/dev/null 2>&1 || true
+          test ! -e "/Applications/Parental Control Child.app"
+          test ! -e "/Applications/Parental Control.app"
       - name: Install default parent choice
         if: steps.scope.outputs.build == 'true'
         run: |
@@ -109,10 +136,13 @@ jobs:
       - name: Install, verify upgrade persistence, and uninstall child choice
         if: steps.scope.outputs.build == 'true'
         run: |
-          sudo /usr/sbin/installer \
+          if ! sudo /usr/sbin/installer \
             -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
             -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.1-rc.5.pkg" \
-            -target /
+            -target /; then
+            sudo /usr/bin/tail -n 200 /var/log/install.log || true
+            exit 1
+          fi
           console_user="$(/usr/bin/stat -f '%Su' /dev/console)"
           console_user_home="$(/usr/bin/dscl . -read "/Users/$console_user" NFSHomeDirectory | /usr/bin/awk '{print $2}')"
           status_ok=false
@@ -241,6 +271,10 @@ jobs:
       - name: Clean project-owned generated output
         if: always() && steps.scope.outputs.build == 'true'
         run: |
+          console_uid="$(/usr/bin/stat -f '%u' /dev/console)"
+          if [[ "$console_uid" =~ ^[0-9]+$ ]] && (( console_uid >= 500 )); then
+            sudo /bin/launchctl bootout "gui/$console_uid/com.bilalalissa.ParentalControlAgent.user" >/dev/null 2>&1 || true
+          fi
           if [[ -x "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh" ]]; then
             sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh"
           fi
