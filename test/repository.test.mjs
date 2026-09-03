@@ -35,8 +35,8 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06a-manual-mdm-feasibility");
-  assert.equal(active[0].version, "0.6.1-rc.3");
-  assert.equal(active[0].status, "READY_FOR_RETEST");
+  assert.equal(active[0].version, "0.6.1-rc.4");
+  assert.equal(active[0].status, "CHANGES_REQUESTED");
   const idPattern = new RegExp(schema.properties.stages.items.properties.id.pattern);
   assert.ok(tracker.stages.every((stage) => idPattern.test(stage.id)));
 });
@@ -338,6 +338,7 @@ test("Stage 06A transition installer is versioned, upgrade-safe, and capability-
     devices,
     child,
     helper,
+    policyRuntime,
     workflow,
   ] = await Promise.all([
     read("script/build_app.sh"),
@@ -351,17 +352,18 @@ test("Stage 06A transition installer is versioned, upgrade-safe, and capability-
     read("apps/controller-macos/Sources/ParentalControlController/Views/DevicesView.swift"),
     read("agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift"),
     read("agents/endpoint-macos/Sources/ParentalControlAgentUser/main.swift"),
+    read("agents/endpoint-macos/Sources/EndpointCore/EndpointPolicyRuntime.swift"),
     read(".github/workflows/stage-03-macos.yml"),
   ]);
   for (const build of [controllerBuild, endpointBuild]) {
-    assert.match(build, /VERSION="0\.6\.1-rc\.3"/);
-    assert.match(build, /CFBundleVersion string 6103/);
+    assert.match(build, /VERSION="0\.6\.1-rc\.4"/);
+    assert.match(build, /CFBundleVersion string 6104/);
     assert.match(build, /derived-data\/stage-06a/);
   }
   assert.match(packaging, /ParentalControlSystem-\$VERSION\.pkg/);
-  assert.match(packaging, /--version 0\.6\.1\.3/);
+  assert.match(packaging, /--version 0\.6\.1\.4/);
   assert.doesNotMatch(packaging, /package_browser_extension\.sh/);
-  assert.match(distribution, /version="0\.6\.1\.3"/);
+  assert.match(distribution, /version="0\.6\.1\.4"/);
   assert.match(preinstall, /configuration\.json/);
   assert.doesNotMatch(preinstall + postinstall, /delete-generic-password|rm[^\n]*configuration\.json/);
   assert.match(readiness, /session-enforcement/);
@@ -374,10 +376,13 @@ test("Stage 06A transition installer is versioned, upgrade-safe, and capability-
   assert.match(helper, /didTerminateApplicationNotification/);
   assert.match(helper, /createsNewApplicationInstance = true/);
   assert.match(helper, /enforceBlockedScheduleIfNeeded/);
+  assert.match(helper, /EndpointScheduleRelockGate\.shouldRelock/);
+  assert.match(policyRuntime, /maximumDecisionAge/);
+  assert.match(policyRuntime, /nextAllowanceAt <= now/);
   assert.match(child, /ScrollView\(\.vertical\)/);
   assert.match(child, /status\.policyNextAllowanceAt/);
-  assert.match(workflow, /ParentalControlSystem-0\.6\.1-rc\.3\.pkg/);
-  assert.doesNotMatch(workflow, /ParentalControlBrowserSharing-0\.6\.1-rc\.3/);
+  assert.match(workflow, /ParentalControlSystem-0\.6\.1-rc\.4\.pkg/);
+  assert.doesNotMatch(workflow, /ParentalControlBrowserSharing-0\.6\.1-rc\.4/);
 });
 
 test("local Markdown links resolve inside the repository", async () => {
@@ -457,7 +462,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /Stages 00–06 are merged; STAGE-06A `0\.6\.1-rc\.3` is ready for installer retest; STAGE-07 has not begun/);
+  assert.match(readme, /Stages 00–06 are merged; STAGE-06A `0\.6\.1-rc\.4` retest changes are in progress; STAGE-07 has not begun/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);

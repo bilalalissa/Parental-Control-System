@@ -1,8 +1,8 @@
 # STAGE-06A — Manual third-party MDM feasibility for managed macOS login
 
-- Version: `0.6.1-rc.3`
+- Version: `0.6.1-rc.4`
 - Branch: `stage/06a-manual-mdm-feasibility`
-- Status: `READY_FOR_RETEST`
+- Status: `CHANGES_REQUESTED`
 - Authorized: `2026-09-01` via `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06A MANUAL-MDM FEASIBILITY BEFORE STAGE-07` and `PROCEED: STAGE-06A`
 - Installer amendment authorized: `2026-09-01` via `AUTHORIZE STAGE-06A SCOPE AMENDMENT: PRODUCE 0.6.1-rc.1 TRANSITION INSTALLER` and `PROCEED: STAGE-06A INSTALLER RETEST`
 - Platform evaluated: macOS 15 documentation and third-party MDM documentation; no device enrolled
@@ -26,6 +26,10 @@ The developer confirmed that the first lock was delivered but the blocked child 
 ## RC3 retest feedback
 
 The developer confirmed that the child can still authenticate at Login Window, that returning to the session does not reliably restart an already-running Screen Saver instance, that the child Status content cannot scroll at smaller heights, and that a blocked session has no countdown. Initial Login Window authentication remains an explicit platform limitation rather than a defect this transition build can truthfully solve. RC3 requests a fresh instance of Apple's public `ScreenSaverEngine` for every allowlisted lock operation and adds a bounded helper check that retries only a signed schedule lock in an active graphical session when Screen Saver is not foreground. It also projects the next allowed policy transition, renders a one-second local countdown in the child Status view and menu bar, and makes the Status surface vertically scrollable with wrapping explanatory text.
+
+## RC4 retest feedback
+
+The developer confirmed that repeated active-session locking works, but observed a lock during a configured weekly allowed window. RC3 could briefly act on a cached Block decision after wake or when the allowed boundary had just arrived, before the daemon's next 15-second evaluation. RC4 requires a recent daemon evaluation before repeating a schedule lock, aligns projected allowances to the exact scheduled minute, and suppresses the repeat lock as soon as that allowed boundary arrives. Signed daily quota and explicit blocked-interval precedence remain unchanged.
 
 ## Result: no-go for the proposed local-account mechanism
 

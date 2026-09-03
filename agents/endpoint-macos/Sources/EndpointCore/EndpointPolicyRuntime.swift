@@ -100,6 +100,28 @@ public enum EndpointPolicyEvent: Codable, Equatable, Sendable {
   case timeRequestRejected(minutes: Int)
 }
 
+/// Decides whether the visible login helper may repeat a schedule lock. A persisted decision can
+/// briefly outlive sleep, wake, or the start of a newly allowed window, so only a recent daemon
+/// evaluation whose projected allowance is still in the future may relock the active session.
+public enum EndpointScheduleRelockGate {
+  public static let maximumDecisionAge: TimeInterval = 30
+  public static let minimumRetryInterval: TimeInterval = 10
+
+  public static func shouldRelock(
+    status: EndpointStatus, sessionIsActive: Bool, screenSaverIsForeground: Bool,
+    consoleUserPresent: Bool, now: Date = Date(), lastAttemptAt: Date?
+  ) -> Bool {
+    guard sessionIsActive, status.sessionState == .active, consoleUserPresent,
+      !screenSaverIsForeground, status.policyDecision == .block, status.policyAction == .lock,
+      let evaluatedAt = status.policyLastEvaluatedAt
+    else { return false }
+    let decisionAge = now.timeIntervalSince(evaluatedAt)
+    guard decisionAge >= 0, decisionAge <= maximumDecisionAge else { return false }
+    if let nextAllowanceAt = status.policyNextAllowanceAt, nextAllowanceAt <= now { return false }
+    return lastAttemptAt.map { now.timeIntervalSince($0) >= minimumRetryInterval } ?? true
+  }
+}
+
 public final class EndpointPolicyRuntime: @unchecked Sendable {
   public static let maximumFailedAttempts = 3
   public static let attemptWindow: TimeInterval = 5 * 60
@@ -282,8 +304,10 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
         at: now, activeUseMinutes: currentActiveMinutes,
         adultOverrideActive: overrideUntil.map { $0 > now } ?? false))
     guard current.decision == .block else { return nil }
-    for minute in 1...boundedHorizon {
-      let future = now.addingTimeInterval(TimeInterval(minute * 60))
+    let firstMinuteBoundary = Date(
+      timeIntervalSince1970: floor(now.timeIntervalSince1970 / 60) * 60 + 60)
+    for minute in 0..<boundedHorizon {
+      let future = firstMinuteBoundary.addingTimeInterval(TimeInterval(minute * 60))
       let projectedActiveMinutes =
         dayKey(future, timezone: policy.timezone) == currentDay ? currentActiveMinutes : 0
       let decision = PolicyEvaluator.evaluate(

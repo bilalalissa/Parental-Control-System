@@ -268,6 +268,60 @@ struct EndpointPolicyRuntimeTests {
     #expect(runtime.projectedAllowanceDate(now: start) == start.addingTimeInterval(10 * 60))
   }
 
+  @Test("schedule relock stops at an allowed-window boundary and rejects stale decisions")
+  func scheduleRelockGate() throws {
+    let now = Date(timeIntervalSince1970: 1_800_000_030)
+    var status = EndpointStatus(
+      deviceID: "child-policy-test", deviceName: "Synthetic Mac", model: "Mac",
+      operatingSystem: "macOS", architecture: "arm64", uptimeSeconds: 100,
+      bootTime: now.addingTimeInterval(-100), sessionState: .active, consoleUser: "child",
+      policyVersion: 1, policyDecision: .block, policyAction: .lock,
+      policyLastEvaluatedAt: now.addingTimeInterval(-5),
+      policyNextAllowanceAt: now.addingTimeInterval(60))
+
+    #expect(
+      EndpointScheduleRelockGate.shouldRelock(
+        status: status, sessionIsActive: true, screenSaverIsForeground: false,
+        consoleUserPresent: true, now: now, lastAttemptAt: nil))
+
+    status.policyNextAllowanceAt = now
+    #expect(
+      !EndpointScheduleRelockGate.shouldRelock(
+        status: status, sessionIsActive: true, screenSaverIsForeground: false,
+        consoleUserPresent: true, now: now, lastAttemptAt: nil))
+
+    status.policyNextAllowanceAt = nil
+    status.policyLastEvaluatedAt = now.addingTimeInterval(
+      -(EndpointScheduleRelockGate.maximumDecisionAge + 1))
+    #expect(
+      !EndpointScheduleRelockGate.shouldRelock(
+        status: status, sessionIsActive: true, screenSaverIsForeground: false,
+        consoleUserPresent: true, now: now, lastAttemptAt: nil))
+  }
+
+  @Test("projected allowance aligns to the exact scheduled minute")
+  func projectedAllowanceUsesMinuteBoundary() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let now = try #require(
+      ISO8601DateFormatter().date(from: "2027-01-04T07:59:45Z"))
+    let policy = ParentalControlPolicy(
+      version: 1, deviceID: "child-policy-test", timezone: "UTC",
+      effectiveAt: now.addingTimeInterval(-3_600),
+      expiresAt: now.addingTimeInterval(86_400), defaultAction: .lock,
+      weeklyAllowed: [PolicyWeeklyWindow(day: .monday, start: "08:00", end: "20:00")],
+      dailyQuotaMinutes: 1_440, childExplanation: "Synthetic exact boundary",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.install(identity.sign(policy: policy), controllerPublicKey: identity.publicKeyData)
+    _ = runtime.tick(now: now, uptime: 100, sessionActive: true)
+
+    #expect(
+      runtime.projectedAllowanceDate(now: now)
+        == ISO8601DateFormatter().date(from: "2027-01-04T08:00:00Z"))
+  }
+
   private func policy(version: UInt64) -> ParentalControlPolicy {
     ParentalControlPolicy(
       version: version, deviceID: "child-policy-test", timezone: "UTC",

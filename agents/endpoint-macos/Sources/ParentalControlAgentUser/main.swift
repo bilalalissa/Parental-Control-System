@@ -305,12 +305,13 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   @MainActor private func enforceBlockedScheduleIfNeeded(
     _ status: EndpointStatus, now: Date
   ) {
-    guard currentState == .active, status.sessionState == .active,
-      status.policyDecision == .block, status.policyAction == .lock,
-      DeviceSnapshotCollector.consoleUser() != nil,
-      NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        != Self.screenSaverBundleIdentifier,
-      lastScheduleLockAttemptAt.map({ now.timeIntervalSince($0) >= 10 }) ?? true
+    guard
+      EndpointScheduleRelockGate.shouldRelock(
+        status: status, sessionIsActive: currentState == .active,
+        screenSaverIsForeground: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+          == Self.screenSaverBundleIdentifier,
+        consoleUserPresent: DeviceSnapshotCollector.consoleUser() != nil, now: now,
+        lastAttemptAt: lastScheduleLockAttemptAt)
     else { return }
     requestScreenSaverLock(now: now)
   }
