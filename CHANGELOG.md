@@ -2,6 +2,16 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.1-rc.5 — 2026-09-03
+
+Status: **STAGE-06A approved; unreleased and unmerged**
+
+- Records the Stage 06A no-go result for selectively denying Login Window access to an ordinary local child account through manual third-party MDM enrollment while guaranteeing local adult recovery.
+- Keeps managed pre-login enforcement visibly unconfigured while preserving supported active-session re-locking through public macOS mechanisms.
+- Separates scheduled-window time from daily active-use quota, bonus time, temporary allowance, and the effective limiting rule in the child app and menu-bar helper.
+- Preserves endpoint identity, pairing, protected state, and the installed browser extension during in-place upgrades.
+- Developer physical testing passed build `6105`; approved with the exact command `APPROVED: STAGE-06A 0.6.1-rc.5` on 2026-09-03. Approval does not imply merge, release, or authorization of later-stage work.
+
 ## 0.6.0-rc.9 — 2026-08-31
 
 Status: **STAGE-06 merged; unreleased**

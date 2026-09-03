@@ -2,7 +2,7 @@
 
 - Version: `0.6.1-rc.5`
 - Branch: `stage/06a-manual-mdm-feasibility`
-- Status: `READY_FOR_RETEST`
+- Status: `APPROVED`
 - Authorized: `2026-09-01` via `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06A MANUAL-MDM FEASIBILITY BEFORE STAGE-07` and `PROCEED: STAGE-06A`
 - Installer amendment authorized: `2026-09-01` via `AUTHORIZE STAGE-06A SCOPE AMENDMENT: PRODUCE 0.6.1-rc.1 TRANSITION INSTALLER` and `PROCEED: STAGE-06A INSTALLER RETEST`
 - Platform evaluated: macOS 15 documentation and third-party MDM documentation; no device enrolled
@@ -34,6 +34,10 @@ The developer confirmed that repeated active-session locking works, but observed
 ## RC5 retest feedback
 
 The developer confirmed that allowed-window direction and repeated locking are correct, but a Thursday 06:58–21:50 window displayed an apparently inconsistent 04:42 countdown at 08:12. The countdown was the earlier daily active-use quota limit, including approved bonus time, rather than the end of the weekly window; the child UI did not identify that precedence. RC5 keeps the established fail-closed policy order and makes it inspectable: the child shows the signed-policy time zone and current policy-local time, the exact scheduled interval and its independent remaining time, planned window duration, base and bonus quota, active-use remainder, temporary allowance, effective remaining time, and the next limiting rule. The visible menu-bar helper also identifies the effective limit in its menu and tooltip.
+
+## Approval
+
+The developer reported that build `6105` passed physical-device testing and approved the candidate with the exact command `APPROVED: STAGE-06A 0.6.1-rc.5` on 2026-09-03. Approval does not merge the draft pull request, create a release, or authorize STAGE-06B, STAGE-07, managed-identity work, or any other later stage.
 
 ## Result: no-go for the proposed local-account mechanism
 
