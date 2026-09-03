@@ -2,7 +2,7 @@
 
 - Version: `0.6.1-rc.5`
 - Branch: `stage/06a-manual-mdm-feasibility`
-- Status: `APPROVED`
+- Status: `MERGED`
 - Authorized: `2026-09-01` via `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06A MANUAL-MDM FEASIBILITY BEFORE STAGE-07` and `PROCEED: STAGE-06A`
 - Installer amendment authorized: `2026-09-01` via `AUTHORIZE STAGE-06A SCOPE AMENDMENT: PRODUCE 0.6.1-rc.1 TRANSITION INSTALLER` and `PROCEED: STAGE-06A INSTALLER RETEST`
 - Platform evaluated: macOS 15 documentation and third-party MDM documentation; no device enrolled
@@ -38,6 +38,8 @@ The developer confirmed that allowed-window direction and repeated locking are c
 ## Approval
 
 The developer reported that build `6105` passed physical-device testing and approved the candidate with the exact command `APPROVED: STAGE-06A 0.6.1-rc.5` on 2026-09-03. Approval does not merge the draft pull request, create a release, or authorize STAGE-06B, STAGE-07, managed-identity work, or any other later stage.
+
+The developer separately authorized the Stage 06A pull-request merge with the exact command `MERGE` on 2026-09-03. This merge does not create a release or authorize any later stage.
 
 ## Result: no-go for the proposed local-account mechanism
 
