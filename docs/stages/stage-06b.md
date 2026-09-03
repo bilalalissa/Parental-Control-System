@@ -115,3 +115,27 @@ npm run cleanup:list
 ```
 
 Physical behavior, provider policy semantics, FileVault recovery, and Login Window denial remain unverified until a separately approved pilot runs on eligible non-primary hardware.
+
+## Candidate evidence
+
+- `npm test`: 50 passed, 0 failed, 1 Windows-only cleanup test skipped on macOS.
+- `git diff --check`: passed.
+- Stage tracker and schema JSON parse: passed.
+- Local Markdown link validation: included in the repository test and passed.
+- Scoped private-key/token pattern scan of changed source documents: no matches.
+- Dossier artifact: `docs/adr/0002-managed-identity-scheduled-login-feasibility.md`.
+- Dossier SHA-256: `c7056407492c8def60a4245f1d0e8bdac241ff4bcfbb47f315054bf10c91a301`.
+- Signing and entitlements: not applicable to a Markdown feasibility artifact.
+
+## Resource evidence
+
+- Free disk before work: 22 GiB on the repository volume.
+- Repository size before work: 27 MiB; retained project-owned artifacts: 15 MiB.
+- Peak temporary build size: 0 bytes of build output; the source-only delta remained below 100 KiB.
+- Free disk after validation and cleanup listing: 21 GiB.
+- Cleanup result: no repository-owned generated output found.
+- Retained product artifacts: the approved Stage 06A package and Stage 05 browser-extension ZIP remain because Stage 06B does not replace either installable product.
+- Project processes started by this stage: none.
+- Existing installed parent controller/hub processes: developer-owned and deliberately untouched.
+- Simulator/emulator/VM/container state: not used.
+- Resource-budget exception: none; the 5 GiB floor remained satisfied.
