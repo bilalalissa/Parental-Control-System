@@ -1,6 +1,6 @@
 # Capability matrix
 
-This matrix is the truthful Stage 06 capability contract and the Stage 06A–06C feasibility result.
+This matrix is the truthful Stage 06 capability contract and the Stage 06A–06D feasibility result.
 
 | Capability | Parent Controller (Apple silicon) | macOS child endpoint | Windows child endpoint | Standard iPadOS child app | Optional supervised iPad MDM |
 | --- | --- | --- | --- | --- | --- |
@@ -26,7 +26,9 @@ This matrix is the truthful Stage 06 capability contract and the Stage 06A–06C
 | Require live IdP authentication for a managed child at Login Window | No product integration | **Conditionally available with macOS 15 Platform SSO Password policy, MDM, IdP, and compatible extension; unverified and not implemented** | Not evaluated | Not applicable | Not applicable |
 | Evaluate the signed weekly schedule while offline at Login Window | Local policy exists but is not an authentication provider | **Not available through Platform SSO; offline grace is day-based and no-grace denies all offline login** | Not evaluated | Not applicable | Not applicable |
 | Independent offline adult recovery from managed child login policy | Parent retains lawful administration | **Architecturally possible with excluded local administrator, FileVault PRK, and recoveryOS; unverified** | Not evaluated | Not applicable | Not applicable |
-| Timed per-device external Internet pause | **Not implemented; current ARRIS NVG448BQ is manual-only** | No endpoint filtering in Stage 06C | Not evaluated | Not evaluated | Router path is separate from MDM |
+| Deny selected application launches | Policy authoring is gated | **Stage 06D design only; blocked on Apple Endpoint Security entitlement and signed physical proof** | Not evaluated | Not available to a normal app | Separately managed restrictions only |
+| Deny selected website domains | Policy authoring is gated | **Stage 06D design only; blocked on Apple Network Extension entitlement and signed physical proof** | Not evaluated | Family Controls categories/tokens only, not this rule model | Separately managed restrictions only |
+| Timed per-device external Internet pause | **Not implemented; current ARRIS NVG448BQ is manual-only and Stage 06D is entitlement-blocked** | **Stage 06D design only; no operational endpoint filter yet** | Not evaluated | Not evaluated | Router path is separate from MDM |
 | Preserve authenticated local controller during WAN pause | **Mandatory for any future router adapter** | Child LAN path must remain reachable on every approved interface | Same future contract | Not evaluated | Not applicable |
 
 Unknown and unsupported capabilities are disabled and explained in the controller UI. An unreachable endpoint is `Offline`, never inferred to be powered off.
@@ -36,3 +38,5 @@ Stage 06A found that macOS `LoginWindow` payload `AllowList` and `DenyList` appl
 Stage 06B found that Platform SSO `RequireAuthentication` is a meaningful online authentication gate and that `NonPlatformSSOAccounts` can exempt a separate local adult recovery administrator. It still has no weekly time-window input, cannot consume the Parent Controller's signed policy, and offers only whole-day offline grace or total offline denial. The Platform SSO FileVault policy is limited to Apple silicon. The design is therefore a no-go for the exact local/offline schedule requirement and only a conditional candidate for a separately approved online pilot.
 
 Stage 06C found that the evaluated ARRIS NVG448BQ firmware offers an interactive Access Control UI but no documented least-privilege automation API or trustworthy hard-expiring lease. The ISP also documents its Time of Day Profiles as unreliable. The gateway is therefore manual-only: the Parent Controller must not expose a router-pause capability for it. A future documented-API adapter remains conditional on exact Wi-Fi/Ethernet identity mapping, IPv4/IPv6 parity, WAN-forwarding-only rules, preserved authenticated LAN control, router-owned expiry, and independent adult recovery.
+
+Stage 06D selects supported macOS Network Extension and Endpoint Security system-extension boundaries. Distribution is currently blocked because the signing Mac has no Developer ID identity or matching profiles, and Endpoint Security is an Apple-managed capability. Entitlement templates and a readiness checker do not make the controls operational. The UI and installer must not claim support until same-Team signed activation and the complete physical matrix pass.

@@ -1,6 +1,6 @@
 {
   "name": "parental-control-system",
-  "version": "0.6.3-rc.1",
+  "version": "0.6.4-rc.1",
   "private": true,
   "description": "Local-first parental-control controller, hub, and visible macOS child endpoint",
   "license": "MIT",

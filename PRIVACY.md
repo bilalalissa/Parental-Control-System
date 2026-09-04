@@ -29,6 +29,8 @@ Stage 06B is also source-only. It creates no IdP/MDM account, managed identity, 
 
 Stage 06C is source-only. It creates no router login, credential, configuration, firewall rule, device mapping, packet capture, traffic record, external account, or installer. Network-content inspection is prohibited. The named router's serial number, gateway MAC, household client addresses, host names, and access credentials are excluded from the public repository. A later adapter may retain only a pseudonymous approved client mapping and bounded lease/audit state. It may not retain DNS history, destinations, URLs, packet data, unrelated client inventory, or router credentials outside Keychain. All control stays on the local network.
 
+Stage 06D is source-only while Apple signing readiness is blocked. Entitlement templates contain no credentials, and provisioning profiles, certificates, private keys, Team credentials, notarization secrets, device addresses, and physical-test logs must never enter the repository. A later approved filter may retain only adult-entered normalized domain rules, selected application code identities, bounded lease metadata, and redacted receipts. It may not retain URLs, paths, queries, DNS or browsing history, packets, payloads, unrelated destinations, or unrelated process events. No network-content inspection is permitted.
+
 ## Transparency and control
 
 The installed endpoint must identify itself, show that parental controls are active, explain what it shares, show the effective schedule, and offer a way to contact the parent or request time. Child settings are read-only; changes require authenticated adult approval and any administrator authorization required by the operating system.
