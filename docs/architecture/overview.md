@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document records the target architecture, the merged Stage 06 macOS policy-enforcement boundary, and the bounded Stage 06A managed-login feasibility decision. Delivery remains gated by [`stage-status.json`](../stages/stage-status.json).
+This document records the target architecture, the merged Stage 06 macOS policy-enforcement boundary, and the bounded Stage 06A/06B managed-login feasibility decisions. Delivery remains gated by [`stage-status.json`](../stages/stage-status.json).
 
 ## Local-first topology
 
@@ -22,7 +22,7 @@ A standard iPadOS app uses FamilyControls, DeviceActivity, ManagedSettings, and 
 4. **Desktop privileged boundary:** the narrow macOS daemon accepts only authenticated, typed IPC operations from signed installed components. The logged-in helper maps allowlisted decisions to public macOS mechanisms; it does not expose shell execution or unrestricted process launch.
 5. **Browser extension boundary:** a separately installed visible Chrome/Edge/Arc extension sends bounded tab titles and query-free HTTP(S) origins through a fixed-origin native host. The host validates the exact signed parent browser path, signing identifier, and vendor Team ID; installed endpoint XPC separately validates the signed/root-protected host. Private tabs, page content, paths, queries, fragments, forms, cookies, passwords, and network traffic are excluded.
 6. **Apple Family Controls boundary:** iPad capability is constrained to supported public APIs and entitlement approval.
-7. **Optional external MDM boundary:** Stage 06A evaluates documentation only. No vendor account or device enrollment exists, and the external service is not trusted with family communication or activity data. Any future MDM credential would be a high-impact secret because vendor APIs may include destructive device operations.
+7. **Optional external management and identity boundary:** Stages 06A and 06B evaluate documentation only. No vendor account, managed identity, SSO extension, profile, or device enrollment exists, and no external service is trusted with family communication, activity, or the canonical signed schedule. Any future MDM/IdP credential would be a high-impact secret. A Platform SSO pilot would add separate MDM, IdP, extension, network-authentication, user-registration, FileVault, and recovery trust boundaries.
 
 ## Canonical contracts
 
@@ -48,4 +48,6 @@ Stage 06 retains the Stage 05 data bounds and adds one current signed policy plu
 
 ## Deployment boundaries
 
-Stages 00–12 contain no public relay, hosted API/database, SaaS telemetry, Docker/Kubernetes deployment, or mandatory cloud account. Stage 06A is a developer-authorized, documentation-only feasibility exception for an optional third-party MDM path; it creates no account, enrollment, credential, or product dependency. The review found that Apple's Login Window allow/deny lists apply only to network and mobile accounts and provide no schedule or automatic expiry, so the proposed ordinary local-account design does not proceed. Optional supervised-iPad MDM, managed identity, and relay work each require explicit later approval and separate architecture/security review.
+Stages 00–12 contain no public relay, hosted API/database, SaaS telemetry, Docker/Kubernetes deployment, or mandatory cloud account. Stages 06A and 06B are developer-authorized, source-only feasibility exceptions for optional third-party management and identity paths. They create no account, enrollment, credential, profile, external data flow, or product dependency.
+
+Stage 06A found that Apple's Login Window allow/deny lists do not selectively schedule an ordinary local account. Stage 06B found that Platform SSO can require live IdP authentication for a managed child at Login Window and can exclude a local adult recovery account, but it has no weekly schedule or callback into the local signed policy. Its offline grace is measured in days since successful identity authentication; without grace, all offline child login is denied. The FileVault authentication policy is Apple-silicon-only. Managed identity therefore does not replace the local-first schedule. A narrower online-only physical pilot, optional supervised-iPad MDM, and any relay work each require explicit later approval and separate architecture/security review.

@@ -11,6 +11,7 @@ Stage 00 covers contracts and repository controls. This model defines requiremen
 - Device status, application/tab metadata, chat, and retention configuration
 - Availability of local enforcement and the controller's local database
 - Availability and recoverability of any optional managed-device login policy
+- Integrity and availability of any optional managed identity, SSO extension, account mapping, and online login-policy decision
 - Child safety, privacy, unsaved work, and an honest understanding of endpoint state
 
 ## Actors and assumptions
@@ -22,6 +23,7 @@ Stage 00 covers contracts and repository controls. This model defines requiremen
 - **Malicious extension/app/content:** may try to cross a local IPC or data-collection boundary.
 - **Repository or build attacker:** may introduce secrets, unsafe dependencies, workflow privilege, or generated artifacts.
 - **Third-party MDM or compromised vendor account:** may receive device inventory, push stale profiles, or expose high-impact device commands outside the local controller trust boundary.
+- **Third-party IdP, SSO extension, or compromised managed identity:** may deny login, synchronize a credential incorrectly, mis-map account privilege, disclose registration identifiers, or become unavailable at an authentication boundary.
 
 The operating system, platform secure storage, supported public APIs, and correct cryptographic libraries form part of the trusted computing base. A normal iPad app cannot be treated as continuously present or desktop-equivalent.
 
@@ -46,11 +48,18 @@ The operating system, platform secure storage, supported public APIs, and correc
 | Stale or delayed managed login denial | Child or adult indefinitely unable to log in | Require bounded automatic expiry and a tested offline local recovery administrator; reject cloud-only rollback and any profile that can deny the recovery account |
 | MDM profile removal by an administrator | Managed policy bypass | Disclose manual enrollment removability; require a standard child account; do not claim anti-administrator persistence or use unsupported bypasses |
 | External inventory disclosure | Device/user metadata leaves the LAN | Use synthetic test identities, document vendor fields/retention, exclude chat/app/tab/family data, and delete the test record after approved evaluation |
+| Managed-identity schedule divergence | IdP decision and locally signed family schedule disagree | Do not represent Platform SSO as the local schedule evaluator; require a documented provider decision point and compare allowed/blocked boundaries before any pilot claim |
+| Offline authentication dilemma | Grace bypasses blocked time, or no grace denies allowed offline use | Treat the exact offline schedule design as no-go; never silently substitute day-based grace for a weekly schedule |
+| Adult account captured by child policy | Parent loses local recovery | Use a separate local administrator in `NonPlatformSSOAccounts`; verify offline login, secure-token/volume authority, and PRK recovery before child denial |
+| FileVault passthrough or processor mismatch | Disk unlock bypasses a second gate or coverage is overstated | Document Apple-silicon-only Platform SSO FileVault policy; on Intel require and test the separate post-FileVault Login Window, without claiming preboot schedule enforcement |
+| Password synchronization or account mapping error | Child data or local access is lost | Use only a disposable synthetic standard account in a separately approved pilot; record current credentials/ownership and prove rollback before considering real-account migration |
+| IdP/MDM/extension outage or policy delay | Child or adult is locked out, or a denial arrives late | Keep adult recovery independent and offline; test provider outage, profile removal, PRK/recoveryOS bypass, and same-session rollback before denial |
+| Excess identity attestation | Hardware or user identifiers are unnecessarily disclosed | Keep device identifiers in attestation disabled by default; separately approve any claimed necessity and vendor retention |
 
 ## Prohibited designs
 
-Hidden installation, stealth persistence, keylogging, screenshots, camera/microphone or clipboard capture, password/form/file/message collection, TLS interception, private APIs, exploits, anti-malware evasion, unrestricted remote browsing/transfer, arbitrary shell/process execution, scheduled MDM scripts, cloud-only recovery, destructive API integration, and a universal override code are outside the product boundary.
+Hidden installation, stealth persistence, keylogging, screenshots, camera/microphone or clipboard capture, password/form/file/message collection, TLS interception, private APIs, exploits, anti-malware evasion, unrestricted remote browsing/transfer, arbitrary shell/process execution, scheduled MDM/IdP account scripts, cloud-only recovery, destructive API integration, real-account migration without a synthetic rollback trial, and a universal override code are outside the product boundary.
 
 ## Security stage gates
 
-Each implementation stage must update this model when a trust boundary changes, add abuse/negative tests, record residual risks, and distinguish source review from native-device evidence. High or critical findings block release unless explicitly accepted by the developer. Stage 06A's third-party MDM review is source-only and rejects the proposed local-account mechanism before enrollment. Supervised MDM, managed identity, and any relay require separate approval and focused threat models.
+Each implementation stage must update this model when a trust boundary changes, add abuse/negative tests, record residual risks, and distinguish source review from native-device evidence. High or critical findings block release unless explicitly accepted by the developer. Stage 06A's third-party MDM review is source-only and rejects the proposed local-account mechanism before enrollment. Stage 06B's managed-identity review is also source-only: it rejects Platform SSO as an offline family-schedule substitute and permits only a separately approved, recovery-first online pilot. Supervised MDM, a physical managed-identity pilot, and any relay require separate approval and focused threat models.
