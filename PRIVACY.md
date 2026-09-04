@@ -27,6 +27,8 @@ Stage 06A is a source-only feasibility review. It creates no third-party MDM acc
 
 Stage 06B is also source-only. It creates no IdP/MDM account, managed identity, SSO extension, registration, attestation, profile, credential, device record, or external data transfer. A separately approved Platform SSO pilot would disclose a synthetic account and limited device/registration state to the named providers. Device identifiers in attestation remain disabled unless separately justified. The pilot must exclude real names and all chat, app, browser, schedule, network-address, and family content; document provider purpose and retention; and delete the synthetic identity and device record after rollback. The local-first product continues without the provider.
 
+Stage 06C is source-only. It creates no router login, credential, configuration, firewall rule, device mapping, packet capture, traffic record, external account, or installer. Network-content inspection is prohibited. The named router's serial number, gateway MAC, household client addresses, host names, and access credentials are excluded from the public repository. A later adapter may retain only a pseudonymous approved client mapping and bounded lease/audit state. It may not retain DNS history, destinations, URLs, packet data, unrelated client inventory, or router credentials outside Keychain. All control stays on the local network.
+
 ## Transparency and control
 
 The installed endpoint must identify itself, show that parental controls are active, explain what it shares, show the effective schedule, and offer a way to contact the parent or request time. Child settings are read-only; changes require authenticated adult approval and any administrator authorization required by the operating system.

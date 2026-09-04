@@ -2,6 +2,15 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.3-rc.1 — 2026-09-04
+
+Status: **STAGE-06C ready for developer review; unreleased**
+
+- Records a no-go for automatic integration with the evaluated ARRIS NVG448BQ firmware because no documented least-privilege API is available and the supported time-profile feature is documented as unreliable.
+- Defines a WAN-only, per-device safety contract that preserves authenticated local controller access, requires IPv4/IPv6 parity and explicit Wi-Fi/Ethernet identity mapping, and uses router-owned hard expiry and recovery.
+- Documents a cautious manual verification path for the existing gateway and conditional MikroTik RouterOS/OpenWrt adapter paths that require separate hardware/configuration approval.
+- Creates no router login, credential, configuration change, network inspection, executable, installer, or external service dependency; the reviewable feasibility dossier is the sole Stage 06C artifact.
+
 ## 0.6.2-rc.1 — 2026-09-03
 
 Status: **STAGE-06B merged; unreleased**

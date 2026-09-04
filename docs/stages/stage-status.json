@@ -1,6 +1,6 @@
 {
   "$schema": "./stage-status.schema.json",
-  "activeStage": "STAGE-06B",
+  "activeStage": "STAGE-06C",
   "stages": [
     {
       "id": "STAGE-00",
@@ -73,6 +73,14 @@
       "status": "MERGED",
       "branch": "stage/06b-managed-identity-feasibility",
       "document": "stage-06b.md"
+    },
+    {
+      "id": "STAGE-06C",
+      "name": "Router-level per-device WAN pause feasibility",
+      "version": "0.6.3-rc.1",
+      "status": "READY_FOR_DEVELOPER_TEST",
+      "branch": "stage/06c-router-wan-pause",
+      "document": "stage-06c.md"
     }
   ]
 }

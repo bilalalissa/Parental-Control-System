@@ -1,6 +1,6 @@
 # Capability matrix
 
-This matrix is the truthful Stage 06 capability contract and the Stage 06A/06B feasibility result.
+This matrix is the truthful Stage 06 capability contract and the Stage 06A–06C feasibility result.
 
 | Capability | Parent Controller (Apple silicon) | macOS child endpoint | Windows child endpoint | Standard iPadOS child app | Optional supervised iPad MDM |
 | --- | --- | --- | --- | --- | --- |
@@ -26,9 +26,13 @@ This matrix is the truthful Stage 06 capability contract and the Stage 06A/06B f
 | Require live IdP authentication for a managed child at Login Window | No product integration | **Conditionally available with macOS 15 Platform SSO Password policy, MDM, IdP, and compatible extension; unverified and not implemented** | Not evaluated | Not applicable | Not applicable |
 | Evaluate the signed weekly schedule while offline at Login Window | Local policy exists but is not an authentication provider | **Not available through Platform SSO; offline grace is day-based and no-grace denies all offline login** | Not evaluated | Not applicable | Not applicable |
 | Independent offline adult recovery from managed child login policy | Parent retains lawful administration | **Architecturally possible with excluded local administrator, FileVault PRK, and recoveryOS; unverified** | Not evaluated | Not applicable | Not applicable |
+| Timed per-device external Internet pause | **Not implemented; current ARRIS NVG448BQ is manual-only** | No endpoint filtering in Stage 06C | Not evaluated | Not evaluated | Router path is separate from MDM |
+| Preserve authenticated local controller during WAN pause | **Mandatory for any future router adapter** | Child LAN path must remain reachable on every approved interface | Same future contract | Not evaluated | Not applicable |
 
 Unknown and unsupported capabilities are disabled and explained in the controller UI. An unreachable endpoint is `Offline`, never inferred to be powered off.
 
 Stage 06A found that macOS `LoginWindow` payload `AllowList` and `DenyList` apply only to network and mobile accounts, not ordinary local accounts, and the payload contains no weekly schedule or automatic expiry. Broadly disabling local login would also threaten the required adult recovery administrator. Manual third-party MDM enrollment is therefore not represented as a supported local-child scheduling capability.
 
 Stage 06B found that Platform SSO `RequireAuthentication` is a meaningful online authentication gate and that `NonPlatformSSOAccounts` can exempt a separate local adult recovery administrator. It still has no weekly time-window input, cannot consume the Parent Controller's signed policy, and offers only whole-day offline grace or total offline denial. The Platform SSO FileVault policy is limited to Apple silicon. The design is therefore a no-go for the exact local/offline schedule requirement and only a conditional candidate for a separately approved online pilot.
+
+Stage 06C found that the evaluated ARRIS NVG448BQ firmware offers an interactive Access Control UI but no documented least-privilege automation API or trustworthy hard-expiring lease. The ISP also documents its Time of Day Profiles as unreliable. The gateway is therefore manual-only: the Parent Controller must not expose a router-pause capability for it. A future documented-API adapter remains conditional on exact Wi-Fi/Ethernet identity mapping, IPv4/IPv6 parity, WAN-forwarding-only rules, preserved authenticated LAN control, router-owned expiry, and independent adult recovery.
