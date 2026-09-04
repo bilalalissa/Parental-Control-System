@@ -60,7 +60,7 @@ test("Stage 06C is a source dossier and later adapters remain separately gated",
   const active = state.stages.find((candidate) => candidate.id === state.activeStage);
   assert.equal(active.id, "STAGE-06C");
   assert.equal(active.version, "0.6.3-rc.1");
-  assert.equal(active.status, "READY_FOR_DEVELOPER_TEST");
+  assert.equal(active.status, "MERGED");
   assert.match(stage, /changes no executable or installed component/i);
   assert.match(decision, /do not produce an executable or installer/i);
   assert.match(decision, /MikroTik RouterOS/);

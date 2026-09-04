@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-06C is ready for developer review; STAGE-07 has not begun.** Stage 06C evaluates a bounded router-level WAN pause. The reviewed ARRIS NVG448BQ firmware has no documented automation API, so the stage produces a source dossier—not a nonfunctional installer or unsupported CGI scraper. See [Stage status](docs/stages/stage-status.json).
+> **STAGE-06C is merged; STAGE-06D is authorized and STAGE-07 has not begun.** Stage 06C evaluated a bounded router-level WAN pause. The reviewed ARRIS NVG448BQ firmware has no documented automation API, so the stage produced a source dossier—not a nonfunctional installer or unsupported CGI scraper. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 

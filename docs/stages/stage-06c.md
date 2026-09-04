@@ -2,7 +2,7 @@
 
 - Version: `0.6.3-rc.1`
 - Branch: `stage/06c-router-wan-pause`
-- Status: `READY_FOR_DEVELOPER_TEST`
+- Status: `MERGED`
 - Authorized: `2026-09-04` via `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06C ROUTER-LEVEL WAN PAUSE BEFORE STAGE-07` and `PROCEED: STAGE-06C`
 - Evidence type: official-source review plus credential-free, read-only local compatibility probe; no router mutation
 - Canonical decision: [ADR-0003](../adr/0003-router-level-wan-pause-feasibility.md)
@@ -59,6 +59,8 @@ Determine whether the family's current router can pause external Internet access
 - Existing installed Parent Controller/hub processes are developer-owned and remain untouched.
 
 ## Findings
+
+The developer approved this dossier with `APPROVED: STAGE-06C 0.6.3-rc.1` and separately authorized its merge with `MERGE` on 2026-09-04. The approval accepts the compatibility finding; it does not claim router enforcement or authorize unsupported ARRIS automation.
 
 The current ARRIS firmware exposes documented interactive Access Control but has no documented least-privilege automation API. The protected page is backed by an HTML/CGI login flow. SaskTel also warns that Time of Day Profiles are not working properly, use UTC rather than Saskatchewan time, and have a workaround that is not guaranteed.
 
