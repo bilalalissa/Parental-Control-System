@@ -12,6 +12,7 @@ Stage 00 covers contracts and repository controls. This model defines requiremen
 - Availability of local enforcement and the controller's local database
 - Availability and recoverability of any optional managed-device login policy
 - Integrity and availability of any optional managed identity, SSO extension, account mapping, and online login-policy decision
+- Integrity and recoverability of any optional router-owned WAN-pause lease and child-interface mapping
 - Child safety, privacy, unsaved work, and an honest understanding of endpoint state
 
 ## Actors and assumptions
@@ -24,6 +25,7 @@ Stage 00 covers contracts and repository controls. This model defines requiremen
 - **Repository or build attacker:** may introduce secrets, unsafe dependencies, workflow privilege, or generated artifacts.
 - **Third-party MDM or compromised vendor account:** may receive device inventory, push stale profiles, or expose high-impact device commands outside the local controller trust boundary.
 - **Third-party IdP, SSO extension, or compromised managed identity:** may deny login, synchronize a credential incorrectly, mis-map account privilege, disclose registration identifiers, or become unavailable at an authentication boundary.
+- **Local router or compromised router credential:** may disconnect the controller, affect the wrong household device, expose unrelated inventory, leave a rule indefinitely, or permit an IPv4/IPv6/interface bypass.
 
 The operating system, platform secure storage, supported public APIs, and correct cryptographic libraries form part of the trusted computing base. A normal iPad app cannot be treated as continuously present or desktop-equivalent.
 
@@ -55,11 +57,18 @@ The operating system, platform secure storage, supported public APIs, and correc
 | Password synchronization or account mapping error | Child data or local access is lost | Use only a disposable synthetic standard account in a separately approved pilot; record current credentials/ownership and prove rollback before considering real-account migration |
 | IdP/MDM/extension outage or policy delay | Child or adult is locked out, or a denial arrives late | Keep adult recovery independent and offline; test provider outage, profile removal, PRK/recoveryOS bypass, and same-session rollback before denial |
 | Excess identity attestation | Hardware or user identifiers are unnecessarily disclosed | Keep device identifiers in attestation disabled by default; separately approve any claimed necessity and vendor retention |
+| Broad router administrator credential | Full LAN compromise or unrelated configuration changes | Reject the current broad Device Access Code for automation; require a dedicated operation-scoped API principal stored only in Keychain |
+| Router pause blocks local control | Parent cannot cancel or verify enforcement | Place rules only in the WAN forwarding path; explicitly exempt/test controller and recovery LAN paths over Wi-Fi and Ethernet |
+| Stale router deny rule | Child remains disconnected beyond approved time | Require maximum-eight-hour router-owned absolute expiry, tagged idempotent leases, independent adult removal, and reboot/controller-loss tests |
+| Wrong router client identity | Unrelated device is blocked or child bypasses over another interface | Explicitly approve every Wi-Fi/Ethernet mapping; detect private-address changes; never infer stable identity from a single MAC |
+| Partial IP-family enforcement | Child bypasses the pause over IPv4 or IPv6 | Apply and verify both families as one transaction; report unknown/failure unless parity is proven |
+| Router content overcollection | DNS, destination, or traffic history becomes surveillance data | Use forwarding decisions only; prohibit packet capture, DNS history, URL/domain retention, TLS interception, and unrelated client inventory |
+| Ambiguous router response | UI falsely claims Internet is paused or restored | Verify tagged lease state; report `Unknown—verify router` on timeout or disagreement and retain a visible manual recovery path |
 
 ## Prohibited designs
 
-Hidden installation, stealth persistence, keylogging, screenshots, camera/microphone or clipboard capture, password/form/file/message collection, TLS interception, private APIs, exploits, anti-malware evasion, unrestricted remote browsing/transfer, arbitrary shell/process execution, scheduled MDM/IdP account scripts, cloud-only recovery, destructive API integration, real-account migration without a synthetic rollback trial, and a universal override code are outside the product boundary.
+Hidden installation, stealth persistence, keylogging, screenshots, camera/microphone or clipboard capture, password/form/file/message collection, TLS interception, private APIs, exploits, anti-malware evasion, unrestricted remote browsing/transfer, arbitrary shell/process execution, scheduled MDM/IdP account scripts, cloud-only recovery, destructive API integration, unsupported router CGI/HTML automation, network-content inspection, real-account migration without a synthetic rollback trial, and a universal override code are outside the product boundary.
 
 ## Security stage gates
 
-Each implementation stage must update this model when a trust boundary changes, add abuse/negative tests, record residual risks, and distinguish source review from native-device evidence. High or critical findings block release unless explicitly accepted by the developer. Stage 06A's third-party MDM review is source-only and rejects the proposed local-account mechanism before enrollment. Stage 06B's managed-identity review is also source-only: it rejects Platform SSO as an offline family-schedule substitute and permits only a separately approved, recovery-first online pilot. Supervised MDM, a physical managed-identity pilot, and any relay require separate approval and focused threat models.
+Each implementation stage must update this model when a trust boundary changes, add abuse/negative tests, record residual risks, and distinguish source review from native-device evidence. High or critical findings block release unless explicitly accepted by the developer. Stage 06A's third-party MDM review is source-only and rejects the proposed local-account mechanism before enrollment. Stage 06B's managed-identity review is also source-only: it rejects Platform SSO as an offline family-schedule substitute and permits only a separately approved, recovery-first online pilot. Stage 06C rejects automatic integration with the current ARRIS gateway and permits only a separately approved, recovery-first lab evaluation of a documented router API. Supervised MDM, a physical managed-identity/router pilot, and any relay require separate approval and focused threat models.

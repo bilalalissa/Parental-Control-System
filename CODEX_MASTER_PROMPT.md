@@ -63,7 +63,7 @@ The first production architecture is local-first, not cloud-first.
 - Pairing, policy distribution, status, supported commands, and desktop chat must work on the LAN without a hosted database or third-party service.
 - Child endpoints cache the last valid signed policy and enforce it locally while disconnected.
 - Messages and receipts use bounded local queues.
-- No public relay, hosted API, remote database, SaaS telemetry, Docker deployment, Kubernetes deployment, or mandatory account service may be introduced in stages 00–12. STAGE-06A is an explicitly authorized optional feasibility exception for evaluating manual third-party MDM enrollment and producing a separately authorized transition installer that truthfully exposes the current enforcement boundary. STAGE-06B is an explicitly authorized source-only feasibility exception for evaluating managed identity and Platform SSO. Neither stage may make the core product depend on an external account, create an MDM or identity-provider account without separate approval, install an MDM/SSO profile, register a real user or device, or transmit family data.
+- No public relay, hosted API, remote database, SaaS telemetry, Docker deployment, Kubernetes deployment, or mandatory account service may be introduced in stages 00–12. STAGE-06A is an explicitly authorized optional feasibility exception for evaluating manual third-party MDM enrollment and producing a separately authorized transition installer that truthfully exposes the current enforcement boundary. STAGE-06B is an explicitly authorized source-only feasibility exception for evaluating managed identity and Platform SSO. STAGE-06C is an explicitly authorized source-only feasibility exception for evaluating a local router as a bounded per-device WAN enforcement point. These stages may not make the core product depend on an external account, create an MDM or identity-provider account without separate approval, install an MDM/SSO profile, register a real user or device, disclose router credentials, scrape an unsupported router interface, or transmit family data.
 - APNs may be used for iPad notifications because iPadOS background delivery requires Apple infrastructure, but iPad scheduling and shielding must not depend on a custom cloud database.
 - Stage 13 may design an optional relay. Building or deploying it requires a separate explicit approval. The controller remains the policy authority and the relay must not be able to invent commands.
 - A future remote feature must degrade cleanly to local operation and must not make LAN operation unavailable.
@@ -718,6 +718,18 @@ Reject a design that has no documented schedule-aware decision point, permits a 
 Acceptance is an evidence-backed go/no-go ADR, focused security/privacy and capability updates, a vendor/account/FileVault/offline/recovery matrix, dependency-free repository tests, and an honest pilot recommendation. No installer is required because this stage changes no product code; the reviewed feasibility dossier is the stage artifact.
 
 Version: `0.6.2-rc.1`.
+
+### STAGE-06C — Router-level per-device WAN pause feasibility
+
+Evaluate whether a locally administered router can pause external Internet access for one selected child device for a bounded period while preserving the authenticated local Parent Controller connection. Validate the named gateway through current official documentation and a credential-free, read-only compatibility probe before designing an adapter.
+
+The enforcement contract requires exact device/interface mapping, IPv4 and IPv6 parity, WAN-only filtering in the routed-forwarding path, router-owned hard expiry, idempotent recovery, local adult access, and a visible audited result. DHCP, local DNS where required, time synchronization, and other traffic needed for safe recovery must remain available. No network-content inspection, TLS interception, URL history, hidden monitoring, arbitrary firewall execution, or credential storage outside Keychain is allowed.
+
+Do not submit router credentials, mutate gateway state, automate a private CGI/admin interface, or claim compatibility without a documented least-privilege API. Reject any route that cannot preserve the authenticated local controller connection, cannot recover independently when the controller exits, treats a Wi-Fi MAC as stable identity without verification, lacks IPv4/IPv6 parity, or depends only on a controller timer for expiry. Manual gateway configuration and a different-router adapter are separately gated deployment paths.
+
+Acceptance is an evidence-backed compatibility decision, focused architecture/security/privacy updates, a safe manual verification checklist, a router-adapter contract and alternatives matrix, dependency-free repository tests, and one reviewable source dossier with a checksum. No installer is required because this stage changes no executable and the evaluated router has no supported integration interface.
+
+Version: `0.6.3-rc.1`.
 
 ### STAGE-07 — Windows Child Agent foundation
 
