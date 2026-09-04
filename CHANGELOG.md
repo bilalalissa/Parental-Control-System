@@ -4,12 +4,13 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.6.2-rc.1 — 2026-09-03
 
-Status: **STAGE-06B ready for developer review; unreleased**
+Status: **STAGE-06B merged; unreleased**
 
 - Evaluates Apple Platform SSO and representative managed-identity paths without creating an external account, managed user, enrollment, profile, credential, or product integration.
 - Records a conditional go for a separately approved online managed-identity pilot with a locally exempt adult recovery administrator, but a no-go as a replacement for the current local-first, offline weekly-schedule authority.
 - Documents the absence of a weekly schedule in Platform SSO policy, the fail-open/fail-unavailable offline tradeoff, FileVault and Intel limitations, account migration and rollback risks, and a recovery-first pilot matrix.
 - Produces a reviewable feasibility dossier rather than an installer because no runtime source or installed component changes in this stage.
+- Approved with `APPROVED: STAGE-06B 0.6.2-rc.1` and separately authorized for merge with `MERGE` on 2026-09-04; no managed-identity pilot or release is implied.
 
 ## 0.6.1-rc.5 — 2026-09-03
 

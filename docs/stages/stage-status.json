@@ -70,7 +70,7 @@
       "id": "STAGE-06B",
       "name": "Managed-identity feasibility for scheduled macOS login",
       "version": "0.6.2-rc.1",
-      "status": "READY_FOR_DEVELOPER_TEST",
+      "status": "MERGED",
       "branch": "stage/06b-managed-identity-feasibility",
       "document": "stage-06b.md"
     }

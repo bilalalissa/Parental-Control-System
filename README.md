@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-06B is ready for developer review; STAGE-07 has not begun.** Stage 06B evaluates managed identity and Platform SSO using documentation and synthetic checks only. It creates no account, enrollment, profile, external data flow, or installer. See [Stage status](docs/stages/stage-status.json).
+> **STAGE-06B is merged; STAGE-07 has not begun.** Stage 06B evaluated managed identity and Platform SSO using documentation and synthetic checks only. It created no account, enrollment, profile, external data flow, or installer. See [Stage status](docs/stages/stage-status.json).
 
 ## Product direction
 

@@ -2,7 +2,7 @@
 
 - Version: `0.6.2-rc.1`
 - Branch: `stage/06b-managed-identity-feasibility`
-- Status: `READY_FOR_DEVELOPER_TEST`
+- Status: `MERGED`
 - Authorized: `2026-09-03` via `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06B MANAGED-IDENTITY FEASIBILITY BEFORE STAGE-07` and `PROCEED: STAGE-06B`
 - Evidence type: official-source review and dependency-free repository validation; no physical enrollment
 - Canonical decision: [ADR-0002](../adr/0002-managed-identity-scheduled-login-feasibility.md)
@@ -58,6 +58,8 @@ Determine whether managed identity can close the pre-login gap left by Stage 06A
 - Cleanup is limited to repository-owned paths reported by `npm run cleanup:list`; no unrelated installed app or user process is touched.
 
 ## Finding
+
+The developer approved the dossier with the exact command `APPROVED: STAGE-06B 0.6.2-rc.1` and separately authorized its merge with `MERGE` on 2026-09-04. This does not create a release or authorize a managed-identity pilot.
 
 Platform SSO can provide a genuine live IdP requirement at FileVault (Apple silicon only), Login Window, and unlock when Password authentication and `RequireAuthentication` are supported. `NonPlatformSSOAccounts` provides a documented way to exempt the separate local adult recovery administrator.
 
