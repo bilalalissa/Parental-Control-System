@@ -2,7 +2,7 @@
 
 - Version: `0.6.4-rc.1` (build `6401`)
 - Branch: `stage/06d-macos-app-web-network-enforcement`
-- Status: `IMPLEMENTING`
+- Status: `READY_FOR_DEVELOPER_TEST` (local candidate; production distribution is not ready)
 - Scope amended by the developer on 2026-09-05: `AUTHORIZE STAGE-06D SCOPE AMENDMENT: MANAGED BROWSER WEBSITE BLOCKING. PROCEED.`
 - The former system-extension design in [ADR-0004](../adr/0004-macos-enforcement-extension-readiness.md) is deferred. Its Apple Developer ID and same Team ID gate and physical acceptance matrix apply only to future system-wide enforcement, not this browser-only test candidate.
 
@@ -77,4 +77,56 @@ After packaging, remove only project-owned `dist`, derived-data, icon renders an
 
 ## Evidence and resources
 
-Initial free disk: 18 GiB. Repository: 28 MiB; retained artifacts: 15 MiB. No stale project-started process was identified; installed parent/hub are developer-owned. Tests/build/package evidence and final resource measurements will be recorded after verification.
+Source/build commit: `9701b57b467b`. Existing draft PR: [#11](https://github.com/bilalalissa/Parental-Control-System/pull/11). The final documentation commit does not change packaged application/extension source.
+
+Local checks on 2026-09-05:
+
+- `node --test --test-concurrency=2`: 69 passed, one Windows-only skip (70 total), including 10 browser policy tests.
+- `swift test --disable-sandbox --package-path apps/controller-macos --scratch-path .artifacts/derived-data/stage-06d/controller-tests --jobs 2`: 52 passed (2 XCTest + 50 Swift Testing).
+- `swift test --disable-sandbox --package-path agents/endpoint-macos --scratch-path .artifacts/derived-data/stage-06d/tests --jobs 2`: 30 passed (4 XCTest + 26 Swift Testing). Includes isolated signed LAN policy delivery, child persistence and independent profile acknowledgement with sharing disabled.
+- `swift format lint` for both source/test trees, shell syntax checks and `git diff --check`: passed.
+- `script/package_endpoint_release.sh` and `script/package_browser_extension.sh`: passed, including package expansion, expected native hosts, version checks, archive integrity and manifest generation.
+- `codesign --verify --deep --strict` on both apps: passed. Signatures are ad-hoc, Team ID absent. Installer is unsigned; no notarization or Apple managed entitlements claimed.
+- `lipo -archs`: parent arm64; child, daemon, user helper and browser host arm64 + x86_64.
+- `installer -showChoicesXML`: Parent selected by default; Child available separately. Initial sandboxed inspection could not read choices; authorized read-only inspection succeeded. No local installation was performed.
+- SHA-256 sidecars verified with `shasum -a 256 -c`.
+
+CI results are not claimed here. Real browser navigation, native-host authorization against installed browser versions, Intel execution, in-place install behavior on family devices and idle runtime resource use remain physical developer tests. Existing UI/hub processes were not used as test fixtures.
+
+### Retained artifacts
+
+All three files are in `.artifacts/release-candidate/`; each has a `.sha256` sidecar.
+
+| File | Purpose / status | SHA-256 |
+| --- | --- | --- |
+| `ParentalControlSystem-0.6.4-rc.1.pkg` | Selectable parent/child installer, unsigned package with ad-hoc apps | `7c01f2b95bac0e632bc39e1a447eb18b96786f8c6b6e34e3c3f483a739109c4d` |
+| `ParentalControlBrowserSharing-0.6.4-rc.1.zip` | Chromium unpacked developer test extension | `ab4e1585c211edbc3c311c7747a1db2754d444e22a83ef901b4f9b31668fb4e2` |
+| `ParentalControlBrowserFirefox-0.6.4-rc.1.xpi` | Firefox unsigned temporary test extension | `3fd6e3df59222562e98db64b85739b6e716e7ede7f5f609545909dafa4ef04f4` |
+
+### Resource report
+
+Free disk before: 18 GiB; final free disk: 17 GiB (other developer activity is not controlled). Initial repository: 28 MiB; initial retained artifacts: 15 MiB. Largest observed project output: 759 MiB including old/new candidates and dist; peak estimate including transient package expansion: under 850 MiB. Two build workers, sequential platform builds. No capacity exception; stayed above the 5 GiB floor.
+
+Cleanup removed only reviewed project-owned `dist`, `.artifacts/derived-data`, `.artifacts/package-staging`, plus the superseded `0.6.1-rc.5` installer and `0.6.0-rc.9` extension with their checksum sidecars after replacement verification. Prior binaries were deleted, not archived; source remains in Git for rebuilding. Final repository: 29 MiB; artifacts: 16 MiB. Only one current installer and the two required browser-specific test packages remain. No project-started processes remain. No simulator was started; pre-existing developer-owned simulator services and installed parent/hub were left untouched.
+
+## Failure evidence and feedback
+
+Collect OS/browser version, selected installer component, test step, requested policy version and the affected profile's status. Include only redacted relevant extension errors or bounded app errors. Do not submit browsing history, full agent status, pairing/override codes, local IP/MAC addresses or private screenshots to this public repository.
+
+```text
+STAGE FEEDBACK
+Stage: STAGE-06D
+Version: 0.6.4-rc.1 (6401)
+Platform and OS:
+Hardware:
+Result: PASS | FAIL | PARTIAL
+Steps performed:
+Expected:
+Observed:
+Logs:
+Screenshots:
+Requested changes:
+Decision: CHANGES_REQUIRED | APPROVED
+```
+
+AWAITING DEVELOPER TEST RESULT

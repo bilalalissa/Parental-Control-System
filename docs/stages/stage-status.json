@@ -86,7 +86,7 @@
       "id": "STAGE-06D",
       "name": "Managed browser website blocking",
       "version": "0.6.4-rc.1",
-      "status": "IMPLEMENTING",
+      "status": "READY_FOR_DEVELOPER_TEST",
       "branch": "stage/06d-macos-app-web-network-enforcement",
       "document": "stage-06d.md"
     }

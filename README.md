@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-06D is implementing managed browser website blocking; STAGE-07 has not begun.** The developer amended scope on 2026-09-05 to Chromium/Firefox extensions managed through the authenticated child host. Safari, app-launch denial and device-wide Internet pause remain unavailable. Test packages are not production automatic-update distribution. See [Stage status](docs/stages/stage-status.json) and [Stage 06D](docs/stages/stage-06d.md).
+> **STAGE-06D managed browser website blocking is ready for developer testing; STAGE-07 has not begun.** The developer amended scope on 2026-09-05 to Chromium/Firefox extensions managed through the authenticated child host. Safari, app-launch denial and device-wide Internet pause remain unavailable. Test packages are not production automatic-update distribution. See [Stage status](docs/stages/stage-status.json) and [Stage 06D](docs/stages/stage-06d.md).
 
 ## Product direction
 
