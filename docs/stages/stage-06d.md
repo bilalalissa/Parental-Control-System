@@ -107,15 +107,15 @@ After packaging, remove only project-owned `dist`, derived-data, icon renders an
 
 ## Evidence and resources
 
-Source/build commit: `a58a96204eef`. Existing draft PR: [#11](https://github.com/bilalalissa/Parental-Control-System/pull/11). The final documentation commit does not change packaged application/extension source.
+Source/build commit: `3e309ea3d25e6db88b07cbfb4143646bb883013e`. Existing draft PR: [#11](https://github.com/bilalalissa/Parental-Control-System/pull/11). The final documentation commit does not change packaged application/extension source.
 
 Local checks on 2026-09-05:
 
-- `node --test --test-concurrency=2`: 69 passed, one Windows-only skip (70 total), including 10 browser policy tests.
-- `swift test --disable-sandbox --package-path apps/controller-macos --scratch-path .artifacts/derived-data/stage-06d/controller-tests --jobs 2`: 54 passed (4 XCTest + 50 Swift Testing).
-- `swift test --disable-sandbox --package-path agents/endpoint-macos --scratch-path .artifacts/derived-data/stage-06d/tests --jobs 2`: 30 passed (4 XCTest + 26 Swift Testing). Includes isolated signed LAN policy delivery, child persistence, independent profile acknowledgement with sharing disabled, and upgrade/reconnect capability refresh followed by a new policy without re-pairing. The upgrade test failed on the prior code and passed after the repair.
+- `node --test --test-concurrency=2 --test-reporter=tap`: 69 passed, one Windows-only skip (70 total), including 10 browser policy tests and static verification of the legacy-helper migration boundary.
+- `swift test --package-path apps/controller-macos --scratch-path .artifacts/derived-data/stage-06d/controller-tests --jobs 2`: 54 passed (4 XCTest + 50 Swift Testing).
+- `swift test --package-path agents/endpoint-macos --scratch-path .artifacts/derived-data/stage-06d/endpoint-tests --jobs 2`: 30 passed (4 XCTest + 26 Swift Testing). Includes isolated signed LAN policy delivery, child persistence, independent profile acknowledgement with sharing disabled, capability refresh, and an adult-authorized credential rotation that retains the existing record and browser configuration.
 - `swift format lint` for both source/test trees, shell syntax checks and `git diff --check`: passed.
-- `script/package_endpoint_release.sh`: passed for RC2, including package expansion, expected native hosts and version/build checks. Browser source/packages are unchanged from RC1; their existing checksums were reverified, not regenerated.
+- `script/package_endpoint_release.sh`: passed for RC3, including package expansion, embedded migration scripts, expected native hosts and version/build checks. The packaged daemon SHA-256 is `58296df7de82c1e4d8b32e35623c5f2daad72a212e66ebffbe416d2ac9012464`, which differs from the detected legacy rc.5 daemon. Browser source/packages are unchanged from RC1; their existing checksums were reverified, not regenerated.
 - `codesign --verify --deep --strict` on both apps: passed. Signatures are ad-hoc, Team ID absent. Installer is unsigned; no notarization or Apple managed entitlements claimed.
 - `lipo -archs`: parent arm64; child, daemon, user helper and browser host arm64 + x86_64.
 - `installer -showChoicesXML`: Parent selected by default; Child available separately. Authorized read-only inspection succeeded. No local installation was performed.
@@ -129,15 +129,15 @@ All three files are in `.artifacts/release-candidate/`; each has a `.sha256` sid
 
 | File | Purpose / status | SHA-256 |
 | --- | --- | --- |
-| `ParentalControlSystem-0.6.4-rc.2.pkg` | Selectable parent/child installer, unsigned package with ad-hoc apps | `2a86f4e0ffc9e95af65a19a9e7e857cd2df81d6d2c27d3d9b3a796578843d6dd` |
+| `ParentalControlSystem-0.6.4-rc.3.pkg` | Selectable parent/child installer; legacy-helper detection and one-time pairing repair; unsigned package with ad-hoc apps | `519e98c2ef3b1b8b7131b04a7068dd7822ddf21c3270f3b2cce1b7d02ba5d324` |
 | `ParentalControlBrowserSharing-0.6.4-rc.1.zip` | Chromium unpacked developer test extension | `ab4e1585c211edbc3c311c7747a1db2754d444e22a83ef901b4f9b31668fb4e2` |
 | `ParentalControlBrowserFirefox-0.6.4-rc.1.xpi` | Firefox unsigned temporary test extension | `3fd6e3df59222562e98db64b85739b6e716e7ede7f5f609545909dafa4ef04f4` |
 
 ### Resource report
 
-Free disk before: 17 GiB; final free disk: 17 GiB. Initial repository: 29 MiB; initial retained artifacts: 16 MiB. Largest observed project output: about 929 MiB including old/new candidates and dist; peak estimate including transient package work: about 1 GiB. Two build workers, sequential platform builds. No capacity exception; stayed above the 5 GiB floor.
+Free disk before: 16 GiB; final free disk: 16 GiB. Initial repository: 29 MiB; initial retained artifacts: 16 MiB. Largest observed project output was about 744 MiB after build; peak estimate including transient package staging was under 900 MiB. Two build workers, sequential platform builds. No capacity exception; stayed above the 5 GiB floor.
 
-Cleanup removed only reviewed project-owned `dist`, `.artifacts/derived-data`, `.artifacts/package-staging`, plus only the superseded `0.6.4-rc.1` macOS installer and its checksum sidecar after replacement verification. Prior binaries were deleted, not archived; source remains in Git for rebuilding. Final repository: 29 MiB; artifacts: 16 MiB. Only one current installer and the two required browser-specific test packages remain. No project-started processes remain. No simulator was started; pre-existing developer-owned simulator services and installed parent/hub were left untouched.
+Cleanup removed only reviewed project-owned `dist`, `.artifacts/derived-data`, `.artifacts/package-staging`, the temporary package-inspection directory, and the superseded `0.6.4-rc.2` macOS installer/checksum after replacement verification. Prior binaries were deleted, not archived; source remains in Git for rebuilding. Final repository: 29 MiB; artifacts: 16 MiB. Only one current installer and the two required browser-specific test packages remain. No project-started processes remain. No simulator was started; pre-existing developer-owned simulator services and installed parent/hub were left untouched.
 
 ## Failure evidence and feedback
 
