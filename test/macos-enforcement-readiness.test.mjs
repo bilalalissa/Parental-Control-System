@@ -59,7 +59,7 @@ test("Stage 06D amendment separates browser tests from deferred system-extension
   const state = JSON.parse(tracker);
   const active = state.stages.find((candidate) => candidate.id === state.activeStage);
   assert.equal(active.id, "STAGE-06D");
-  assert.equal(active.version, "0.6.4-rc.2");
+  assert.equal(active.version, "0.6.4-rc.3");
   assert.ok(["IMPLEMENTING", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "BLOCKED"].includes(active.status));
   assert.match(stage, /MANAGED BROWSER WEBSITE BLOCKING/);
   assert.match(stage, /Firefox.*unsigned|unsigned.*Firefox/i);

@@ -29,7 +29,8 @@ enum DaemonMain {
 
     let retry = EndpointDaemonRetryLoop(
       store: store, repository: repository, log: log,
-      policyRuntime: policyRuntime, keychainService: arguments.keychainService)
+      policyRuntime: policyRuntime,
+      keychainService: arguments.keychainService ?? configuration.identityKeychainService)
     retry.start()
     policyScheduler.start()
 
@@ -243,7 +244,7 @@ private struct Arguments {
   var root: URL?
   var noXPC = false
   var runSeconds: TimeInterval?
-  var keychainService = "com.bilalalissa.ParentalControlAgent.device"
+  var keychainService: String?
   init(_ values: [String]) {
     func value(_ flag: String) -> String? {
       guard let index = values.firstIndex(of: flag), index + 1 < values.count else { return nil }

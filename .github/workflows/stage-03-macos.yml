@@ -96,8 +96,8 @@ jobs:
       - name: Verify selectable package choices
         if: steps.scope.outputs.build == 'true'
         run: |
-          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.2.pkg" -target / | /usr/bin/plutil -lint -
-          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.2.pkg" || true
+          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.3.pkg" -target / | /usr/bin/plutil -lint -
+          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.3.pkg" || true
       - name: Reset macOS installer test fixture
         if: steps.scope.outputs.build == 'true'
         run: |
@@ -129,7 +129,7 @@ jobs:
         if: steps.scope.outputs.build == 'true'
         run: |
           sudo /usr/sbin/installer \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.2.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.3.pkg" \
             -target /
           test -x "/Applications/Parental Control.app/Contents/MacOS/ParentalControlController"
           test ! -e "/Applications/Parental Control Child.app"
@@ -141,7 +141,7 @@ jobs:
         run: |
           if ! sudo /usr/sbin/installer \
             -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.2.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.3.pkg" \
             -target /; then
             sudo /usr/bin/tail -n 200 /var/log/install.log || true
             exit 1
@@ -164,7 +164,7 @@ jobs:
             # Verify child in-place upgrade preserves endpoint identity and protected state.
             if ! sudo /usr/sbin/installer \
               -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
-              -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.2.pkg" \
+              -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.3.pkg" \
               -target /; then
               sudo /usr/bin/tail -n 200 /var/log/install.log || true
               exit 1
@@ -265,10 +265,10 @@ jobs:
         if: steps.scope.outputs.build == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ParentalControlSystem-0.6.4-rc.2
+          name: ParentalControlSystem-0.6.4-rc.3
           path: |
-            .artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.2.pkg
-            .artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.2.pkg.sha256
+            .artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.3.pkg
+            .artifacts/release-candidate/ParentalControlSystem-0.6.4-rc.3.pkg.sha256
             .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.4-rc.1.zip
             .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.4-rc.1.zip.sha256
             .artifacts/release-candidate/ParentalControlBrowserFirefox-0.6.4-rc.1.xpi

@@ -241,6 +241,33 @@ struct EndpointCoreTests {
     }
     #expect(try store.load().websitePolicy == revisedWebsitePolicy)
 
+    // An rc.5 ad-hoc daemon cannot share its Keychain ACL with a changed executable. Model the
+    // bounded adult repair path: a fresh one-time invitation rotates only the device credential,
+    // while retaining the stable device ID, original pairing date, configuration and history.
+    restartedAgent.stop()
+    let repairInvitation = try restartedHub.createPairingInvitation()
+    try store.installPairingInvitation(repairInvitation)
+    let replacementIdentity = try Ed25519Identity(keyID: "device-\(configuration.deviceID)")
+    let repairAgent = try EndpointAgent(
+      store: store, repository: repository,
+      log: BoundedLog(directory: logDirectory), suppliedIdentity: replacementIdentity,
+      policyRuntime: policyRuntime, pairedControllerPort: restartedPort)
+    defer { repairAgent.stop() }
+    try repairAgent.start()
+    let repairDeadline = Date().addingTimeInterval(5)
+    while try store.load().invitation != nil, Date() < repairDeadline {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    let repairedDevice = try database.device(id: configuration.deviceID)
+    let repaired = try #require(repairedDevice)
+    #expect(try store.load().invitation == nil)
+    #expect(repaired.publicKey == replacementIdentity.publicKeyData)
+    #expect(repaired.publicKey != oldRecord.publicKey)
+    #expect(repaired.pairedAt == oldRecord.pairedAt)
+    #expect(repaired.id == oldRecord.id)
+    #expect(repaired.capabilities.contains("browser-website-policy"))
+    #expect(try database.browserConfigurations().first?.websitePolicy == revisedWebsitePolicy)
+
     try restartedHub.revoke(deviceID: configuration.deviceID)
     #expect(try database.device(id: configuration.deviceID)?.isRevoked == true)
   }
@@ -274,7 +301,8 @@ struct EndpointCoreTests {
     let original = EndpointConfiguration(
       deviceID: "upgrade-stable-device", pairedController: controller, sequence: 42,
       activityCollectionEnabled: true, activityRetentionDays: 7,
-      browserCollectionEnabled: true, browserRetentionDays: 7)
+      browserCollectionEnabled: true, browserRetentionDays: 7,
+      identityKeychainService: EndpointIdentityKeychain.repairService)
     try ProtectedConfigurationStore(root: root).save(original)
 
     // Reopening the store models a replacement package starting the new daemon against the
@@ -284,6 +312,7 @@ struct EndpointCoreTests {
     #expect(reloaded == original)
     #expect(reloaded.deviceID == "upgrade-stable-device")
     #expect(reloaded.pairedController == controller)
+    #expect(reloaded.identityKeychainService == EndpointIdentityKeychain.repairService)
   }
 
   @Test("reconnects immediately after loss, then bounds short retries")

@@ -1,6 +1,6 @@
 # STAGE-06D — Managed browser website blocking
 
-- Version: `0.6.4-rc.2` (build `6402`); browser extensions remain `0.6.4-rc.1` unchanged
+- Version: `0.6.4-rc.3` (build `6403`); browser extensions remain `0.6.4-rc.1` unchanged
 - Branch: `stage/06d-macos-app-web-network-enforcement`
 - Status: `READY_FOR_RETEST` (capability-refresh repair; production distribution is not ready)
 - Scope amended by the developer on 2026-09-05: `AUTHORIZE STAGE-06D SCOPE AMENDMENT: MANAGED BROWSER WEBSITE BLOCKING. PROCEED.`
@@ -10,6 +10,25 @@
 
 Apply one parent-authored domain blocklist independently in each enrolled Chromium or Firefox profile through the existing authenticated LAN and native host. Preserve upgrades/pairing, current schedules and optional tab sharing. Do not modify browser installations or live family policies during development.
 
+### RC3 retest: legacy helper replacement and one-time pairing repair
+
+Developer evidence identified the daemon installed on the child as the exact ad-hoc rc.5 binary (`0bb256f6135e59e5b217d11894d9848c6f64529ec5dccd6c4c0d14d853b52a66`). The rc.2 upgrade bridge deliberately restored that legacy executable so its old Keychain access control remained valid. That preserved connectivity but also permanently prevented the current service from advertising `browser-website-policy`, leaving the parent editor disabled.
+
+RC3 removes that compatibility bridge and installs the current daemon. When the installer detects only that exact legacy binary, it changes the protected configuration to an allowlisted new Keychain service. It does not read, export, copy or delete the old private identity. Because an ad-hoc executable cannot securely inherit another executable's Keychain access, one adult-authorized pairing repair is required after this specific upgrade.
+
+The parent accepts the repair only with a fresh one-time invitation, a newly signed 32-byte Ed25519 public key, the same stable device ID, a non-revoked existing record and bounded capabilities. It rotates only the public credential and current capability declaration. The original pairing date, device ID, retained activity/browser data, schedule/browser configuration and audit history remain. Normal rc.3 reinstalls use the same new Keychain identity and do not repeat this repair.
+
+Install Parent Controller rc.3 first and Child Endpoint rc.3 second. Do not click Unpair. Create a fresh one-time pairing invitation in the updated parent app, then on the child run:
+
+```bash
+sudo parental-control-agentctl pair --invitation "$TOKEN"
+sudo launchctl kickstart -k system/com.bilalalissa.ParentalControlAgent.daemon
+```
+
+Replace `$TOKEN` with the complete invitation copied from the parent. The repair is intentionally not automatic because the parent must authorize credential rotation. If the installed child daemon did not have the exact legacy hash, no repair migration is applied.
+
+Acceptance: the parent retains one existing device record rather than creating a duplicate; the child reconnects with build 6403; the parent advertises `browser-website-policy`; the domain editor enables; existing schedule/browser settings remain; and a subsequent rc.3 reinstall reconnects without another repair.
+
 ### RC2 retest: disabled controls after an upgrade
 
 Developer feedback showed an online updated child while the parent disabled Apply Website Policy. The hub handled an existing device's authenticated capability announcement only as a last-seen update, retaining its original pairing-time capabilities. A synthetic upgrade/reconnect test reproduced missing `browser-website-policy`, retained obsolete support, and rejected policy application before the fix.
@@ -18,7 +37,7 @@ RC2 replaces the bounded declared capability list on authenticated reconnect, af
 
 The parent explains unavailable website capability more precisely and explicitly states that device-wide Internet pause is unavailable. The child's disabled Allow 15 Minutes button requires an adult code; it is a schedule override, not a WAN control. No WAN enforcement was added in this retest.
 
-Acceptance: the existing 6401 child reconnects to the updated parent without re-pairing, website controls enable, listed sites are blocked by an enrolled extension, and unchanged schedule/chat behavior remains intact. Browser source/packages are unchanged; already-loaded 0.6.4-rc.1 extensions need no reload for this hub repair.
+RC2's hub-side capability refresh remains in RC3. It fixes ordinary same-identity upgrades, while the one-time repair above handles the exact legacy helper that rc.2 had continued restoring. Browser source/packages are unchanged; already-loaded 0.6.4-rc.1 extensions need no reload for this native installer repair.
 
 Included: bounded domain validation (256 ASCII/punycode domains, no URLs/IPs/local names), signed envelope transport, protected child persistence and version rollback checks, declarative navigation/subframe blocking, dynamic-rule readback before acknowledgement, per-profile status, known-browser setup warnings, local test packages and a macOS installer.
 
@@ -66,18 +85,19 @@ Official references:
 
 ## Installation and manual developer tests
 
-1. Quit the Parent app, install the RC2 Parent Controller component on the parent Mac, then reopen it. Let the child reconnect. Install only Child Endpoint on the child Mac if updating its package too. Use an ordinary standard child account and retain an adult recovery administrator. Install over existing apps, without uninstalling/unpairing. The fix is in the parent hub and supports an existing 6401 child service.
-2. Keep an existing loaded 0.6.4-rc.1 extension unchanged. Otherwise extract the Chromium ZIP to a stable location, load it through the browser's extension developer UI and approve the declarative blocking permission. Repeat per Chrome/Edge/Arc/Brave profile being tested.
-3. For Firefox, temporarily load the unsigned XPI via about:debugging. Permanent restart/automatic-update testing is blocked until a signed distribution is available.
-4. In Devices > Browser website restrictions, enter `example.com` and `youtube.com`, confirm Apply and wait for each reporting profile's matching policy acknowledgement (normally within 1–2 minutes).
-5. Navigate to those domains/subdomains: denied. Unlisted domains remain available. Similar-looking unrelated domains must not match. Reloading an already loaded page must be tested separately.
-6. Turn off tab sharing: domain denial continues; new tab titles/origins must not arrive.
-7. Disconnect the parent LAN connection: stored restrictions continue in the running browser. Restore the LAN and apply a changed policy: matching acknowledgements return.
-8. Close/restart Chromium: dynamic rules persist. Firefox temporary install restart is explicitly not a pass for permanent persistence.
-9. Apply an empty list: confirm the formerly blocked sites become available and new-version acknowledgements arrive.
-10. Disable/remove the extension or close the browser: after three minutes, status becomes Not reporting. Add another profile: do not infer protection from the first profile. Safari must remain Unsupported.
-11. Reinstall the app package in place: existing pairing, schedule and extension identity are preserved. Verify chat and schedule behavior remain intact.
-12. Confirm the Parent app never claims device-wide WAN/app blocking or complete browser protection.
+1. Quit the Parent app, install the RC3 Parent Controller component on the parent Mac, then reopen it. Install only Child Endpoint on the child Mac. Use an ordinary standard child account and retain an adult recovery administrator. Install over existing apps without uninstalling or clicking Unpair.
+2. If this child carried the exact legacy rc.5 daemon, perform the one-time invitation repair exactly as described above. Confirm that the parent still shows the same device once, now online with website blocking available. If no repair is requested, do not manufacture one.
+3. Keep an existing loaded 0.6.4-rc.1 extension unchanged. Otherwise extract the Chromium ZIP to a stable location, load it through the browser's extension developer UI and approve the declarative blocking permission. Repeat per Chrome/Edge/Arc/Brave profile being tested.
+4. For Firefox, temporarily load the unsigned XPI via about:debugging. Permanent restart/automatic-update testing is blocked until a signed distribution is available.
+5. In Devices > Browser website restrictions, enter `example.com` and `youtube.com`, confirm Apply and wait for each reporting profile's matching policy acknowledgement (normally within 1–2 minutes).
+6. Navigate to those domains/subdomains: denied. Unlisted domains remain available. Similar-looking unrelated domains must not match. Reloading an already loaded page must be tested separately.
+7. Turn off tab sharing: domain denial continues; new tab titles/origins must not arrive.
+8. Disconnect the parent LAN connection: stored restrictions continue in the running browser. Restore the LAN and apply a changed policy: matching acknowledgements return.
+9. Close/restart Chromium: dynamic rules persist. Firefox temporary install restart is explicitly not a pass for permanent persistence.
+10. Apply an empty list: confirm the formerly blocked sites become available and new-version acknowledgements arrive.
+11. Disable/remove the extension or close the browser: after three minutes, status becomes Not reporting. Add another profile: do not infer protection from the first profile. Safari must remain Unsupported.
+12. Reinstall the rc.3 child component in place: it must reconnect without another invitation; the schedule and extension identity remain. Verify chat and schedule behavior remain intact.
+13. Confirm the Parent app never claims device-wide WAN/app blocking or complete browser protection.
 
 ## Rollback and cleanup
 
@@ -126,7 +146,7 @@ Collect OS/browser version, selected installer component, test step, requested p
 ```text
 STAGE FEEDBACK
 Stage: STAGE-06D
-Version: 0.6.4-rc.2 (6402)
+Version: 0.6.4-rc.3 (6403)
 Platform and OS:
 Hardware:
 Result: PASS | FAIL | PARTIAL

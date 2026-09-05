@@ -537,14 +537,48 @@ public final class LocalHub: @unchecked Sendable {
     let envelope = try ProtocolCodec.decode(data)
     if let existing = try database.device(id: envelope.deviceID) {
       guard !existing.isRevoked else { throw LocalHubError.revokedDevice }
-      guard existing.keyID == envelope.auth.keyID else { throw LocalHubError.identityMismatch }
-      try replay.verify(envelope, publicKey: existing.publicKey)
-      bind(peer: peer, deviceID: existing.id)
-      try accept(envelope, device: existing, peer: peer)
+      if envelope.type == .capabilityAnnounce,
+        envelope.payload["pairingCode"]?.stringValue?.isEmpty == false
+      {
+        try acceptPairingRepair(envelope, existing: existing, peer: peer)
+      } else {
+        guard existing.keyID == envelope.auth.keyID else { throw LocalHubError.identityMismatch }
+        try replay.verify(envelope, publicKey: existing.publicKey)
+        bind(peer: peer, deviceID: existing.id)
+        try accept(envelope, device: existing, peer: peer)
+      }
     } else {
       try acceptInitialPairing(envelope, peer: peer)
     }
     publishStatus()
+  }
+
+  private func acceptPairingRepair(
+    _ envelope: ProtocolEnvelope, existing: HubDeviceRecord, peer: SecureWebSocketPeer
+  ) throws {
+    guard let code = envelope.payload["pairingCode"]?.stringValue,
+      let name = envelope.payload["name"]?.stringValue,
+      let platform = envelope.payload["platform"]?.stringValue,
+      let publicKeyText = envelope.payload["publicKey"]?.stringValue,
+      let publicKey = Data(base64Encoded: publicKeyText), publicKey.count == 32,
+      envelope.auth.keyID == "device-\(envelope.deviceID)", publicKey != existing.publicKey
+    else { throw LocalHubError.malformedAnnouncement }
+    try replay.verify(envelope, publicKey: publicKey)
+    let capabilities = try Self.validatedCapabilities(envelope.payload)
+    try pairing.consume(code: code)
+    try database.repairDeviceIdentity(
+      deviceID: existing.id, name: String(name.prefix(80)), platform: String(platform.prefix(40)),
+      keyID: envelope.auth.keyID, publicKey: publicKey, capabilities: capabilities,
+      sequence: envelope.sequence)
+    lock.lock()
+    invitation = nil
+    lock.unlock()
+    bind(peer: peer, deviceID: existing.id)
+    try database.appendAudit(
+      HubAuditRecord(
+        event: "device.identity-repaired", deviceID: existing.id,
+        detail: "Accepted adult-authorized endpoint credential repair; history retained"))
+    try sendReceipt(for: envelope, state: "accepted", to: peer, deviceID: existing.id)
   }
 
   private func acceptInitialPairing(_ envelope: ProtocolEnvelope, peer: SecureWebSocketPeer) throws

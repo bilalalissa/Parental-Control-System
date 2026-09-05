@@ -316,6 +316,26 @@ public final class HubDatabase: @unchecked Sendable {
       [.text(try json(capabilities)), .text(deviceID)])
   }
 
+  /// Rotate a paired endpoint's public credential after an adult-authorized one-time invitation.
+  /// Historical data, configuration, pairing date and device identity remain unchanged.
+  public func repairDeviceIdentity(
+    deviceID: String, name: String, platform: String, keyID: String, publicKey: Data,
+    capabilities: [String], sequence: UInt64, now: Date = Date()
+  ) throws {
+    try run(
+      """
+      UPDATE paired_devices
+      SET name = ?, platform = ?, key_id = ?, public_key = ?, capabilities_json = ?,
+          last_seen = ?, last_sequence = ?
+      WHERE id = ? AND revoked = 0;
+      """,
+      [
+        .text(name), .text(platform), .text(keyID), .text(publicKey.base64EncodedString()),
+        .text(try json(capabilities)), .integer(Int64(now.timeIntervalSince1970)),
+        .integer(Int64(clamping: sequence)), .text(deviceID),
+      ])
+  }
+
   public func updateSeen(
     deviceID: String,
     sequence: UInt64,
