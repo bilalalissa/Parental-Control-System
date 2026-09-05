@@ -313,15 +313,46 @@ public final class LocalHub: @unchecked Sendable {
     guard let device = try database.device(id: configuration.deviceID), !device.isRevoked else {
       throw LocalHubError.unknownDevice
     }
-    try database.saveBrowserConfiguration(configuration)
+    let previous = try database.browserConfigurations().first {
+      $0.deviceID == configuration.deviceID
+    }
+    if configuration.websitePolicy != nil, !device.capabilities.contains("browser-website-policy") {
+      throw LocalHubError.unexpectedMessage
+    }
+    let websitePolicy = try configuration.websitePolicy?.validated() ?? previous?.websitePolicy
+    if let incoming = configuration.websitePolicy, let former = previous?.websitePolicy,
+      incoming.version <= former.version
+    {
+      throw BrowserPolicyError.stalePolicy
+    }
+    let effective = BrowserConfiguration(
+      deviceID: configuration.deviceID, enabled: configuration.enabled,
+      retentionDays: configuration.retentionDays, websitePolicy: websitePolicy)
+    let others = try database.browserConfigurations().filter {
+      $0.deviceID != configuration.deviceID
+    }
+    try BrowserWebsitePolicy.validateStatusBudget(others + [effective])
+    try database.saveBrowserConfiguration(effective)
+    var payload: [String: JSONValue] = [
+      "targetDeviceId": .string(configuration.deviceID), "enabled": .bool(configuration.enabled),
+      "retentionDays": .integer(Int64(configuration.retentionDays)),
+    ]
+    if let websitePolicy {
+      payload["websitePolicy"] = .string(
+        String(decoding: try JSONEncoder().encode(websitePolicy), as: UTF8.self))
+    }
     let envelope = try controllerIdentity.sign(
       deviceID: "controller", sequence: nextControllerSequence(), type: .browserConfiguration,
-      payload: [
-        "targetDeviceId": .string(configuration.deviceID),
-        "enabled": .bool(configuration.enabled),
-        "retentionDays": .integer(Int64(configuration.retentionDays)),
-      ], lifetime: 7 * 86_400)
+      payload: payload, lifetime: 7 * 86_400)
     try sendOrQueue(envelope, deviceID: configuration.deviceID, lifetime: 7 * 86_400)
+    if let policy = configuration.websitePolicy {
+      try database.appendAudit(
+        HubAuditRecord(
+          event: "browser.website-policy", deviceID: configuration.deviceID,
+          detail:
+            "Queued website policy version \(policy.version); \(policy.domains.count) domains; enforcement requires profile acknowledgement"
+        ))
+    }
     try database.appendAudit(
       HubAuditRecord(
         event: "browser.configuration", deviceID: configuration.deviceID,
@@ -621,6 +652,12 @@ public final class LocalHub: @unchecked Sendable {
           event: "activity.delta", deviceID: device.id,
           detail: "Accepted bounded app activity metadata; no command lines or content"))
     case .browserUpdate:
+      if let reportsText = envelope.payload["protectionReports"]?.stringValue {
+        let reports = try JSONDecoder().decode(
+          [BrowserProtectionReport].self, from: Data(reportsText.utf8))
+        guard reports.count <= 32 else { throw LocalHubError.unexpectedMessage }
+        try database.saveBrowserProtectionReports(reports, deviceID: device.id)
+      }
       let enabled =
         try database.browserConfigurations().first { $0.deviceID == device.id }?.enabled ?? false
       if enabled, case .array(let values) = envelope.payload["tabs"] {

@@ -12,4 +12,12 @@ The protocol deliberately has no arbitrary shell, script, file-browsing, or unre
 
 ## Versioning
 
+### Stage-06D browser policy extension
+
+The existing signed `browser.configuration` envelope may carry `websitePolicy`, a UTF-8 JSON string with `{version, domains}`. Version is a positive JavaScript-safe integer. Domains are unique sorted lowercase ASCII DNS names (international names must be explicit punycode), at most 256 entries and 32 KiB total domain bytes, with labels of 1–63 characters and names of at most 253 bytes. URLs, IP literals, wildcards, local names, paths and query strings are invalid. An explicit newer empty list removes restrictions; absence preserves the existing policy. Scope is domain plus subdomains, future main-frame/subframe navigation only. Old endpoints lack the `browser-website-policy` capability and cannot be targeted through the new control.
+
+The signed `browser.update` envelope may carry `protectionReports`, a UTF-8 JSON array of at most 32 reports: browser, pseudonymous profile, version, state, observedAt. JSON dates use Foundation's default seconds-since-2001 encoding inside this string; envelope UTC dates remain unchanged. This field is independent of tab-sharing consent. Profile reports age out of current status after 180 seconds or immediately when the device is offline. No blocked-request data is transmitted.
+
+Native messages add `policy.ack` with policyVersion and policyState. The allowlisted host checks the browser's signed executable and extension identity, stamps receipt time locally and accepts acknowledgements only for the currently desired version. `configuration.query` returns the root-persisted websitePolicy even when tab sharing is disabled. Browser dynamic-rule readback precedes success acknowledgement; this is not tamper-proof attestation.
+
 Stage 00 defines protocol `1.0`. Additive optional fields require a minor-version review. Removing or changing field semantics requires a new major version and mixed-version tests. Capability negotiation, not platform guessing, controls which typed messages are offered.

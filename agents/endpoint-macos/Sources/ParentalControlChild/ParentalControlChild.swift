@@ -298,6 +298,14 @@ struct ChildDashboard: View {
           row(
             "Browser tabs", status.browserCollectionEnabled ? "Shared by extension" : "Not shared")
           row("Tab retention", "\(status.browserRetentionDays) days on parent controller")
+          row(
+            "Website restrictions",
+            status.websitePolicy.map { "\($0.domains.count) domains · policy \($0.version)" }
+              ?? "No website policy")
+          Text(
+            "Website rules apply only in enrolled browser profiles, independently of tab sharing. Other profiles, private browsing and Safari are not covered; this is not a device-wide Internet pause."
+          )
+          .font(.caption).foregroundStyle(.secondary)
         }
         GroupBox("Schedule") {
           VStack(alignment: .leading, spacing: 8) {

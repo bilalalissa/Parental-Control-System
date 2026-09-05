@@ -94,6 +94,8 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var browserCollectionEnabled: Bool
   public var browserRetentionDays: Int
   public var browserTabs: [EndpointBrowserTab]
+  public var websitePolicy: BrowserWebsitePolicy?
+  public var browserProtectionReports: [BrowserProtectionReport]?
   public var policyVersion: UInt64?
   public var policyDecision: PolicyDecisionKind?
   public var policyAction: PolicyAction?
@@ -234,6 +236,7 @@ public struct EndpointBrowserUpdate: Codable, Equatable, Sendable {
   public let profileID: String
   public let tabs: [EndpointBrowserTab]
   public let observedAt: Date
+  public var protectionReport: BrowserProtectionReport?
 
   public init(
     browser: String, profileID: String, tabs: [EndpointBrowserTab], observedAt: Date = Date()
@@ -248,10 +251,12 @@ public struct EndpointBrowserUpdate: Codable, Equatable, Sendable {
 public struct EndpointBrowserConfiguration: Codable, Equatable, Sendable {
   public let enabled: Bool
   public let retentionDays: Int
+  public let websitePolicy: BrowserWebsitePolicy?
 
-  public init(enabled: Bool, retentionDays: Int) {
+  public init(enabled: Bool, retentionDays: Int, websitePolicy: BrowserWebsitePolicy? = nil) {
     self.enabled = enabled
     self.retentionDays = max(1, min(retentionDays, 30))
+    self.websitePolicy = websitePolicy
   }
 }
 

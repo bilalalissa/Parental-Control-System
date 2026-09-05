@@ -1,6 +1,7 @@
 import Darwin
 import EndpointCore
 import Foundation
+import HubCore
 import Security
 
 private enum HostError: Error {
@@ -100,17 +101,40 @@ private func awaitResult<T>(
 
 private func run() throws {
   guard CommandLine.arguments.count >= 2,
-    let browser = BrowserParentInspector.expectedBrowser(origin: CommandLine.arguments[1])
+    let browser = BrowserParentInspector.expectedBrowser(
+      origin: CommandLine.arguments.count == 3 ? CommandLine.arguments[2] : CommandLine.arguments[1]
+    )
   else { throw HostError.unauthorized }
   let client = EndpointXPCClient()
   while let data = try readMessage() {
     do {
       let request = try JSONDecoder.endpoint.decode(BrowserNativeRequest.self, from: data)
+      guard !request.profile.isEmpty, request.profile.count <= 80 else { throw HostError.malformed }
       let configuration = try awaitResult { client.fetchBrowserConfiguration(completion: $0) }
       if request.type == "configuration.query" {
         try writeMessage(
           BrowserNativeResponse(
-            accepted: true, enabled: configuration.enabled, browser: browser))
+            accepted: true, enabled: configuration.enabled, browser: browser,
+            websitePolicy: configuration.websitePolicy))
+        continue
+      }
+      if request.type == "policy.ack" {
+        let awaitingPolicy =
+          configuration.websitePolicy == nil && request.policyVersion == nil
+          && request.policyState == "setup-required"
+        guard request.browser == browser,
+          awaitingPolicy
+            || (["applied", "error"].contains(request.policyState)
+              && request.policyVersion == configuration.websitePolicy?.version
+              && request.policyVersion != nil)
+        else { throw HostError.malformed }
+        var update = EndpointBrowserUpdate(browser: browser, profileID: request.profile, tabs: [])
+        update.protectionReport = BrowserProtectionReport(
+          browser: browser, profile: request.profile,
+          version: request.policyVersion, state: request.policyState ?? "error", observedAt: Date())
+        try awaitResult { client.updateBrowser(update, completion: $0) }
+        try writeMessage(
+          BrowserNativeResponse(accepted: true, enabled: configuration.enabled, browser: browser))
         continue
       }
       guard configuration.enabled else {

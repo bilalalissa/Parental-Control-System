@@ -253,6 +253,13 @@ public final class EndpointStatusRepository: @unchecked Sendable {
   public func applyBrowser(_ update: EndpointBrowserUpdate) {
     lock.lock()
     defer { lock.unlock() }
+    if let report = update.protectionReport {
+      var reports = value.browserProtectionReports ?? []
+      reports.removeAll { $0.id == report.id }
+      reports.append(report)
+      value.browserProtectionReports = Array(reports.suffix(24))
+      return
+    }
     guard value.browserCollectionEnabled else {
       value.browserTabs = []
       return
@@ -273,11 +280,14 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     if !enabled { value.applications = [] }
   }
 
-  public func configureBrowser(enabled: Bool, retentionDays: Int) {
+  public func configureBrowser(
+    enabled: Bool, retentionDays: Int, websitePolicy: BrowserWebsitePolicy? = nil
+  ) {
     lock.lock()
     defer { lock.unlock() }
     value.browserCollectionEnabled = enabled
     value.browserRetentionDays = max(1, min(retentionDays, 30))
+    value.websitePolicy = websitePolicy
     if !enabled { value.browserTabs = [] }
   }
 
@@ -572,7 +582,7 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
         try JSONEncoder.endpoint.encode(
           EndpointBrowserConfiguration(
             enabled: status.browserCollectionEnabled,
-            retentionDays: status.browserRetentionDays)), nil)
+            retentionDays: status.browserRetentionDays, websitePolicy: status.websitePolicy)), nil)
     } catch { reply(nil, "encoding failed") }
   }
 

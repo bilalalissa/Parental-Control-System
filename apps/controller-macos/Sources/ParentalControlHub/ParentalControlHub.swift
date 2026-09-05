@@ -90,10 +90,13 @@ enum ParentalControlHubMain {
           throw AuthenticatedIPCError.remote("Browser configuration is incomplete")
         }
         let retention = Int(request.payload["retentionDays"]?.integerValue ?? 7)
+        let policy = try request.payload["websitePolicy"]?.stringValue.map {
+          try JSONDecoder().decode(BrowserWebsitePolicy.self, from: Data($0.utf8)).validated()
+        }
         try hub.configureBrowser(
           BrowserConfiguration(
             deviceID: try requiredDeviceID(request), enabled: enabled,
-            retentionDays: retention))
+            retentionDays: retention, websitePolicy: policy))
       case .markChatRead:
         guard let audienceText = request.payload["audience"]?.stringValue,
           let audience = ChatAudience(rawValue: audienceText)

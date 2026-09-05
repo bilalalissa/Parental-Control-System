@@ -2,6 +2,15 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.4-rc.1 — 2026-09-04
+
+Status: **STAGE-06D blocked at Apple entitlement readiness; unreleased**
+
+- Defines the supported Endpoint Security and Network Extension system-extension architecture for application launch denial, domain blocking, and bounded WAN pause.
+- Adds non-secret canonical entitlement templates plus a local readiness checker for Developer ID identity, Team ID/profile alignment, explicit bundle identifiers, Network Extension content-filter authorization, Endpoint Security authorization, and host system-extension activation.
+- Records the physical acceptance and recovery matrix without adding nonfunctional controls, traffic collection, unsupported private APIs, or an entitlement-less installer.
+- Current blocker: zero valid local code-signing identities and no matching host, Network Extension, or Apple-approved Endpoint Security provisioning profiles.
+
 ## 0.6.3-rc.1 — 2026-09-04
 
 Status: **STAGE-06C merged; unreleased**

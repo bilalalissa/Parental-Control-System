@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document records the target architecture, the merged Stage 06 macOS policy-enforcement boundary, and the bounded Stage 06A–06C feasibility decisions. Delivery remains gated by [`stage-status.json`](../stages/stage-status.json).
+This document records the target architecture, the merged Stage 06 macOS policy-enforcement boundary, the bounded Stage 06A–06C feasibility decisions, and the amended browser-only Stage 06D implementation. Delivery remains gated by [`stage-status.json`](../stages/stage-status.json).
 
 ## Local-first topology
 
@@ -24,6 +24,7 @@ A standard iPadOS app uses FamilyControls, DeviceActivity, ManagedSettings, and 
 6. **Apple Family Controls boundary:** iPad capability is constrained to supported public APIs and entitlement approval.
 7. **Optional external management and identity boundary:** Stages 06A and 06B evaluate documentation only. No vendor account, managed identity, SSO extension, profile, or device enrollment exists, and no external service is trusted with family communication, activity, or the canonical signed schedule. Any future MDM/IdP credential would be a high-impact secret. A Platform SSO pilot would add separate MDM, IdP, extension, network-authentication, user-registration, FileVault, and recovery trust boundaries.
 8. **Optional local-router boundary:** Stage 06C evaluates a router as a WAN-only enforcement point. The current ARRIS gateway has no supported automation interface, so no credential or integration exists. A future adapter may use only a documented least-privilege local API, must store its credential in Keychain, and may expose only typed per-device lease operations with router-owned expiry. It must not inspect traffic or gain general router administration.
+9. **Browser restriction boundary:** amended Stage 06D sends validated domain rules through the signed LAN envelope and authenticated native host to enrolled Chromium/Firefox profiles. Browser declarative rules persist offline and are read back before acknowledgement. The parent shows profile-specific freshness and version, not universal coverage. Safari, private/guest profiles and disabled extensions are explicit gaps. System-wide Network Extension and Endpoint Security work remains deferred.
 
 ## Canonical contracts
 
@@ -49,8 +50,10 @@ Stage 06 retains the Stage 05 data bounds and adds one current signed policy plu
 
 ## Deployment boundaries
 
-Stages 00–12 contain no public relay, hosted API/database, SaaS telemetry, Docker/Kubernetes deployment, or mandatory cloud account. Stages 06A–06C are developer-authorized feasibility exceptions for optional third-party management, identity, and local-router paths. Stage 06C creates no router credential, configuration, traffic collection, external data flow, or product dependency.
+Stages 00–12 contain no public relay, hosted API/database, SaaS telemetry, Docker/Kubernetes deployment, or mandatory cloud account. Stages 06A–06D are developer-authorized bounded additions. Stage 06C creates no router credential or product dependency. Stage 06D adds only local domain policies and bounded browser-profile acknowledgements, no network-content or execution data flow.
 
 Stage 06A found that Apple's Login Window allow/deny lists do not selectively schedule an ordinary local account. Stage 06B found that Platform SSO can require live IdP authentication for a managed child at Login Window and can exclude a local adult recovery account, but it has no weekly schedule or callback into the local signed policy. Its offline grace is measured in days since successful identity authentication; without grace, all offline child login is denied. The FileVault authentication policy is Apple-silicon-only. Managed identity therefore does not replace the local-first schedule. A narrower online-only physical pilot, optional supervised-iPad MDM, and any relay work each require explicit later approval and separate architecture/security review.
 
 Stage 06C found the current ARRIS gateway unsuitable for automatic WAN pausing: its supported path is a credential-protected interactive CGI UI, no documented least-privilege API or hard-expiring lease was found, and the ISP warns that its timer is unreliable. A future router adapter must act only in the WAN forwarding path for explicitly mapped child identities, enforce IPv4 and IPv6 together, preserve authenticated local controller traffic, and schedule expiry on the router itself. MikroTik RouterOS and supported OpenWrt hardware have documented primitives worth a separately approved lab evaluation; neither is currently integrated or recommended for purchase.
+
+Stage 06D uses supported declarative WebExtension APIs under the developer's scope amendment, not Apple system extensions. Its local installer does not require managed entitlements. App-launch denial and WAN pause remain unavailable. Production browser signing/publication is a separate distribution gate. See [Stage 06D](../stages/stage-06d.md) and the deferred [ADR-0004](../adr/0004-macos-enforcement-extension-readiness.md).

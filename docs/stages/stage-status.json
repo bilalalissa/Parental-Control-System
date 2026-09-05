@@ -1,6 +1,6 @@
 {
   "$schema": "./stage-status.schema.json",
-  "activeStage": "STAGE-06C",
+  "activeStage": "STAGE-06D",
   "stages": [
     {
       "id": "STAGE-00",
@@ -81,6 +81,14 @@
       "status": "MERGED",
       "branch": "stage/06c-router-wan-pause",
       "document": "stage-06c.md"
+    },
+    {
+      "id": "STAGE-06D",
+      "name": "Managed browser website blocking",
+      "version": "0.6.4-rc.1",
+      "status": "READY_FOR_DEVELOPER_TEST",
+      "branch": "stage/06d-macos-app-web-network-enforcement",
+      "document": "stage-06d.md"
     }
   ]
 }

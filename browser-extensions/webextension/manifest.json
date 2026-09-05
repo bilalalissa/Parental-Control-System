@@ -2,11 +2,12 @@
   "manifest_version": 3,
   "name": "Parental Control Browser Sharing",
   "short_name": "Browser Sharing",
-  "description": "Visibly shares bounded tab titles and query-free origins with your paired parent controller when enabled.",
-  "version": "0.6.0.9",
-  "version_name": "0.6.0-rc.9",
+  "description": "Applies parent-managed website restrictions and optionally shares bounded tab titles and origins over the local network.",
+  "version": "0.6.4.1",
+  "version_name": "0.6.4-rc.1",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1MZ2Q8327FlY/mcKVZG/dU4zEBHQfm5H5AnUModuYZvTC+1kcQnSO9IyuWlOKIOeBHhMTdD9m1MPASHw7T1D9SPhuHqWITBR8TIrrDkKYZqJXa1/D5XzWWCB5aGzYh5cIl36MYFnjrNReFFsuJXNqZXmXoPgCy5UpSH/hKa1I0UKBQphYbJA3dcCmysuctkZqXHit9kjNJwfp8l5Nv48mX9xmN5YXYWjt6Byokkfw7sCVtpofZ11IBHhZbiTFVintIEdNbkU4VHCXzx9EvEQAvWCahUihHoMzCKF6HdaueLeOp8rT85LWSD8gdPBPf/+T5zGWvsI13mFtcPHnmqwyQIDAQAB",
-  "permissions": ["tabs", "storage", "nativeMessaging", "alarms"],
+  "permissions": ["tabs", "storage", "nativeMessaging", "alarms", "declarativeNetRequest"],
+  "incognito": "not_allowed",
   "background": {
     "service_worker": "service-worker.js"
   },

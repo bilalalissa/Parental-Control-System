@@ -74,6 +74,39 @@ struct EndpointCoreTests {
       Thread.sleep(forTimeInterval: 0.02)
     }
     #expect(try store.load().invitation == nil)
+    // Exercise the real signed envelope path with collection disabled.
+    let websitePolicy = try BrowserWebsitePolicy(version: 10, domains: ["example.com"])
+    try hub.configureBrowser(
+      BrowserConfiguration(
+        deviceID: configuration.deviceID,
+        enabled: false, websitePolicy: websitePolicy))
+    let websiteDeadline = Date().addingTimeInterval(3)
+    while Date() < websiteDeadline, try store.load().websitePolicy != websitePolicy {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(try store.load().websitePolicy == websitePolicy)
+    #expect(repository.status().websitePolicy == websitePolicy)
+    #expect(repository.status().browserCollectionEnabled == false)
+    var browserAck = EndpointBrowserUpdate(
+      browser: "chrome", profileID: "synthetic-profile", tabs: [])
+    browserAck.protectionReport = BrowserProtectionReport(
+      browser: "chrome", profile: "synthetic-profile",
+      version: 10, state: "applied", observedAt: Date())
+    repository.applyBrowser(browserAck)
+    // A new message prompts the normal endpoint snapshot/queue path without a long heartbeat wait.
+    _ = try hub.sendChat(deviceID: configuration.deviceID, text: "Policy test", audience: .direct)
+    let coverageDeadline = Date().addingTimeInterval(5)
+    while Date() < coverageDeadline,
+      try database.browserConfigurations().first?.protectionReports?.contains(where: {
+        $0.profile == "synthetic-profile"
+      }) != true
+    {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(
+      try database.browserConfigurations().first?.protectionReports?.contains(where: {
+        $0.profile == "synthetic-profile" && $0.version == 10
+      }) == true)
     let familyThread = UUID()
     repository.queueChat(text: "Child reply", audience: .familyGroup, threadID: familyThread)
     repository.queueMoreTime(minutes: 20, note: "Finish homework")
