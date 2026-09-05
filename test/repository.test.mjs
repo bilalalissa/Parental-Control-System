@@ -35,8 +35,8 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06d-macos-app-web-network-enforcement");
-  assert.equal(active[0].version, "0.6.4-rc.1");
-  assert.ok(["IMPLEMENTING", "READY_FOR_DEVELOPER_TEST", "BLOCKED"].includes(active[0].status));
+  assert.equal(active[0].version, "0.6.4-rc.2");
+  assert.ok(["IMPLEMENTING", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "BLOCKED"].includes(active[0].status));
   const idPattern = new RegExp(schema.properties.stages.items.properties.id.pattern);
   assert.ok(tracker.stages.every((stage) => idPattern.test(stage.id)));
 });
@@ -356,14 +356,14 @@ test("Stage 06A transition installer is versioned, upgrade-safe, and capability-
     read(".github/workflows/stage-03-macos.yml"),
   ]);
   for (const build of [controllerBuild, endpointBuild]) {
-    assert.match(build, /VERSION="0\.6\.4-rc\.1"/);
-    assert.match(build, /CFBundleVersion string 6401/);
+    assert.match(build, /VERSION="0\.6\.4-rc\.2"/);
+    assert.match(build, /CFBundleVersion string 6402/);
     assert.match(build, /derived-data\/stage-06d/);
   }
   assert.match(packaging, /ParentalControlSystem-\$VERSION\.pkg/);
-  assert.match(packaging, /--version 0\.6\.4\.1/);
+  assert.match(packaging, /--version 0\.6\.4\.2/);
   assert.doesNotMatch(packaging, /package_browser_extension\.sh/);
-  assert.match(distribution, /version="0\.6\.4\.1"/);
+  assert.match(distribution, /version="0\.6\.4\.2"/);
   assert.match(preinstall, /configuration\.json/);
   assert.doesNotMatch(preinstall + postinstall, /delete-generic-password|rm[^\n]*configuration\.json/);
   assert.match(readiness, /session-enforcement/);
@@ -387,7 +387,7 @@ test("Stage 06A transition installer is versioned, upgrade-safe, and capability-
   assert.match(child, /Effective time remaining/);
   assert.match(child, /Next limiting rule/);
   assert.match(helper, /Effective time remaining/);
-  assert.match(workflow, /ParentalControlSystem-0\.6\.4-rc\.1\.pkg/);
+  assert.match(workflow, /ParentalControlSystem-0\.6\.4-rc\.2\.pkg/);
   assert.doesNotMatch(workflow, /ParentalControlBrowserSharing-0\.6\.1-rc\.5/);
 });
 

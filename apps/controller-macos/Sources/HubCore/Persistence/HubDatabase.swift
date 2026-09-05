@@ -309,6 +309,13 @@ public final class HubDatabase: @unchecked Sendable {
     return result
   }
 
+  /// Update only negotiated support. Never replace keys, pairing dates or revocation state.
+  public func refreshCapabilities(deviceID: String, capabilities: [String]) throws {
+    try run(
+      "UPDATE paired_devices SET capabilities_json = ? WHERE id = ? AND revoked = 0;",
+      [.text(try json(capabilities)), .text(deviceID)])
+  }
+
   public func updateSeen(
     deviceID: String,
     sequence: UInt64,

@@ -188,6 +188,16 @@ struct EndpointCoreTests {
     hub.stop()
     Thread.sleep(forTimeInterval: 0.2)
 
+    // Model an in-place upgrade: the hub still has the pre-upgrade pairing capabilities.
+    let oldRecord = try #require(deviceBeforeRestart)
+    try database.upsertDevice(
+      HubDeviceRecord(
+        id: oldRecord.id, name: oldRecord.name, platform: oldRecord.platform,
+        keyID: oldRecord.keyID, publicKey: oldRecord.publicKey,
+        capabilities: ["presence", "chat", "obsolete-test-capability"],
+        pairedAt: oldRecord.pairedAt, lastSeen: oldRecord.lastSeen,
+        lastSequence: oldRecord.lastSequence, snapshotVersion: oldRecord.snapshotVersion))
+
     let restartedHub = try LocalHub(
       database: database, tlsIdentity: tls, controllerIdentity: controllerIdentity,
       heartbeat: AdaptiveHeartbeat(activeInterval: 1, idleInterval: 2, offlineAfter: 4),
@@ -215,6 +225,21 @@ struct EndpointCoreTests {
     #expect(repository.status().connectionState == .online)
     let deviceAfterRestart = try database.device(id: configuration.deviceID)
     #expect(try #require(deviceAfterRestart).lastSequence > sequenceBeforeRestart)
+    #expect(deviceAfterRestart?.capabilities.contains("browser-website-policy") == true)
+    #expect(deviceAfterRestart?.capabilities.contains("obsolete-test-capability") == false)
+    #expect(deviceAfterRestart?.publicKey == oldRecord.publicKey)
+    #expect(deviceAfterRestart?.pairedAt == oldRecord.pairedAt)
+    #expect(try store.load().invitation == nil)
+    let revisedWebsitePolicy = try BrowserWebsitePolicy(version: 11, domains: ["example.org"])
+    try restartedHub.configureBrowser(
+      BrowserConfiguration(
+        deviceID: configuration.deviceID,
+        enabled: false, websitePolicy: revisedWebsitePolicy))
+    let revisionDeadline = Date().addingTimeInterval(3)
+    while Date() < revisionDeadline, try store.load().websitePolicy != revisedWebsitePolicy {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(try store.load().websitePolicy == revisedWebsitePolicy)
 
     try restartedHub.revoke(deviceID: configuration.deviceID)
     #expect(try database.device(id: configuration.deviceID)?.isRevoked == true)

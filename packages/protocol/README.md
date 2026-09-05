@@ -12,6 +12,8 @@ The protocol deliberately has no arbitrary shell, script, file-browsing, or unre
 
 ## Versioning
 
+An authenticated `capability.announce` on reconnect replaces the paired device's declared capability list, including removed capabilities. The existing device key, revocation and replay checks remain mandatory; announcement metadata cannot change pairing identity. Declarations contain at most 32 nonempty ASCII lowercase/digit/hyphen identifiers of at most 64 bytes. This supports in-place upgrades without re-pairing. Capability metadata is not proof that a browser profile has applied a website policy.
+
 ### Stage-06D browser policy extension
 
 The existing signed `browser.configuration` envelope may carry `websitePolicy`, a UTF-8 JSON string with `{version, domains}`. Version is a positive JavaScript-safe integer. Domains are unique sorted lowercase ASCII DNS names (international names must be explicit punycode), at most 256 entries and 32 KiB total domain bytes, with labels of 1–63 characters and names of at most 253 bytes. URLs, IP literals, wildcards, local names, paths and query strings are invalid. An explicit newer empty list removes restrictions; absence preserves the existing policy. Scope is domain plus subdomains, future main-frame/subframe navigation only. Old endpoints lack the `browser-website-policy` capability and cannot be targeted through the new control.

@@ -1,14 +1,24 @@
 # STAGE-06D — Managed browser website blocking
 
-- Version: `0.6.4-rc.1` (build `6401`)
+- Version: `0.6.4-rc.2` (build `6402`); browser extensions remain `0.6.4-rc.1` unchanged
 - Branch: `stage/06d-macos-app-web-network-enforcement`
-- Status: `READY_FOR_DEVELOPER_TEST` (local candidate; production distribution is not ready)
+- Status: `IMPLEMENTING` (capability-refresh retest; production distribution is not ready)
 - Scope amended by the developer on 2026-09-05: `AUTHORIZE STAGE-06D SCOPE AMENDMENT: MANAGED BROWSER WEBSITE BLOCKING. PROCEED.`
 - The former system-extension design in [ADR-0004](../adr/0004-macos-enforcement-extension-readiness.md) is deferred. Its Apple Developer ID and same Team ID gate and physical acceptance matrix apply only to future system-wide enforcement, not this browser-only test candidate.
 
 ## Objective and scope
 
 Apply one parent-authored domain blocklist independently in each enrolled Chromium or Firefox profile through the existing authenticated LAN and native host. Preserve upgrades/pairing, current schedules and optional tab sharing. Do not modify browser installations or live family policies during development.
+
+### RC2 retest: disabled controls after an upgrade
+
+Developer feedback showed an online updated child while the parent disabled Apply Website Policy. The hub handled an existing device's authenticated capability announcement only as a last-seen update, retaining its original pairing-time capabilities. A synthetic upgrade/reconnect test reproduced missing `browser-website-policy`, retained obsolete support, and rejected policy application before the fix.
+
+RC2 replaces the bounded declared capability list on authenticated reconnect, after existing key/revocation/replay checks. It verifies the announcement's public key matches the paired key, rejects malformed/oversized declarations, and does not change identity, pairing date, policies or revocation state. Removed capabilities are removed rather than accumulated. A metadata-only audit event is added only when capabilities change. The same upgrade test now delivers a new website policy without re-pairing.
+
+The parent explains unavailable website capability more precisely and explicitly states that device-wide Internet pause is unavailable. The child's disabled Allow 15 Minutes button requires an adult code; it is a schedule override, not a WAN control. No WAN enforcement was added in this retest.
+
+Acceptance: the existing 6401 child reconnects to the updated parent without re-pairing, website controls enable, listed sites are blocked by an enrolled extension, and unchanged schedule/chat behavior remains intact. Browser source/packages are unchanged; already-loaded 0.6.4-rc.1 extensions need no reload for this hub repair.
 
 Included: bounded domain validation (256 ASCII/punycode domains, no URLs/IPs/local names), signed envelope transport, protected child persistence and version rollback checks, declarative navigation/subframe blocking, dynamic-rule readback before acknowledgement, per-profile status, known-browser setup warnings, local test packages and a macOS installer.
 
@@ -56,8 +66,8 @@ Official references:
 
 ## Installation and manual developer tests
 
-1. Install the Parent Controller component on the parent Mac; install only Child Endpoint on the child Mac. Use an ordinary standard child account and retain an adult recovery administrator. Install over the existing apps, without uninstalling/unpairing.
-2. Extract the Chromium ZIP to a stable location. Load/reload it through the browser's extension developer UI and approve the new declarative blocking permission. Repeat per Chrome/Edge/Arc/Brave profile being tested.
+1. Quit the Parent app, install the RC2 Parent Controller component on the parent Mac, then reopen it. Let the child reconnect. Install only Child Endpoint on the child Mac if updating its package too. Use an ordinary standard child account and retain an adult recovery administrator. Install over existing apps, without uninstalling/unpairing. The fix is in the parent hub and supports an existing 6401 child service.
+2. Keep an existing loaded 0.6.4-rc.1 extension unchanged. Otherwise extract the Chromium ZIP to a stable location, load it through the browser's extension developer UI and approve the declarative blocking permission. Repeat per Chrome/Edge/Arc/Brave profile being tested.
 3. For Firefox, temporarily load the unsigned XPI via about:debugging. Permanent restart/automatic-update testing is blocked until a signed distribution is available.
 4. In Devices > Browser website restrictions, enter `example.com` and `youtube.com`, confirm Apply and wait for each reporting profile's matching policy acknowledgement (normally within 1–2 minutes).
 5. Navigate to those domains/subdomains: denied. Unlisted domains remain available. Similar-looking unrelated domains must not match. Reloading an already loaded page must be tested separately.

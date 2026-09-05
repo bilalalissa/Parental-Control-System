@@ -749,7 +749,7 @@ Before extension source or installer work, run an entitlement-readiness gate tha
 
 Acceptance after the gate opens includes signed-build entitlement verification, system-extension activation and upgrade/deactivation, parent confirmation and audit, app launch/relaunch denial, domain denial across supported browsers, WAN pause with local control preserved, hard expiry across controller loss/sleep/reboot, IPv4/IPv6 and Wi-Fi/Ethernet coverage, standard-child tamper checks, adult recovery, clean uninstall, bounded resource measurements, and one signed/notarized package. Source tests alone cannot satisfy physical enforcement acceptance.
 
-Version: `0.6.4-rc.1`.
+Version: `0.6.4-rc.2`.
 
 ### STAGE-07 — Windows Child Agent foundation
 

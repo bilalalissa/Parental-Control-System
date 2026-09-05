@@ -24,7 +24,9 @@ struct BrowserWebsitePolicyView: View {
         Button("Apply Website Policy…") { confirming = true }
           .disabled(!device.capabilities.contains("browser-website-policy"))
         if !device.capabilities.contains("browser-website-policy") {
-          Text("Update the child app before applying website restrictions.").font(.caption)
+          Text(
+            "The connected child service has not advertised website blocking. Update the child endpoint and reconnect; re-pairing is not required."
+          ).font(.caption)
         }
         Text(
           "Requested policy: \(configuration.websitePolicy.map { String($0.version) } ?? "None")"
@@ -54,7 +56,7 @@ struct BrowserWebsitePolicyView: View {
         )
         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         Text(
-          "Test extensions require manual loading. Automatic updates require a published/signed browser distribution; they are not provided by this test package."
+          "Device-wide Internet pause is not available in this release. Website rules only block the listed domains in enrolled browser profiles. Test extensions require manual loading; production automatic updates are not provided by this package."
         )
         .font(.caption).foregroundStyle(.secondary)
       }

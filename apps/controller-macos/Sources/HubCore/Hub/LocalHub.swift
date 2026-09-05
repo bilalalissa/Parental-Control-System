@@ -555,16 +555,14 @@ public final class LocalHub: @unchecked Sendable {
       let name = envelope.payload["name"]?.stringValue,
       let platform = envelope.payload["platform"]?.stringValue,
       let publicKeyText = envelope.payload["publicKey"]?.stringValue,
-      let publicKey = Data(base64Encoded: publicKeyText),
-      case .array(let capabilityValues) = envelope.payload["capabilities"],
-      capabilityValues.allSatisfy({ $0.stringValue != nil })
+      let publicKey = Data(base64Encoded: publicKeyText)
     else { throw LocalHubError.malformedAnnouncement }
     guard envelope.auth.keyID == "device-\(envelope.deviceID)" else {
       throw LocalHubError.identityMismatch
     }
     try replay.verify(envelope, publicKey: publicKey)
+    let capabilities = try Self.validatedCapabilities(envelope.payload)
     try pairing.consume(code: code)
-    let capabilities = capabilityValues.compactMap(\.stringValue)
     let device = HubDeviceRecord(
       id: envelope.deviceID,
       name: String(name.prefix(80)),
@@ -587,6 +585,19 @@ public final class LocalHub: @unchecked Sendable {
     try sendReceipt(for: envelope, state: "accepted", to: peer, deviceID: device.id)
   }
 
+  static func validatedCapabilities(_ payload: [String: JSONValue]) throws -> [String] {
+    guard case .array(let values) = payload["capabilities"], values.count <= 32 else {
+      throw LocalHubError.malformedAnnouncement
+    }
+    let capabilities = try values.map { value -> String in
+      guard let name = value.stringValue, !name.isEmpty, name.utf8.count <= 64,
+        name.utf8.allSatisfy({ (97...122).contains($0) || (48...57).contains($0) || $0 == 45 })
+      else { throw LocalHubError.malformedAnnouncement }
+      return name
+    }
+    return Array(Set(capabilities)).sorted()
+  }
+
   private func accept(
     _ envelope: ProtocolEnvelope,
     device: HubDeviceRecord,
@@ -594,6 +605,21 @@ public final class LocalHub: @unchecked Sendable {
   ) throws {
     switch envelope.type {
     case .capabilityAnnounce:
+      // handle() has already checked revocation, the pinned key and replay protection.
+      // Reconnect is also the upgrade negotiation point, not a new pairing operation.
+      guard let publicKeyText = envelope.payload["publicKey"]?.stringValue,
+        Data(base64Encoded: publicKeyText) == device.publicKey
+      else { throw LocalHubError.identityMismatch }
+      let capabilities = try Self.validatedCapabilities(envelope.payload)
+      if capabilities != device.capabilities {
+        try database.refreshCapabilities(deviceID: device.id, capabilities: capabilities)
+        try database.appendAudit(
+          HubAuditRecord(
+            event: "device.capabilities-refreshed",
+            deviceID: device.id,
+            detail: "Accepted authenticated capability refresh; \(capabilities.count) capabilities")
+        )
+      }
       try database.updateSeen(
         deviceID: device.id, sequence: envelope.sequence,
         snapshotVersion: device.snapshotVersion)
