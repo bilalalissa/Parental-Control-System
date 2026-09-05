@@ -2,7 +2,7 @@
 
 - Version: `0.6.4-rc.4` (build `6404`); browser extensions remain `0.6.4-rc.1` unchanged
 - Branch: `stage/06d-macos-app-web-network-enforcement`
-- Status: `IMPLEMENTING` (identity/XPC recovery retest; production distribution is not ready)
+- Status: `READY_FOR_RETEST` (identity/XPC recovery candidate; production distribution is not ready)
 - Scope amended by the developer on 2026-09-05: `AUTHORIZE STAGE-06D SCOPE AMENDMENT: MANAGED BROWSER WEBSITE BLOCKING. PROCEED.`
 - The former system-extension design in [ADR-0004](../adr/0004-macos-enforcement-extension-readiness.md) is deferred. Its Apple Developer ID and same Team ID gate and physical acceptance matrix apply only to future system-wide enforcement, not this browser-only test candidate.
 
@@ -123,18 +123,34 @@ Official references:
 ## Installation and manual developer tests
 
 1. Quit the Parent app, install the RC4 Parent Controller component on the parent Mac, then reopen it. Install only Child Endpoint RC4 on the child Mac. Use an ordinary standard child account and retain an adult recovery administrator. Install over existing apps without uninstalling or clicking Unpair. The installer should stop the RC3 lock loop and provide at most ten minutes for recovery.
-2. Perform the one final RC4 invitation repair exactly as described above. Confirm that the parent still shows the same device once, now online with website blocking available. Do not unpair or delete the existing device record.
-3. Keep an existing loaded 0.6.4-rc.1 extension unchanged. Otherwise extract the Chromium ZIP to a stable location, load it through the browser's extension developer UI and approve the declarative blocking permission. Repeat per Chrome/Edge/Arc/Brave profile being tested.
-4. For Firefox, temporarily load the unsigned XPI via about:debugging. Permanent restart/automatic-update testing is blocked until a signed distribution is available.
-5. In Devices > Browser website restrictions, enter `example.com` and `youtube.com`, confirm Apply and wait for each reporting profile's matching policy acknowledgement (normally within 1–2 minutes).
-6. Navigate to those domains/subdomains: denied. Unlisted domains remain available. Similar-looking unrelated domains must not match. Reloading an already loaded page must be tested separately.
-7. Turn off tab sharing: domain denial continues; new tab titles/origins must not arrive.
-8. Disconnect the parent LAN connection: stored restrictions continue in the running browser. Restore the LAN and apply a changed policy: matching acknowledgements return.
-9. Close/restart Chromium: dynamic rules persist. Firefox temporary install restart is explicitly not a pass for permanent persistence.
-10. Apply an empty list: confirm the formerly blocked sites become available and new-version acknowledgements arrive.
-11. Disable/remove the extension or close the browser: after three minutes, status becomes Not reporting. Add another profile: do not infer protection from the first profile. Safari must remain Unsupported.
-12. Reinstall the RC4 child component in place: it must reconnect without another invitation; the schedule, file identity and extension identity remain. Verify chat and schedule behavior remain intact and no repeated lock loop occurs.
-13. Confirm the Parent app never claims device-wide WAN/app blocking or complete browser protection.
+2. Perform the one final RC4 invitation repair exactly as described above. Confirm that the parent still shows the same device once, now online with website blocking available. Do not unpair or delete the existing device record. On the child Mac, paste the complete fresh invitation from the parent in place of `$TOKEN`, then run:
+
+   ```bash
+   sudo /usr/local/bin/parental-control-agentctl pair --invitation "$TOKEN"
+   sudo /bin/launchctl kickstart -k system/com.bilalalissa.ParentalControlAgent.daemon
+   ```
+
+   Allow 30–60 seconds for the authenticated heartbeat. If it does not reconnect, collect the bounded logs listed below rather than repeatedly pairing.
+3. Verify the two new root-only files without printing or hashing the private identity:
+
+   ```bash
+   sudo /usr/bin/stat -f '%Su:%Sg %Lp %N' \
+     '/Library/Application Support/ParentalControlAgent/endpoint-identity.key' \
+     '/Library/Application Support/ParentalControlAgent/xpc-clients.plist'
+   ```
+
+   Both must report `root:wheel 600`. Never copy the identity file into feedback or a public issue.
+4. Keep an existing loaded 0.6.4-rc.1 extension unchanged. Otherwise extract the Chromium ZIP to a stable location, load it through the browser's extension developer UI and approve the declarative blocking permission. Repeat per Chrome/Edge/Arc/Brave profile being tested.
+5. For Firefox, temporarily load the unsigned XPI via about:debugging. Permanent restart/automatic-update testing is blocked until a signed distribution is available.
+6. In Devices > Browser website restrictions, enter `example.com` and `youtube.com`, confirm Apply and wait for each reporting profile's matching policy acknowledgement (normally within 1–2 minutes).
+7. Navigate to those domains/subdomains: denied. Unlisted domains remain available. Similar-looking unrelated domains must not match. Reloading an already loaded page must be tested separately.
+8. Turn off tab sharing: domain denial continues; new tab titles/origins must not arrive.
+9. Disconnect the parent LAN connection: stored restrictions continue in the running browser. Restore the LAN and apply a changed policy: matching acknowledgements return.
+10. Close/restart Chromium: dynamic rules persist. Firefox temporary install restart is explicitly not a pass for permanent persistence.
+11. Apply an empty list: confirm the formerly blocked sites become available and new-version acknowledgements arrive.
+12. Disable/remove the extension or close the browser: after three minutes, status becomes Not reporting. Add another profile: do not infer protection from the first profile. Safari must remain Unsupported.
+13. Reinstall the RC4 child component in place: it must reconnect without another invitation; the schedule, file identity and extension identity remain. Verify chat and schedule behavior remain intact and no repeated lock loop occurs.
+14. Confirm the Parent app never claims device-wide WAN/app blocking or complete browser protection.
 
 ## Rollback and cleanup
 
@@ -144,21 +160,21 @@ After packaging, remove only project-owned `dist`, derived-data, icon renders an
 
 ## Evidence and resources
 
-Source/build commit: `3e309ea3d25e6db88b07cbfb4143646bb883013e`. Existing draft PR: [#11](https://github.com/bilalalissa/Parental-Control-System/pull/11). The final documentation commit does not change packaged application/extension source.
+Source/build commit: `8dede95a2e6915d9d313c141051cf35c53fc20e6`. Existing draft PR: [#11](https://github.com/bilalalissa/Parental-Control-System/pull/11). The final documentation commit does not change packaged application/extension source.
 
 Local checks on 2026-09-05:
 
-- `node --test --test-concurrency=2 --test-reporter=tap`: 69 passed, one Windows-only skip (70 total), including 10 browser policy tests and static verification of the legacy-helper migration boundary.
+- `node --test --test-concurrency=2 --test-reporter=tap`: 69 passed, one Windows-only skip (70 total), including browser policy tests and static verification of the RC4 identity/XPC package boundary.
 - `swift test --package-path apps/controller-macos --scratch-path .artifacts/derived-data/stage-06d/controller-tests --jobs 2`: 54 passed (4 XCTest + 50 Swift Testing).
-- `swift test --package-path agents/endpoint-macos --scratch-path .artifacts/derived-data/stage-06d/endpoint-tests --jobs 2`: 30 passed (4 XCTest + 26 Swift Testing). Includes isolated signed LAN policy delivery, child persistence, independent profile acknowledgement with sharing disabled, capability refresh, and an adult-authorized credential rotation that retains the existing record and browser configuration.
+- `swift test --package-path agents/endpoint-macos --scratch-path .artifacts/derived-data/stage-06d/endpoint-tests --jobs 2`: 34 passed (4 XCTest + 30 Swift Testing). Includes isolated signed LAN policy delivery, child persistence, file-identity permission/corruption checks, consumed-once maintenance-marker bounds, exact XPC manifest coverage, capability refresh, and an adult-authorized credential rotation that retains the existing record and browser configuration.
 - `swift format lint` for both source/test trees, shell syntax checks and `git diff --check`: passed.
-- `script/package_endpoint_release.sh`: passed for RC3, including package expansion, embedded migration scripts, expected native hosts and version/build checks. The packaged daemon SHA-256 is `58296df7de82c1e4d8b32e35623c5f2daad72a212e66ebffbe416d2ac9012464`, which differs from the detected legacy rc.5 daemon. Browser source/packages are unchanged from RC1; their existing checksums were reverified, not regenerated.
-- `codesign --verify --deep --strict` on both apps: passed. Signatures are ad-hoc, Team ID absent. Installer is unsigned; no notarization or Apple managed entitlements claimed.
+- `script/package_endpoint_release.sh`: passed for RC4, including package expansion, exact embedded pre/postinstall scripts, identity/manifest permissions, expected native hosts, version/build/commit checks and package-generated SHA-256 binding for all four XPC clients. Browser source/packages are unchanged from RC1; their existing checksums were reverified, not regenerated.
+- `codesign --verify --deep --strict` on both apps: passed. Endpoint executables use hardened-runtime ad-hoc signatures with the expected identifiers; Team ID is absent. Installer is unsigned; no notarization or Apple managed entitlements claimed.
 - `lipo -archs`: parent arm64; child, daemon, user helper and browser host arm64 + x86_64.
 - `installer -showChoicesXML`: Parent selected by default; Child available separately. Authorized read-only inspection succeeded. No local installation was performed.
 - SHA-256 sidecars verified with `shasum -a 256 -c`.
 
-CI results are not claimed here. Real browser navigation, native-host authorization against installed browser versions, Intel execution, in-place install behavior on family devices and idle runtime resource use remain physical developer tests. Existing UI/hub processes were not used as test fixtures.
+CI results are not claimed here. Installed-path XPC authorization, first RC4 repair, same-version in-place identity persistence, absence of the lock loop, real browser navigation, native-host authorization against installed browser versions, Intel execution and idle runtime resource use remain physical developer tests. Existing UI/hub processes were not used as test fixtures.
 
 ### Retained artifacts
 
@@ -166,15 +182,15 @@ All three files are in `.artifacts/release-candidate/`; each has a `.sha256` sid
 
 | File | Purpose / status | SHA-256 |
 | --- | --- | --- |
-| `ParentalControlSystem-0.6.4-rc.3.pkg` | Selectable parent/child installer; legacy-helper detection and one-time pairing repair; unsigned package with ad-hoc apps | `519e98c2ef3b1b8b7131b04a7068dd7822ddf21c3270f3b2cce1b7d02ba5d324` |
+| `ParentalControlSystem-0.6.4-rc.4.pkg` | Selectable parent/child recovery installer; root-only ad-hoc identity, exact XPC manifest and one final pairing repair; unsigned package with hardened-runtime ad-hoc apps | `9dffc66891267893f9caafd195758f04f8a41a8671d8736fb352c8a9e824ecc5` |
 | `ParentalControlBrowserSharing-0.6.4-rc.1.zip` | Chromium unpacked developer test extension | `ab4e1585c211edbc3c311c7747a1db2754d444e22a83ef901b4f9b31668fb4e2` |
 | `ParentalControlBrowserFirefox-0.6.4-rc.1.xpi` | Firefox unsigned temporary test extension | `3fd6e3df59222562e98db64b85739b6e716e7ede7f5f609545909dafa4ef04f4` |
 
 ### Resource report
 
-Free disk before: 16 GiB; final free disk: 16 GiB. Initial repository: 29 MiB; initial retained artifacts: 16 MiB. Largest observed project output was about 744 MiB after build; peak estimate including transient package staging was under 900 MiB. Two build workers, sequential platform builds. No capacity exception; stayed above the 5 GiB floor.
+Free disk before: 15 GiB; final free disk: 14 GiB. Initial repository: about 30 MiB; final repository: 30 MiB. Largest observed project output was 769 MiB before cleanup; peak estimate including transient package staging was under 900 MiB. Two build workers, sequential platform builds. No capacity exception; stayed above the 5 GiB floor.
 
-Cleanup removed only reviewed project-owned `dist`, `.artifacts/derived-data`, `.artifacts/package-staging`, the temporary package-inspection directory, and the superseded `0.6.4-rc.2` macOS installer/checksum after replacement verification. Prior binaries were deleted, not archived; source remains in Git for rebuilding. Final repository: 29 MiB; artifacts: 16 MiB. Only one current installer and the two required browser-specific test packages remain. No project-started processes remain. No simulator was started; pre-existing developer-owned simulator services and installed parent/hub were left untouched.
+Cleanup removed only reviewed project-owned `dist`, `.artifacts/derived-data`, `.artifacts/package-staging`, the exact temporary package-inspection directory, and the superseded `0.6.4-rc.3` macOS installer/checksum after RC4 replacement verification. Prior binaries were deleted, not archived; source remains in Git for rebuilding. Final artifacts occupy 16 MiB. Only one current installer and the two required browser-specific test packages remain. No project-started processes remain. No simulator was started; the pre-existing installed Parent Controller and hub processes were left untouched.
 
 ## Failure evidence and feedback
 
