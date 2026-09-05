@@ -356,7 +356,12 @@ extension LocalHubStatus {
       activity: recentPrefix(activity),
       activityConfigurations: activityConfigurations,
       browserTabs: recentPrefix(browserTabs),
-      browserConfigurations: browserConfigurations,
+      browserConfigurations: browserConfigurations.map {
+        BrowserConfiguration(
+          deviceID: $0.deviceID, enabled: $0.enabled,
+          retentionDays: $0.retentionDays, websitePolicy: $0.websitePolicy,
+          protectionReports: $0.protectionReports.map { recentPrefix($0) })
+      },
       moreTimeRequests: recentPrefix(moreTimeRequests),
       auditRecords: recentPrefix(auditRecords),
       storage: storage)

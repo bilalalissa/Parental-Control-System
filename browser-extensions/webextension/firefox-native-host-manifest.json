@@ -1,0 +1,7 @@
+{
+  "name": "com.bilalalissa.parental_control",
+  "description": "Visible parental-control browser policy and optional tab sharing",
+  "path": "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost",
+  "type": "stdio",
+  "allowed_extensions": ["parental-control@bilalalissa.com"]
+}

@@ -302,11 +302,18 @@ public struct BrowserConfiguration: Codable, Equatable, Sendable {
   public let deviceID: String
   public let enabled: Bool
   public let retentionDays: Int
+  public let websitePolicy: BrowserWebsitePolicy?
+  public let protectionReports: [BrowserProtectionReport]?
 
-  public init(deviceID: String, enabled: Bool = false, retentionDays: Int = 7) {
+  public init(
+    deviceID: String, enabled: Bool = false, retentionDays: Int = 7,
+    websitePolicy: BrowserWebsitePolicy? = nil, protectionReports: [BrowserProtectionReport]? = nil
+  ) {
     self.deviceID = deviceID
     self.enabled = enabled
     self.retentionDays = max(1, min(retentionDays, 30))
+    self.websitePolicy = websitePolicy
+    self.protectionReports = protectionReports.map { Array($0.prefix(32)) }
   }
 }
 

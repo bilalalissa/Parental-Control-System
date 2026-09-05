@@ -1,108 +1,80 @@
-# STAGE-06D — macOS application, website, and network enforcement
+# STAGE-06D — Managed browser website blocking
 
-- Version: `0.6.4-rc.1`
+- Version: `0.6.4-rc.1` (build `6401`)
 - Branch: `stage/06d-macos-app-web-network-enforcement`
-- Status: `BLOCKED`
-- Authorized: `2026-09-04` via `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06D MACOS APP-WEB-NETWORK ENFORCEMENT BEFORE STAGE-07` and `PROCEED: STAGE-06D`
-- Evidence type: official Apple capability review, local signing inspection, entitlement templates, and offline readiness tests
-- Canonical decision: [ADR-0004](../adr/0004-macos-enforcement-extension-readiness.md)
+- Status: `IMPLEMENTING`
+- Scope amended by the developer on 2026-09-05: `AUTHORIZE STAGE-06D SCOPE AMENDMENT: MANAGED BROWSER WEBSITE BLOCKING. PROCEED.`
+- The former system-extension design in [ADR-0004](../adr/0004-macos-enforcement-extension-readiness.md) is deferred. Its Apple Developer ID and same Team ID gate and physical acceptance matrix apply only to future system-wide enforcement, not this browser-only test candidate.
 
-## Objective
+## Objective and scope
 
-Implement supported macOS enforcement for adult-selected application identities and website domains plus a bounded external-Internet pause, while preserving authenticated local parent control, essential recovery traffic, hard expiry, user visibility, and privacy.
+Apply one parent-authored domain blocklist independently in each enrolled Chromium or Firefox profile through the existing authenticated LAN and native host. Preserve upgrades/pairing, current schedules and optional tab sharing. Do not modify browser installations or live family policies during development.
 
-## Included scope
+Included: bounded domain validation (256 ASCII/punycode domains, no URLs/IPs/local names), signed envelope transport, protected child persistence and version rollback checks, declarative navigation/subframe blocking, dynamic-rule readback before acknowledgement, per-profile status, known-browser setup warnings, local test packages and a macOS installer.
 
-- Network Extension content-filter and Endpoint Security system-extension architecture.
-- Explicit bundle identifiers and reviewable entitlement templates.
-- A local readiness checker for Developer ID identities, explicit App IDs, managed entitlements, and Team ID alignment.
-- Signed/versioned typed rule contracts, domain normalization, code-identity matching, bounded WAN-pause leases, fail-safe recovery, audit, upgrade, uninstall, and resource criteria.
-- Official-source distribution requirements and a complete physical acceptance matrix.
-- Canonical roadmap, architecture, capability, security, privacy, threat-model, and repository-test updates.
+Excluded: Safari; application-launch denial; whole-device WAN pause; Apple system extensions; MDM/force installation; private/guest-session collection; request/page content; TLS interception; bypass resistance to a device administrator; unknown-browser guarantees; Stage 07.
 
-## Excluded scope
+## Enforcement and coverage semantics
 
-- Private Apple APIs, entitlement bypasses, ad-hoc claims, hidden installation, anti-administrator persistence, loginwindow replacement, or defeating an authorized administrator.
-- Packet or page-content inspection, TLS interception, DNS/browsing history, arbitrary process/network control, screenshots, microphone/camera capture, or unrelated device inventory.
-- ARRIS HTML/CGI automation, router credentials, MDM, Windows/iPad enforcement, relay/cloud service, or Stage 07 work.
-- Submitting Apple capability requests or creating/storing developer certificates, profiles, private keys, or notarization credentials on the developer's behalf.
+- Domains include their subdomains using the browser's declarative domain matcher, not URL/title substring searches.
+- Blocking covers future top-level/frame navigations. Already loaded pages, playing media, cached content and connections are not forcibly terminated.
+- Tab sharing and blocking are independent. Disabling collection clears retained tab data but preserves the restriction policy.
+- Parent changes generate an increasing version and are signed by the paired controller. Endpoint persistence is root-protected; stale and same-version conflicting policies are rejected.
+- Combined browser policy configuration is capped at 24 KiB before persistence to reserve space in the 64 KiB local IPC response. Oversized lists are rejected, never silently truncated. Profile status is a bounded recent snapshot and may be compacted under IPC pressure; absent profiles are not proven protected.
+- An explicit newer empty list removes rules. A host/network failure never implicitly clears a valid stored list.
+- Extensions retain dynamic rules across normal restarts and upgrades. Browser policy reconciliation occurs at startup, tab activity and a one-minute alarm while the browser runs; alarms may be delayed by sleep.
+- A profile acknowledges only after browser rule readback. Acknowledgements are not independent tamper attestation or a physical navigation test.
+- Coverage is bounded to 24 reporting profiles plus known installed browsers (Chrome, Edge, Arc, Brave, Firefox, Safari) in documented /Applications locations. Other locations, newly created profiles and unknown browsers are not claimed detected.
+- A matching recent acknowledgement is `Policy applied`; an older version is `Policy pending`; an offline device or stale report is `Not reporting`. Closed browsers and removed extensions cannot always be distinguished.
+- Safari is unsupported. Guest/private browsing and profiles without an enabled extension remain gaps.
+- Browser metadata logs remain bounded and omit blocked URLs, requests and content.
 
-## Assumptions and resource limits
+## Distribution and automatic-update boundary
 
-- The child uses a standard non-administrator account; an adult retains independent administrator recovery.
-- System-extension and Network Extension approval is visible and follows Apple's supported workflow.
-- All components use one Apple Team ID and matching Developer ID provisioning profiles.
-- Until the gate passes, work is source-only: no Xcode build, simulator, VM, container, daemon, browser driver, or installer.
-- Tests use at most two workers. The 5 GiB free-space floor remains mandatory.
-- Cleanup covers only repository-owned temporary output; existing installed Parent Controller/hub processes remain developer-owned and untouched.
+The installer registers authenticated native hosts, not browser extensions. Explicit per-browser/profile extension installation remains required. It preserves installed extension identity and app pairing.
 
-## Acceptance criteria
+Chromium: the ZIP is an unpacked developer-test package; the stable existing extension ID is preserved. Adding the new permission can require approval/reloading. Supported production automatic updates require Chrome Web Store publication or an eligible managed self-hosted deployment. No publisher account or managed deployment is configured in this stage.
 
-1. The readiness checker validates a Developer ID Application identity, all three explicit identifiers, required capabilities, and one Team ID without disclosing profile contents.
-2. Source documents define exact app/domain/WAN semantics, safety allowlists, hard expiry, fail-open recovery, privacy, auditing, upgrade/uninstall, and physical tests.
-3. The product does not expose an operational control or installer before Apple-managed entitlement and signed activation evidence exists.
-4. After the gate passes, a signed/notarized installer must prove the complete physical matrix in ADR-0004 before developer approval.
-5. Repository tests, entitlement lint, shell syntax, secret/profile scans, resource checks, cleanup, push, and one draft pull request complete.
+Firefox: the XPI is unsigned and intended for temporary installation through `about:debugging#/runtime/this-firefox`. Firefox 133+ is required. Temporary add-ons do not survive restart as a permanent installation. Normal installation and automatic updates require Mozilla signing and a configured distribution path. No signing enforcement is disabled.
 
-## Finding and blocker
+Thus local implementation does not mean production automatic updates are complete. Signing/publication and physical browser tests remain separate release gates. No Apple Developer membership is required for the browser-only source/test package; the native macOS apps remain ad-hoc signed and the package unsigned/not notarized.
 
-The development Mac has `0 valid identities found` for code signing, no matching provisioning profiles are present, and the installed Parent Controller is ad-hoc signed with no Team Identifier. Apple requires the restricted Endpoint Security capability and an approved Network Extension content-filter capability, matching Developer ID profiles, same-Team signing, user/system approval, and notarization for supported distribution.
+Official references:
+- [Chrome distribution and automatic updates](https://developer.chrome.com/docs/extensions/how-to/distribute)
+- [Mozilla signing and distribution](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/)
+- [Persistent dynamic rules](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/declarativeNetRequest/updateDynamicRules)
+- [Firefox native messaging arguments and host authorization](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging)
 
-Therefore this candidate is intentionally source-only and blocked. It does not produce a Stage 06D installer or claim enforcement. The approved Stage 06A package and Stage 05 browser-extension ZIP remain the latest installable artifacts and are not modified by this stage.
+## Acceptance and smallest test plan
 
-## Unblock procedure
+1. Dependency-free Node tests: normalization, rule generation/readback, failure preservation, rollback, explicit clear, privacy permissions and Firefox manifest generation.
+2. Swift endpoint and hub tests: policy persistence/migration, acknowledgements, freshness and caller authorization.
+3. Build parent arm64 and child universal sequentially, two workers, under `.artifacts/derived-data/stage-06d`.
+4. Build one combined selectable macOS package plus Chromium ZIP and Firefox test XPI; inspect contents, architectures/signatures and SHA-256.
+5. Physical developer tests below are required. Native-host browser identity and real DNR behavior are not proven by source mocks.
+6. Keep at least 5 GiB free. No VMs, simulators or live-device enforcement during development.
 
-The developer must obtain and install locally:
+## Installation and manual developer tests
 
-- one valid Developer ID Application identity and private key;
-- a host profile for `com.bilalalissa.ParentalControlChild` with system-extension installation;
-- a Network Extension profile for `com.bilalalissa.ParentalControlNetworkFilter` with content-filter provider system-extension authorization;
-- an Apple-approved Endpoint Security profile for `com.bilalalissa.ParentalControlExecutionFilter`;
-- all profiles under the same Team ID.
+1. Install the Parent Controller component on the parent Mac; install only Child Endpoint on the child Mac. Use an ordinary standard child account and retain an adult recovery administrator. Install over the existing apps, without uninstalling/unpairing.
+2. Extract the Chromium ZIP to a stable location. Load/reload it through the browser's extension developer UI and approve the new declarative blocking permission. Repeat per Chrome/Edge/Arc/Brave profile being tested.
+3. For Firefox, temporarily load the unsigned XPI via about:debugging. Permanent restart/automatic-update testing is blocked until a signed distribution is available.
+4. In Devices > Browser website restrictions, enter `example.com` and `youtube.com`, confirm Apply and wait for each reporting profile's matching policy acknowledgement (normally within 1–2 minutes).
+5. Navigate to those domains/subdomains: denied. Unlisted domains remain available. Similar-looking unrelated domains must not match. Reloading an already loaded page must be tested separately.
+6. Turn off tab sharing: domain denial continues; new tab titles/origins must not arrive.
+7. Disconnect the parent LAN connection: stored restrictions continue in the running browser. Restore the LAN and apply a changed policy: matching acknowledgements return.
+8. Close/restart Chromium: dynamic rules persist. Firefox temporary install restart is explicitly not a pass for permanent persistence.
+9. Apply an empty list: confirm the formerly blocked sites become available and new-version acknowledgements arrive.
+10. Disable/remove the extension or close the browser: after three minutes, status becomes Not reporting. Add another profile: do not infer protection from the first profile. Safari must remain Unsupported.
+11. Reinstall the app package in place: existing pairing, schedule and extension identity are preserved. Verify chat and schedule behavior remain intact.
+12. Confirm the Parent app never claims device-wide WAN/app blocking or complete browser protection.
 
-Do not commit or send credentials, certificates, private keys, provisioning profiles, or notarization secrets. Run the local command documented in ADR-0004 and report only its READY/BLOCKED summary. Work then resumes on this branch and pull request.
+## Rollback and cleanup
 
-## Validation plan
+Apply an empty website policy and wait for acknowledgements before removing test extensions if the intent is to remove restrictions. Removing an extension also removes its browser rules. Use the administrator uninstaller only when intentionally removing the child endpoint and its pairing data; do not uninstall for upgrades.
 
-```sh
-plutil -lint agents/endpoint-macos/Enforcement/Entitlements/*.entitlements
-bash -n script/check_stage06d_readiness.sh
-script/check_stage06d_readiness.sh
-node --test test/macos-enforcement-readiness.test.mjs test/repository.test.mjs
-npm test
-git diff --check
-npm run cleanup:list
-```
+After packaging, remove only project-owned `dist`, derived-data, icon renders and package-staging using the existing cleanup dry-run/apply tool. Preserve the prior installer until the replacement is verified. Existing installed Parent Controller/hub and developer-owned simulator services are untouched.
 
-The no-argument readiness invocation must exit with blocked status and list missing prerequisites. Signed build, extension activation, and physical enforcement tests remain unavailable until the external Apple gate is satisfied.
+## Evidence and resources
 
-## Candidate artifact and rollback
-
-- Artifact: `docs/adr/0004-macos-enforcement-extension-readiness.md`
-- Installer: none; no executable changed and an unentitled package would be unusable.
-- Signing/entitlements: templates only; no local Developer ID identity or matching profile was available.
-- Rollback: normal Git revert only. No Mac, router, browser, policy, or installed application state changed.
-
-## Candidate evidence
-
-- Entitlement templates: all three passed `plutil -lint`.
-- Readiness-checker shell syntax: passed `bash -n`.
-- Local readiness result: expected exit `2`; missing Developer ID Application identity plus host, Network Extension, and Endpoint Security profiles; no profile data copied.
-- Focused Stage 06D tests: 5 passed, 0 failed.
-- Complete `npm test`: 59 passed, 0 failed, 1 Windows-only cleanup test skipped on macOS.
-- `git diff --check`: passed.
-- Repository profile/certificate and credential-pattern scans: no committed signing material or detected secret.
-- Cleanup dry run: no repository-owned generated output found.
-- Dossier SHA-256: `bf5a2849e6f64cc9468ed7df06e22042728e7f926a385dc2fe35bc09fc758a0c`.
-
-## Resource evidence
-
-- Free disk before work: 14 GiB on the repository volume.
-- Repository size before work: 27 MiB; retained project-owned artifacts: 15 MiB.
-- Native build and generated installer size: 0 bytes.
-- Project processes started by this stage: none.
-- Existing installed Parent Controller/hub processes: developer-owned and deliberately untouched.
-- Simulator/emulator/VM/container state: not used.
-- Free disk after validation and cleanup: 14 GiB; repository size: 28 MiB; retained artifacts: 15 MiB.
-- Cleanup result: no repository-owned generated output found.
-- Resource-budget exception: none; the 5 GiB floor remained satisfied.
+Initial free disk: 18 GiB. Repository: 28 MiB; retained artifacts: 15 MiB. No stale project-started process was identified; installed parent/hub are developer-owned. Tests/build/package evidence and final resource measurements will be recorded after verification.

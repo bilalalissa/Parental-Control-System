@@ -273,6 +273,27 @@ final class ControllerStore {
     }
   }
 
+  func applyBrowserWebsitePolicy(configuration: BrowserConfiguration, domains: [String]) {
+    Task {
+      do {
+        let version = max(
+          Int64(Date().timeIntervalSince1970 * 1000),
+          (configuration.websitePolicy?.version ?? 0) + 1)
+        let policy = try BrowserWebsitePolicy(version: version, domains: domains)
+        applyHubStatus(
+          try await hubClient.configureBrowser(
+            deviceID: configuration.deviceID,
+            enabled: configuration.enabled, retentionDays: configuration.retentionDays,
+            websitePolicy: policy))
+        browserStatusMessage =
+          "Website policy queued. Check each profile for acknowledgement; sending does not prove blocking."
+      } catch {
+        browserStatusMessage =
+          "Could not apply website policy. Use up to 256 bare ASCII domains (IDNs as punycode), without URLs, paths, wildcards, IPs or local names. Combined device policy configuration must fit within 24 KiB."
+      }
+    }
+  }
+
   func markChatRead(deviceIDs: [String], audience: ChatAudience) {
     guard !deviceIDs.isEmpty else { return }
     Task {

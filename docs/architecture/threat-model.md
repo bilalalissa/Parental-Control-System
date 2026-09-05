@@ -2,6 +2,8 @@
 
 ## Scope
 
+Stage-06D was amended on 2026-09-05 to managed browser-only website blocking. A browser process/extension is a weaker enforcement boundary than a system filter: disabling it, guest/private mode, another profile or unsupported browser bypasses it. Policy acknowledgements are extension reports, not independent proof; freshness and version matching prevent stale success displays but do not attest a hostile browser. No claim of universal protection or admin resistance is allowed. Publisher/signing services are optional code-distribution gates, not LAN policy authorities. Domain rules are declarative with no page/request-content listeners, remain durable on native-host loss, and clear only on an explicit newer policy or extension removal. Updates keep stable extension identity and require supported browser signing; unsigned test packages are not automatic-update acceptance.
+
 Stage 00 covers contracts and repository controls. This model defines requirements for later runtime stages without claiming those controls are implemented. The system is for devices owned or lawfully administered by a parent or guardian and must remain visible to the child user.
 
 ## Assets

@@ -164,6 +164,8 @@ private struct PairedDeviceDetailView: View {
         immediateActionsSection
         activitySection
         browserSection
+        BrowserWebsitePolicyView(
+          device: device, configuration: browserConfiguration, now: now, store: store)
         requestSection
         statusMessages
       }

@@ -11,6 +11,7 @@ public struct EndpointConfiguration: Codable, Equatable, Sendable {
   public var activityRetentionDays: Int
   public var browserCollectionEnabled: Bool
   public var browserRetentionDays: Int
+  public var websitePolicy: BrowserWebsitePolicy?
 
   public init(
     deviceID: String = UUID().uuidString.lowercased(), invitation: PairingInvitation? = nil,
@@ -32,6 +33,7 @@ public struct EndpointConfiguration: Codable, Equatable, Sendable {
     case deviceID, invitation, pairedController, sequence
     case activityCollectionEnabled, activityRetentionDays
     case browserCollectionEnabled, browserRetentionDays
+    case websitePolicy
   }
 
   public init(from decoder: Decoder) throws {
@@ -46,6 +48,8 @@ public struct EndpointConfiguration: Codable, Equatable, Sendable {
       1, min(try values.decodeIfPresent(Int.self, forKey: .activityRetentionDays) ?? 7, 30))
     browserCollectionEnabled =
       try values.decodeIfPresent(Bool.self, forKey: .browserCollectionEnabled) ?? false
+    websitePolicy = try values.decodeIfPresent(BrowserWebsitePolicy.self, forKey: .websitePolicy)?
+      .validated()
     browserRetentionDays = max(
       1, min(try values.decodeIfPresent(Int.self, forKey: .browserRetentionDays) ?? 7, 30))
   }
@@ -129,8 +133,20 @@ public final class ProtectedConfigurationStore: @unchecked Sendable {
     try save(value)
   }
 
-  public func setBrowserCollection(enabled: Bool, retentionDays: Int) throws {
+  public func setBrowserCollection(
+    enabled: Bool, retentionDays: Int, websitePolicy: BrowserWebsitePolicy? = nil
+  ) throws {
     var value = try load()
+    if let websitePolicy {
+      let validated = try websitePolicy.validated()
+      if let previous = value.websitePolicy,
+        validated.version < previous.version
+          || (validated.version == previous.version && validated != previous)
+      {
+        throw BrowserPolicyError.stalePolicy
+      }
+      value.websitePolicy = validated
+    }
     value.browserCollectionEnabled = enabled
     value.browserRetentionDays = max(1, min(retentionDays, 30))
     try save(value)

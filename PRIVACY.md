@@ -4,6 +4,8 @@ This project is designed for transparent parental controls, not covert surveilla
 
 ## Data minimization
 
+Stage-06D's amended browser-only scope applies adult-selected bare domains through declarative browser rules. No request/page content, blocked URL history, DNS logs, forms or cookies are collected. Rules are independent of tab-sharing consent. Profile coverage reports contain only browser name, a pseudonymous profile identifier, policy version, outcome and timestamp. Known-browser detection checks fixed application locations, not profile contents. Private/guest sessions are excluded and remain unprotected gaps. Reports are bounded (24 enrolled profiles plus known browsers) and replaced, not an unbounded history. Browser publisher services, if separately authorized, receive extension code for signing/publication—not family policies or browsing data.
+
 The planned controller stores operational data locally. Endpoints send only enabled, platform-supported fields needed for status, policy, safety actions, and family communication. Detailed application and tab metadata is optional per device, bounded, and retained for a short configurable period.
 
 The project does not collect keystrokes, screenshots, camera or microphone recordings, clipboard contents, messages from other applications, documents, passwords, form fields, cookies, page contents, private browsing sessions, command-line arguments, or arbitrary files. Browser metadata is limited to the browser, a pseudonymous profile, title, origin/domain, active state, and timestamp; query strings and fragments are removed.

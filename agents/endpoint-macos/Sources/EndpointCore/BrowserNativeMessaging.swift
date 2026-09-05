@@ -1,9 +1,11 @@
 import Foundation
+import HubCore
 
 public enum BrowserNativeMessaging {
   public static let hostName = "com.bilalalissa.parental_control"
   public static let extensionID = "pdcjgejgdjomjjemejhjhmdkcabkidmi"
   public static let allowedOrigin = "chrome-extension://\(extensionID)/"
+  public static let firefoxExtensionID = "parental-control@bilalalissa.com"
   public static let maximumMessageBytes = 256 * 1_024
   public static let maximumTabs = 128
 }
@@ -27,6 +29,8 @@ public struct BrowserNativeRequest: Codable, Equatable, Sendable {
   public let browser: String
   public let profile: String
   public let tabs: [BrowserNativeTab]
+  public var policyVersion: Int64?
+  public var policyState: String?
 
   public init(type: String, browser: String, profile: String, tabs: [BrowserNativeTab]) {
     self.type = type
@@ -56,16 +60,18 @@ public struct BrowserNativeResponse: Codable, Equatable, Sendable {
   public let acceptedTabs: Int
   public let error: String?
   public let browser: String?
+  public let websitePolicy: BrowserWebsitePolicy?
 
   public init(
     accepted: Bool, enabled: Bool, acceptedTabs: Int = 0, error: String? = nil,
-    browser: String? = nil
+    browser: String? = nil, websitePolicy: BrowserWebsitePolicy? = nil
   ) {
     self.accepted = accepted
     self.enabled = enabled
     self.acceptedTabs = acceptedTabs
     self.error = error.map { String($0.prefix(160)) }
     self.browser = browser.map { String($0.lowercased().prefix(40)) }
+    self.websitePolicy = websitePolicy
   }
 }
 
@@ -74,10 +80,23 @@ public enum BrowserCallerAuthorization {
     origin: String, executablePath: String, signingIdentifier: String?, teamIdentifier: String?,
     signatureValid: Bool
   ) -> String? {
-    guard origin == BrowserNativeMessaging.allowedOrigin, signatureValid,
+    guard signatureValid,
       let signingIdentifier, let teamIdentifier
     else { return nil }
     let resolved = URL(fileURLWithPath: executablePath).resolvingSymlinksInPath().path
+    if origin == BrowserNativeMessaging.firefoxExtensionID,
+      isInsideApp(resolved, bundlePath: "/Applications/Firefox.app"),
+      teamIdentifier == "43AQ936H96", signingIdentifier == "org.mozilla.firefox"
+    {
+      return "firefox"
+    }
+    guard origin == BrowserNativeMessaging.allowedOrigin else { return nil }
+    if isInsideApp(resolved, bundlePath: "/Applications/Brave Browser.app"),
+      teamIdentifier == "KL8N8XSYF4",
+      signingIdentifier == "com.brave.Browser" || signingIdentifier.hasPrefix("com.brave.Browser.")
+    {
+      return "brave"
+    }
     if isInsideApp(resolved, bundlePath: "/Applications/Google Chrome.app"),
       teamIdentifier == "EQHXZ8M8AV",
       signingIdentifier == "com.google.Chrome" || signingIdentifier.hasPrefix("com.google.Chrome.")

@@ -1,5 +1,7 @@
 # ADR-0004 — macOS application, website, and network enforcement readiness
 
+> Historical system-wide design, deferred by the developer's 2026-09-05 scope amendment. Active Stage-06D now implements [managed browser website blocking](../stages/stage-06d.md); the readiness gate below still applies to future Endpoint Security/Network Extension work, not to browser-only test packaging. Production Safari support, app-launch denial and WAN pause are not implemented.
+
 - Status: blocked pending Apple-managed capabilities and distribution signing
 - Stage: STAGE-06D
 - Version: `0.6.4-rc.1`
@@ -105,4 +107,3 @@ The checker decodes profiles only inside a private temporary directory, verifies
 `STAGE-06D 0.6.4-rc.1` is **BLOCKED** at distribution readiness. Entitlement templates and an offline readiness checker are reviewable source artifacts. There is no Stage 06D installer and no application UI may expose these controls as operational. Producing an ad-hoc package would be misleading because the system extensions could not activate with the required capabilities.
 
 Work resumes on the same stage branch and pull request after the developer confirms that the identity and profiles are installed locally. A later signed implementation candidate must still pass every physical case above before approval.
-

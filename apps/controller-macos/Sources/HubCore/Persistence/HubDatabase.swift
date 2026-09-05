@@ -177,6 +177,10 @@ public final class HubDatabase: @unchecked Sendable {
     // These two nullable columns upgrade databases created by Stage 04/earlier Stage 05 RCs.
     // Duplicate-column errors are expected when migrate() is called again.
     try? execute("ALTER TABLE hub_chat_messages ADD COLUMN edited_at REAL;")
+    try? execute("ALTER TABLE browser_configuration ADD COLUMN website_policy_json TEXT;")
+    try? execute(
+      "ALTER TABLE browser_configuration ADD COLUMN protection_reports_json TEXT NOT NULL DEFAULT '[]';"
+    )
     try? execute("ALTER TABLE hub_chat_messages ADD COLUMN deleted_at REAL;")
     try execute(
       "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(4, strftime('%s','now'));"
@@ -712,13 +716,15 @@ public final class HubDatabase: @unchecked Sendable {
   public func saveBrowserConfiguration(_ configuration: BrowserConfiguration) throws {
     try run(
       """
-      INSERT INTO browser_configuration(device_id, enabled, retention_days) VALUES(?, ?, ?)
+      INSERT INTO browser_configuration(device_id, enabled, retention_days, website_policy_json) VALUES(?, ?, ?, ?)
       ON CONFLICT(device_id) DO UPDATE SET
-          enabled=excluded.enabled, retention_days=excluded.retention_days;
+          enabled=excluded.enabled, retention_days=excluded.retention_days,
+          website_policy_json=COALESCE(excluded.website_policy_json, browser_configuration.website_policy_json);
       """,
       [
         .text(configuration.deviceID), .integer(configuration.enabled ? 1 : 0),
         .integer(Int64(configuration.retentionDays)),
+        configuration.websitePolicy == nil ? .null : .text(try json(configuration.websitePolicy)),
       ])
     try pruneActivity(now: Date())
   }
@@ -728,7 +734,7 @@ public final class HubDatabase: @unchecked Sendable {
     defer { lock.unlock() }
     var statement: OpaquePointer?
     try prepare(
-      "SELECT device_id, enabled, retention_days FROM browser_configuration ORDER BY device_id;",
+      "SELECT device_id, enabled, retention_days, website_policy_json, protection_reports_json FROM browser_configuration ORDER BY device_id;",
       &statement)
     defer { sqlite3_finalize(statement) }
     var result: [BrowserConfiguration] = []
@@ -736,9 +742,30 @@ public final class HubDatabase: @unchecked Sendable {
       result.append(
         BrowserConfiguration(
           deviceID: text(statement, 0), enabled: sqlite3_column_int(statement, 1) == 1,
-          retentionDays: Int(sqlite3_column_int(statement, 2))))
+          retentionDays: Int(sqlite3_column_int(statement, 2)),
+          websitePolicy: try? JSONDecoder().decode(
+            BrowserWebsitePolicy.self, from: Data(text(statement, 3).utf8)),
+          protectionReports: try? JSONDecoder().decode(
+            [BrowserProtectionReport].self, from: Data(text(statement, 4).utf8))))
     }
     return result
+  }
+
+  public func saveBrowserProtectionReports(_ reports: [BrowserProtectionReport], deviceID: String)
+    throws
+  {
+    var seen = Set<String>()
+    let bounded = reports.prefix(32).map {
+      BrowserProtectionReport(
+        browser: $0.browser, profile: $0.profile, version: $0.version,
+        state: $0.state, observedAt: $0.observedAt)
+    }.filter { seen.insert($0.id).inserted }
+    try run(
+      "INSERT OR IGNORE INTO browser_configuration(device_id, enabled, retention_days) VALUES(?, 0, 7);",
+      [.text(deviceID)])
+    try run(
+      "UPDATE browser_configuration SET protection_reports_json = ? WHERE device_id = ?;",
+      [.text(try json(bounded)), .text(deviceID)])
   }
 
   public func appendMoreTimeRequest(_ request: MoreTimeRequestRecord) throws {

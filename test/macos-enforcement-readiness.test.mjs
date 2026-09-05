@@ -55,18 +55,19 @@ test("readiness checker help is dependency-free and documents all private profil
   assert.match(output, /never copied/);
 });
 
-test("Stage 06D remains blocked and does not overclaim an installer or enforcement", () => {
+test("Stage 06D amendment separates browser tests from deferred system-extension gates", () => {
   const state = JSON.parse(tracker);
   const active = state.stages.find((candidate) => candidate.id === state.activeStage);
   assert.equal(active.id, "STAGE-06D");
   assert.equal(active.version, "0.6.4-rc.1");
-  assert.equal(active.status, "BLOCKED");
-  for (const document of [stage, decision]) {
-    assert.match(document, /no Stage 06D installer|Installer: none/i);
-    assert.match(document, /Developer ID/);
-    assert.match(document, /same Team ID/i);
-    assert.match(document, /physical acceptance matrix/i);
-  }
+  assert.ok(["IMPLEMENTING", "READY_FOR_DEVELOPER_TEST", "BLOCKED"].includes(active.status));
+  assert.match(stage, /MANAGED BROWSER WEBSITE BLOCKING/);
+  assert.match(stage, /Firefox.*unsigned|unsigned.*Firefox/i);
+  assert.match(stage, /automatic updates.*require/i);
+  assert.match(stage, /Safari.*unsupported|Excluded: Safari/i);
+  assert.match(decision, /Developer ID/);
+  assert.match(decision, /same Team ID/i);
+  assert.match(decision, /physical acceptance matrix/i);
   assert.match(decision, /no (?:application UI may expose these controls as operational|operational control)/i);
 });
 

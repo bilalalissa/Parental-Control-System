@@ -36,7 +36,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06d-macos-app-web-network-enforcement");
   assert.equal(active[0].version, "0.6.4-rc.1");
-  assert.equal(active[0].status, "BLOCKED");
+  assert.ok(["IMPLEMENTING", "READY_FOR_DEVELOPER_TEST", "BLOCKED"].includes(active[0].status));
   const idPattern = new RegExp(schema.properties.stages.items.properties.id.pattern);
   assert.ok(tracker.stages.every((stage) => idPattern.test(stage.id)));
 });
@@ -168,9 +168,9 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
     read("agents/endpoint-macos/Sources/EndpointCore/BrowserNativeMessaging.swift"),
   ]);
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.6.0.9");
-  assert.equal(manifest.version_name, "0.6.0-rc.9");
-  assert.deepEqual(manifest.permissions.sort(), ["alarms", "nativeMessaging", "storage", "tabs"]);
+  assert.equal(manifest.version, "0.6.4.1");
+  assert.equal(manifest.version_name, "0.6.4-rc.1");
+  assert.deepEqual(manifest.permissions.sort(), ["alarms", "declarativeNetRequest", "nativeMessaging", "storage", "tabs"]);
   for (const forbidden of ["history", "webRequest", "cookies", "downloads", "debugger"])
     assert.ok(!manifest.permissions.includes(forbidden));
   assert.equal(nativeManifest.allowed_origins.length, 1);
@@ -182,7 +182,7 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /configuration\.browser \|\| browser/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.0-rc\.9\.zip"/);
+  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.4-rc\.1\.zip"/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
   assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
@@ -356,14 +356,14 @@ test("Stage 06A transition installer is versioned, upgrade-safe, and capability-
     read(".github/workflows/stage-03-macos.yml"),
   ]);
   for (const build of [controllerBuild, endpointBuild]) {
-    assert.match(build, /VERSION="0\.6\.1-rc\.5"/);
-    assert.match(build, /CFBundleVersion string 6105/);
-    assert.match(build, /derived-data\/stage-06a/);
+    assert.match(build, /VERSION="0\.6\.4-rc\.1"/);
+    assert.match(build, /CFBundleVersion string 6401/);
+    assert.match(build, /derived-data\/stage-06d/);
   }
   assert.match(packaging, /ParentalControlSystem-\$VERSION\.pkg/);
-  assert.match(packaging, /--version 0\.6\.1\.5/);
+  assert.match(packaging, /--version 0\.6\.4\.1/);
   assert.doesNotMatch(packaging, /package_browser_extension\.sh/);
-  assert.match(distribution, /version="0\.6\.1\.5"/);
+  assert.match(distribution, /version="0\.6\.4\.1"/);
   assert.match(preinstall, /configuration\.json/);
   assert.doesNotMatch(preinstall + postinstall, /delete-generic-password|rm[^\n]*configuration\.json/);
   assert.match(readiness, /session-enforcement/);
@@ -387,7 +387,7 @@ test("Stage 06A transition installer is versioned, upgrade-safe, and capability-
   assert.match(child, /Effective time remaining/);
   assert.match(child, /Next limiting rule/);
   assert.match(helper, /Effective time remaining/);
-  assert.match(workflow, /ParentalControlSystem-0\.6\.1-rc\.5\.pkg/);
+  assert.match(workflow, /ParentalControlSystem-0\.6\.4-rc\.1\.pkg/);
   assert.doesNotMatch(workflow, /ParentalControlBrowserSharing-0\.6\.1-rc\.5/);
 });
 
@@ -478,7 +478,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /STAGE-06D is blocked at Apple entitlement readiness; STAGE-07 has not begun/);
+  assert.match(readme, /STAGE-06D is implementing managed browser website blocking; STAGE-07 has not begun/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);

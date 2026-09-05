@@ -2,6 +2,8 @@
 
 ## Supported versions
 
+The 2026-09-05 Stage-06D amendment is browser-only: parent policy changes use the existing signed, replay-protected LAN envelope; the child stores validated versions in root-protected configuration and exposes read-only rules through the allowlisted authenticated native host. Browser rules persist locally. Missing connections do not clear policies; clearing requires a newer explicit empty policy. Policy application is acknowledged after browser rule readback, not independently attested. Per-profile freshness expires after three minutes. A standard user able to disable an extension, open another profile/browser, or use guest/private mode can bypass these browser-only restrictions; no anti-administrator or universal-coverage claim is made. Browser launch/extension activation, publisher credentials and production auto-update validation remain external physical gates. The prior Apple system-extension entitlements remain deferred and are not embedded in this installer.
+
 The project is pre-release. Only the latest stage branch and the default branch receive security fixes.
 
 ## Reporting a vulnerability

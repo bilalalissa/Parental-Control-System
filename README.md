@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-06D is blocked at Apple entitlement readiness; STAGE-07 has not begun.** The enforcement design is approved, but this checkout has no signing identity or matching Network Extension and Endpoint Security provisioning profiles. No blocking controls or enforcement installer are claimed. See [Stage status](docs/stages/stage-status.json).
+> **STAGE-06D is implementing managed browser website blocking; STAGE-07 has not begun.** The developer amended scope on 2026-09-05 to Chromium/Firefox extensions managed through the authenticated child host. Safari, app-launch denial and device-wide Internet pause remain unavailable. Test packages are not production automatic-update distribution. See [Stage status](docs/stages/stage-status.json) and [Stage 06D](docs/stages/stage-06d.md).
 
 ## Product direction
 
@@ -48,7 +48,7 @@ Stage 06B finds that Platform SSO can require live identity-provider authenticat
 
 Stage 06C finds no documented automation interface for the evaluated ARRIS NVG448BQ firmware. Its local Access Control screen is an interactive credential-protected CGI page, and the ISP warns that its time profiles are currently unreliable and use a UTC-based offset. Automating that page would be fragile, require a broad router credential, and provide no dependable router-owned expiry. The current gateway is therefore manual-only and cannot support a product WAN-pause button. A future adapter remains possible for a separately approved router with a documented least-privilege API, routed-forwarding filters, IPv4/IPv6 parity, exact Wi-Fi/Ethernet device mapping, and router-owned automatic recovery. See [ADR-0003](docs/adr/0003-router-level-wan-pause-feasibility.md).
 
-Stage 06D defines the supported macOS enforcement path: Endpoint Security for application launch authorization and a Network Extension content-filter system extension for domain blocking and bounded WAN pause. Apple requires the extensions' signed entitlements to match one development team's provisioning profiles, and Endpoint Security is a managed entitlement that Apple must approve. The current machine has no valid signing identity and no profiles, so Gate 1 is blocked. The repository contains only non-secret templates and a readiness checker; it does not expose nonfunctional controls or package an entitlement-less extension. See [ADR-0004](docs/adr/0004-macos-enforcement-extension-readiness.md).
+Stage 06D now targets browser-only domain restrictions, independent of optional tab sharing, with persistent declarative rules and profile-level acknowledgements. Production extension signing/publication and physical enforcement remain release gates. The former Endpoint Security/Network Extension design is deferred because Developer ID and matching profiles are unavailable; it is not a prerequisite for browser-only local testing. See [ADR-0004](docs/adr/0004-macos-enforcement-extension-readiness.md).
 
 The `0.6.1-rc.5` transition build keeps the Stage-06 enforcement behavior and pairing format unchanged. Both visible apps distinguish signed schedule enforcement after a child session becomes active from managed pre-login enforcement, which remains explicitly not configured. The authenticated GUI helper marks startup, wake/unlock, and public Screen Saver termination as activation boundaries, uses a fresh public Screen Saver instance for each lock request, and performs a bounded active-session re-lock check only while a recent signed-policy evaluation remains blocked and its next allowed boundary has not arrived. The child Status view scrolls and separately reports scheduled-window time, daily active-use quota, approved bonus time, temporary allowance, effective remaining time, and the rule that limits it first. It also exposes signed-policy time zone and policy-local time so system-time mismatches are visible. The endpoint announces a versioned `session-enforcement` capability without claiming or enabling managed identity.
 
@@ -84,7 +84,7 @@ npm test
 npm run cleanup:list
 ```
 
-Building the latest approved Stage 06A macOS transition candidate requires macOS 14 or newer with Xcode and Swift installed. Stages 06B and 06C are documentation-only. Stage 06D remains source-only until its Apple signing gate passes. Native build work remains constrained to two workers and one project-owned output tree:
+Building the Stage 06D browser-policy test candidate requires macOS 14 or newer with Xcode and Swift installed. Stages 06B and 06C are documentation-only. Native build work remains constrained to two workers and one project-owned output tree:
 
 ```sh
 swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests
