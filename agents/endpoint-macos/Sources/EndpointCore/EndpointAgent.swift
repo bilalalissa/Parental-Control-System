@@ -25,8 +25,7 @@ public final class EndpointAgent: @unchecked Sendable {
 
   public init(
     store: ProtectedConfigurationStore, repository: EndpointStatusRepository, log: BoundedLog,
-    keychain: KeychainStore = KeychainStore(service: "com.bilalalissa.ParentalControlAgent.device"),
-    suppliedIdentity: Ed25519Identity? = nil, policyRuntime: EndpointPolicyRuntime? = nil,
+    suppliedIdentity: Ed25519Identity, policyRuntime: EndpointPolicyRuntime? = nil,
     pairedControllerPort: UInt16 = SecureWebSocketServer.parentControlPort,
     onEstablishedConnectionLoss: @escaping @Sendable () -> Void = {}
   ) throws {
@@ -43,13 +42,7 @@ public final class EndpointAgent: @unchecked Sendable {
     repository.configureBrowser(
       enabled: configuration.browserCollectionEnabled,
       retentionDays: configuration.browserRetentionDays, websitePolicy: configuration.websitePolicy)
-    if let suppliedIdentity {
-      identity = suppliedIdentity
-    } else {
-      let key = try keychain.loadOrCreateRandom(
-        account: "device-\(configuration.deviceID)", byteCount: 32)
-      identity = try Ed25519Identity(keyID: "device-\(configuration.deviceID)", rawPrivateKey: key)
-    }
+    identity = suppliedIdentity
   }
 
   public func start() throws {

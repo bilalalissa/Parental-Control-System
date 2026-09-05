@@ -301,8 +301,7 @@ struct EndpointCoreTests {
     let original = EndpointConfiguration(
       deviceID: "upgrade-stable-device", pairedController: controller, sequence: 42,
       activityCollectionEnabled: true, activityRetentionDays: 7,
-      browserCollectionEnabled: true, browserRetentionDays: 7,
-      identityKeychainService: EndpointIdentityKeychain.repairService)
+      browserCollectionEnabled: true, browserRetentionDays: 7)
     try ProtectedConfigurationStore(root: root).save(original)
 
     // Reopening the store models a replacement package starting the new daemon against the
@@ -312,7 +311,6 @@ struct EndpointCoreTests {
     #expect(reloaded == original)
     #expect(reloaded.deviceID == "upgrade-stable-device")
     #expect(reloaded.pairedController == controller)
-    #expect(reloaded.identityKeychainService == EndpointIdentityKeychain.repairService)
   }
 
   @Test("reconnects immediately after loss, then bounds short retries")

@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06d-macos-app-web-network-enforcement");
-  assert.equal(active[0].version, "0.6.4-rc.3");
+  assert.equal(active[0].version, "0.6.4-rc.4");
   assert.ok(["IMPLEMENTING", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "BLOCKED"].includes(active[0].status));
   const idPattern = new RegExp(schema.properties.stages.items.properties.id.pattern);
   assert.ok(tracker.stages.every((stage) => idPattern.test(stage.id)));
@@ -66,13 +66,12 @@ test("Stage 04 keeps the visible helper alive and refreshes its launch registrat
   assert.match(postinstall, /launchctl bootout "\$USER_SERVICE"/);
   assert.match(postinstall, /launchctl bootstrap "gui\/\$CONSOLE_UID"/);
   assert.match(postinstall, /launchctl kickstart -k "\$USER_SERVICE"/);
-  const rc5Daemon = /0bb256f6135e59e5b217d11894d9848c6f64529ec5dccd6c4c0d14d853b52a66/;
-  assert.match(preinstall, rc5Daemon);
-  assert.match(preinstall, /configuration\.json/);
-  assert.match(preinstall, /identityKeychainService/);
-  assert.match(preinstall, /ParentalControlAgent\.device\.rc3/);
-  assert.doesNotMatch(postinstall, rc5Daemon);
-  assert.doesNotMatch(postinstall, /\/bin\/cp -p "\$BRIDGE" "\$INSTALLED_DAEMON"/);
+  assert.match(preinstall, /\.installer-maintenance\.plist/);
+  assert.match(preinstall, /EXPIRES_AT="\$\(\(ISSUED_AT \+ 600\)\)"/);
+  assert.match(preinstall, /launchctl bootout "\$USER_SERVICE"/);
+  assert.match(postinstall, /endpoint-identity\.key/);
+  assert.match(postinstall, /xpc-clients\.plist/);
+  assert.doesNotMatch(preinstall + postinstall, /identityKeychainService|rc5-daemon-upgrade/);
   assert.doesNotMatch(preinstall, /security|delete-generic-password|device-/);
 });
 
@@ -357,15 +356,18 @@ test("Stage 06D transition installer is versioned, upgrade-safe, and capability-
     read(".github/workflows/stage-03-macos.yml"),
   ]);
   for (const build of [controllerBuild, endpointBuild]) {
-    assert.match(build, /VERSION="0\.6\.4-rc\.3"/);
-    assert.match(build, /CFBundleVersion string 6403/);
+    assert.match(build, /VERSION="0\.6\.4-rc\.4"/);
+    assert.match(build, /CFBundleVersion string 6404/);
     assert.match(build, /derived-data\/stage-06d/);
   }
   assert.match(packaging, /ParentalControlSystem-\$VERSION\.pkg/);
-  assert.match(packaging, /--version 0\.6\.4\.3/);
+  assert.match(packaging, /--version 0\.6\.4\.4/);
+  assert.match(packaging, /xpc-clients\.plist/);
+  assert.match(endpointBuild, /file identity is authorized only for ad-hoc test builds/);
+  assert.match(endpointBuild, /--options runtime/);
   assert.doesNotMatch(packaging, /package_browser_extension\.sh/);
-  assert.match(distribution, /version="0\.6\.4\.3"/);
-  assert.match(preinstall, /configuration\.json/);
+  assert.match(distribution, /version="0\.6\.4\.4"/);
+  assert.match(preinstall, /\.installer-maintenance\.plist/);
   assert.doesNotMatch(preinstall + postinstall, /delete-generic-password|rm[^\n]*configuration\.json/);
   assert.match(readiness, /session-enforcement/);
   assert.match(readiness, /managed-identity-login/);
@@ -388,7 +390,7 @@ test("Stage 06D transition installer is versioned, upgrade-safe, and capability-
   assert.match(child, /Effective time remaining/);
   assert.match(child, /Next limiting rule/);
   assert.match(helper, /Effective time remaining/);
-  assert.match(workflow, /ParentalControlSystem-0\.6\.4-rc\.3\.pkg/);
+  assert.match(workflow, /ParentalControlSystem-0\.6\.4-rc\.4\.pkg/);
   assert.doesNotMatch(workflow, /ParentalControlBrowserSharing-0\.6\.1-rc\.5/);
 });
 

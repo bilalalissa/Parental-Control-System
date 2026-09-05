@@ -12,14 +12,12 @@ public struct EndpointConfiguration: Codable, Equatable, Sendable {
   public var browserCollectionEnabled: Bool
   public var browserRetentionDays: Int
   public var websitePolicy: BrowserWebsitePolicy?
-  public var identityKeychainService: String
 
   public init(
     deviceID: String = UUID().uuidString.lowercased(), invitation: PairingInvitation? = nil,
     pairedController: PairingInvitation? = nil, sequence: UInt64 = 0,
     activityCollectionEnabled: Bool = true, activityRetentionDays: Int = 7,
-    browserCollectionEnabled: Bool = false, browserRetentionDays: Int = 7,
-    identityKeychainService: String = EndpointIdentityKeychain.legacyService
+    browserCollectionEnabled: Bool = false, browserRetentionDays: Int = 7
   ) {
     self.deviceID = deviceID
     self.invitation = invitation
@@ -29,14 +27,13 @@ public struct EndpointConfiguration: Codable, Equatable, Sendable {
     self.activityRetentionDays = max(1, min(activityRetentionDays, 30))
     self.browserCollectionEnabled = browserCollectionEnabled
     self.browserRetentionDays = max(1, min(browserRetentionDays, 30))
-    self.identityKeychainService = EndpointIdentityKeychain.validated(identityKeychainService)
   }
 
   private enum CodingKeys: String, CodingKey {
     case deviceID, invitation, pairedController, sequence
     case activityCollectionEnabled, activityRetentionDays
     case browserCollectionEnabled, browserRetentionDays
-    case websitePolicy, identityKeychainService
+    case websitePolicy
   }
 
   public init(from decoder: Decoder) throws {
@@ -55,18 +52,6 @@ public struct EndpointConfiguration: Codable, Equatable, Sendable {
       .validated()
     browserRetentionDays = max(
       1, min(try values.decodeIfPresent(Int.self, forKey: .browserRetentionDays) ?? 7, 30))
-    identityKeychainService = EndpointIdentityKeychain.validated(
-      try values.decodeIfPresent(String.self, forKey: .identityKeychainService)
-        ?? EndpointIdentityKeychain.legacyService)
-  }
-}
-
-public enum EndpointIdentityKeychain {
-  public static let legacyService = "com.bilalalissa.ParentalControlAgent.device"
-  public static let repairService = "com.bilalalissa.ParentalControlAgent.device.rc3"
-
-  public static func validated(_ value: String) -> String {
-    value == repairService ? repairService : legacyService
   }
 }
 

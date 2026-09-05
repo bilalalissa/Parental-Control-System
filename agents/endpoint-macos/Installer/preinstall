@@ -3,26 +3,30 @@ set -euo pipefail
 
 TARGET_VOLUME="${3:-/}"
 SUPPORT="$TARGET_VOLUME/Library/Application Support/ParentalControlAgent"
-CONFIGURATION="$SUPPORT/configuration.json"
-INSTALLED_DAEMON="$TARGET_VOLUME/Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon"
-BRIDGE="$SUPPORT/.rc5-daemon-upgrade"
-RC5_DAEMON_SHA256="0bb256f6135e59e5b217d11894d9848c6f64529ec5dccd6c4c0d14d853b52a66"
+MARKER="$SUPPORT/.installer-maintenance.plist"
 
-/bin/rm -f -- "$BRIDGE"
-if [[ -f "$CONFIGURATION" && -x "$INSTALLED_DAEMON" ]]; then
-  INSTALLED_SHA256="$(/usr/bin/shasum -a 256 "$INSTALLED_DAEMON" | /usr/bin/awk '{print $1}')"
-  if [[ "$INSTALLED_SHA256" == "$RC5_DAEMON_SHA256" ]]; then
-    # The rc.5 ad-hoc code requirement cannot be inherited by a changed executable. Use a new,
-    # allowlisted Keychain service and require one adult-authorized pairing repair. Never export
-    # or copy the old private key to disk.
-    if /usr/bin/plutil -extract identityKeychainService raw "$CONFIGURATION" >/dev/null 2>&1; then
-      /usr/bin/plutil -replace identityKeychainService -string \
-        "com.bilalalissa.ParentalControlAgent.device.rc3" "$CONFIGURATION"
-    else
-      /usr/bin/plutil -insert identityKeychainService -string \
-        "com.bilalalissa.ParentalControlAgent.device.rc3" "$CONFIGURATION"
-    fi
-    /usr/sbin/chown root:wheel "$CONFIGURATION"
-    /bin/chmod 600 "$CONFIGURATION"
+# Stop the current visible-session helper before package replacement. This also halts a stale
+# RC3 fail-closed relock loop while the administrator-authorized upgrade is in progress.
+if [[ "$TARGET_VOLUME" == "/" ]]; then
+  CONSOLE_UID="$(/usr/bin/stat -f '%u' /dev/console)"
+  if [[ "$CONSOLE_UID" =~ ^[0-9]+$ ]] && (( CONSOLE_UID >= 500 )); then
+    USER_SERVICE="gui/$CONSOLE_UID/com.bilalalissa.ParentalControlAgent.user"
+    /bin/launchctl bootout "$USER_SERVICE" >/dev/null 2>&1 || true
+    /usr/bin/pkill -u "$CONSOLE_UID" -x ParentalControlAgentUser >/dev/null 2>&1 || true
   fi
 fi
+
+# Give only this administrator-authorized installer run a short fail-safe recovery window. The
+# daemon consumes this root-only marker once; it rejects stale or longer-than-ten-minute values.
+/bin/mkdir -p "$SUPPORT"
+/usr/sbin/chown root:wheel "$SUPPORT"
+/bin/chmod 700 "$SUPPORT"
+ISSUED_AT="$(/bin/date +%s)"
+EXPIRES_AT="$((ISSUED_AT + 600))"
+TEMP_MARKER="$SUPPORT/.installer-maintenance.$$.tmp"
+/usr/bin/plutil -create xml1 "$TEMP_MARKER"
+/usr/libexec/PlistBuddy -c "Add :issuedAtEpoch integer $ISSUED_AT" "$TEMP_MARKER"
+/usr/libexec/PlistBuddy -c "Add :expiresAtEpoch integer $EXPIRES_AT" "$TEMP_MARKER"
+/usr/sbin/chown root:wheel "$TEMP_MARKER"
+/bin/chmod 600 "$TEMP_MARKER"
+/bin/mv -f "$TEMP_MARKER" "$MARKER"

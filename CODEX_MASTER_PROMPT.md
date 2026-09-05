@@ -749,7 +749,14 @@ Before extension source or installer work, run an entitlement-readiness gate tha
 
 Acceptance after the gate opens includes signed-build entitlement verification, system-extension activation and upgrade/deactivation, parent confirmation and audit, app launch/relaunch denial, domain denial across supported browsers, WAN pause with local control preserved, hard expiry across controller loss/sleep/reboot, IPv4/IPv6 and Wi-Fi/Ethernet coverage, standard-child tamper checks, adult recovery, clean uninstall, bounded resource measurements, and one signed/notarized package. Source tests alone cannot satisfy physical enforcement acceptance.
 
-Version: `0.6.4-rc.3`.
+The developer additionally authorized an ad-hoc test-build exception for the child endpoint's
+Ed25519 private identity: an atomic `root:wheel` mode `0600` file inside the mode `0700` protected
+Application Support directory. This exception is limited to unsigned/ad-hoc test builds and must
+migrate back to Keychain when stable Developer ID signing becomes available. Controller secrets
+remain in Keychain. Installed XPC clients must be bound to exact package paths, identifiers and
+SHA-256 values; the exception must not weaken the standard-child threat model.
+
+Version: `0.6.4-rc.4`.
 
 ### STAGE-07 — Windows Child Agent foundation
 

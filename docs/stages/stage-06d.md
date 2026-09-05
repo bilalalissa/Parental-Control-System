@@ -1,14 +1,51 @@
 # STAGE-06D — Managed browser website blocking
 
-- Version: `0.6.4-rc.3` (build `6403`); browser extensions remain `0.6.4-rc.1` unchanged
+- Version: `0.6.4-rc.4` (build `6404`); browser extensions remain `0.6.4-rc.1` unchanged
 - Branch: `stage/06d-macos-app-web-network-enforcement`
-- Status: `READY_FOR_RETEST` (capability-refresh repair; production distribution is not ready)
+- Status: `IMPLEMENTING` (identity/XPC recovery retest; production distribution is not ready)
 - Scope amended by the developer on 2026-09-05: `AUTHORIZE STAGE-06D SCOPE AMENDMENT: MANAGED BROWSER WEBSITE BLOCKING. PROCEED.`
 - The former system-extension design in [ADR-0004](../adr/0004-macos-enforcement-extension-readiness.md) is deferred. Its Apple Developer ID and same Team ID gate and physical acceptance matrix apply only to future system-wide enforcement, not this browser-only test candidate.
 
 ## Objective and scope
 
 Apply one parent-authored domain blocklist independently in each enrolled Chromium or Firefox profile through the existing authenticated LAN and native host. Preserve upgrades/pairing, current schedules and optional tab sharing. Do not modify browser installations or live family policies during development.
+
+### RC4 retest: ad-hoc identity and XPC recovery
+
+RC3 physical evidence showed the installed daemon running but unable to use its Keychain identity
+(`User interaction is not allowed`) and rejecting all standard-user XPC clients. That combination
+left authenticated LAN heartbeats offline and allowed the cached fail-closed schedule to relock the
+child repeatedly. Wi-Fi connectivity was not the source of the Offline state.
+
+The developer explicitly authorized a narrow exception for unsigned/ad-hoc test builds. RC4 stores
+only the child endpoint's 32-byte Ed25519 private identity in an atomically renamed `root:wheel`
+mode-`0600` file below the root-owned mode-`0700` endpoint directory. Controller secrets remain in
+Keychain. The file survives an in-place package upgrade. A stable Developer ID distribution must
+migrate this identity back to Keychain.
+
+RC4 replaces PID-to-code lookup with a root-owned package manifest containing the four exact
+installed executable paths, their expected signing identifiers and package-generated SHA-256
+values. The daemon validates every executable and its ad-hoc hardened-runtime signature at startup,
+then maps each XPC peer from the kernel-reported process path to that prevalidated record. A standard
+child user cannot replace the manifest, executable, app bundle or identity file.
+
+Before replacement the administrator installer stops the visible helper, preventing the stale lock
+loop from continuing during upgrade. It writes a consumed-once root-only maintenance marker whose
+hard maximum is ten minutes. This briefly clears schedule restriction during recovery and cannot be
+renewed by a standard child account. A fresh signed policy restores clock trust after reconnection;
+normal fail-closed offline enforcement resumes when the bounded window expires.
+
+Because RC3 never successfully unlocked the old Keychain key, RC4 cannot securely recover that
+private key. One final adult-authorized pairing repair is required after first installing RC4. Do
+not unpair: create a fresh one-time invitation for the existing device and install it with
+`parental-control-agentctl pair`; the controller rotates the public credential while retaining the
+device record and policy history. Subsequent RC4 reinstalls and future compatible ad-hoc upgrades
+reuse the protected file identity without another repair.
+
+Acceptance: the child stays unlocked during the installer recovery window; one adult pairing repair
+returns it Online; Status, session updates, immediate actions and browser policy controls work; the
+same schedule is reapplied and locks only outside allowed time; a same-version reinstall reconnects
+without repair; and the helper does not enter a five-second lock loop.
 
 ### RC3 retest: legacy helper replacement and one-time pairing repair
 
@@ -85,8 +122,8 @@ Official references:
 
 ## Installation and manual developer tests
 
-1. Quit the Parent app, install the RC3 Parent Controller component on the parent Mac, then reopen it. Install only Child Endpoint on the child Mac. Use an ordinary standard child account and retain an adult recovery administrator. Install over existing apps without uninstalling or clicking Unpair.
-2. If this child carried the exact legacy rc.5 daemon, perform the one-time invitation repair exactly as described above. Confirm that the parent still shows the same device once, now online with website blocking available. If no repair is requested, do not manufacture one.
+1. Quit the Parent app, install the RC4 Parent Controller component on the parent Mac, then reopen it. Install only Child Endpoint RC4 on the child Mac. Use an ordinary standard child account and retain an adult recovery administrator. Install over existing apps without uninstalling or clicking Unpair. The installer should stop the RC3 lock loop and provide at most ten minutes for recovery.
+2. Perform the one final RC4 invitation repair exactly as described above. Confirm that the parent still shows the same device once, now online with website blocking available. Do not unpair or delete the existing device record.
 3. Keep an existing loaded 0.6.4-rc.1 extension unchanged. Otherwise extract the Chromium ZIP to a stable location, load it through the browser's extension developer UI and approve the declarative blocking permission. Repeat per Chrome/Edge/Arc/Brave profile being tested.
 4. For Firefox, temporarily load the unsigned XPI via about:debugging. Permanent restart/automatic-update testing is blocked until a signed distribution is available.
 5. In Devices > Browser website restrictions, enter `example.com` and `youtube.com`, confirm Apply and wait for each reporting profile's matching policy acknowledgement (normally within 1–2 minutes).
@@ -96,7 +133,7 @@ Official references:
 9. Close/restart Chromium: dynamic rules persist. Firefox temporary install restart is explicitly not a pass for permanent persistence.
 10. Apply an empty list: confirm the formerly blocked sites become available and new-version acknowledgements arrive.
 11. Disable/remove the extension or close the browser: after three minutes, status becomes Not reporting. Add another profile: do not infer protection from the first profile. Safari must remain Unsupported.
-12. Reinstall the rc.3 child component in place: it must reconnect without another invitation; the schedule and extension identity remain. Verify chat and schedule behavior remain intact.
+12. Reinstall the RC4 child component in place: it must reconnect without another invitation; the schedule, file identity and extension identity remain. Verify chat and schedule behavior remain intact and no repeated lock loop occurs.
 13. Confirm the Parent app never claims device-wide WAN/app blocking or complete browser protection.
 
 ## Rollback and cleanup
@@ -146,7 +183,7 @@ Collect OS/browser version, selected installer component, test step, requested p
 ```text
 STAGE FEEDBACK
 Stage: STAGE-06D
-Version: 0.6.4-rc.3 (6403)
+Version: 0.6.4-rc.4 (6404)
 Platform and OS:
 Hardware:
 Result: PASS | FAIL | PARTIAL

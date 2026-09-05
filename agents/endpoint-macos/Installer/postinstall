@@ -7,7 +7,13 @@ INSTALLED_DAEMON="$TARGET_VOLUME/Library/PrivilegedHelperTools/com.bilalalissa.P
 mkdir -p "$SUPPORT/Logs"
 chown -R root:wheel "$SUPPORT"
 chmod 700 "$SUPPORT" "$SUPPORT/Logs"
-/bin/rm -f -- "$SUPPORT/.rc5-daemon-upgrade"
+chmod 600 "$SUPPORT/xpc-clients.plist"
+if [[ -f "$SUPPORT/endpoint-identity.key" ]]; then
+  chmod 600 "$SUPPORT/endpoint-identity.key"
+fi
+if [[ -f "$SUPPORT/.installer-maintenance.plist" ]]; then
+  chmod 600 "$SUPPORT/.installer-maintenance.plist"
+fi
 chmod 644 "$TARGET_VOLUME/Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist"
 chmod 644 "$TARGET_VOLUME/Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist"
 chmod 755 "$INSTALLED_DAEMON"

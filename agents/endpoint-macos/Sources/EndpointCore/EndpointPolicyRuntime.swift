@@ -9,6 +9,7 @@ public enum EndpointPolicyError: Error, Equatable {
   case replayedVersion
   case invalidAdultCode
   case adultCodeLocked
+  case invalidInstallerMaintenance
 }
 
 public struct AdultCodeVerifier: Codable, Equatable, Sendable {
@@ -185,6 +186,22 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
     state.verifier = verifier
     state.failedAdultAttempts = []
     state.adultCodeLockedUntil = nil
+    try persistLocked()
+  }
+
+  /// Applies the short recovery window created by an administrator-authorized package install.
+  /// The installer marker is root-only and consumed once by the daemon; callers cannot extend
+  /// the window beyond ten minutes.
+  public func beginInstallerMaintenance(until: Date, now: Date = Date()) throws {
+    guard until > now,
+      until.timeIntervalSince(now) <= EndpointInstallerMaintenanceMarker.maximumDuration
+    else { throw EndpointPolicyError.invalidInstallerMaintenance }
+    lock.lock()
+    defer { lock.unlock() }
+    if state.adultOverrideUntil.map({ $0 < until }) ?? true {
+      state.adultOverrideUntil = until
+    }
+    clearRestrictionLocked()
     try persistLocked()
   }
 
