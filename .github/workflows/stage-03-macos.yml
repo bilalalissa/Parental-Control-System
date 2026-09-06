@@ -96,8 +96,8 @@ jobs:
       - name: Verify selectable package choices
         if: steps.scope.outputs.build == 'true'
         run: |
-          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.2.pkg" -target / | /usr/bin/plutil -lint -
-          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.2.pkg" || true
+          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.3.pkg" -target / | /usr/bin/plutil -lint -
+          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.3.pkg" || true
       - name: Reset macOS installer test fixture
         if: steps.scope.outputs.build == 'true'
         run: |
@@ -129,7 +129,7 @@ jobs:
         if: steps.scope.outputs.build == 'true'
         run: |
           sudo /usr/sbin/installer \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.2.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.3.pkg" \
             -target /
           test -x "/Applications/Parental Control.app/Contents/MacOS/ParentalControlController"
           test ! -e "/Applications/Parental Control Child.app"
@@ -141,7 +141,7 @@ jobs:
         run: |
           if ! sudo /usr/sbin/installer \
             -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.2.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.3.pkg" \
             -target /; then
             sudo /usr/bin/tail -n 200 /var/log/install.log || true
             exit 1
@@ -163,11 +163,14 @@ jobs:
             first_device_id="$(node -p 'JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status.json", "utf8")).deviceID')"
             test "$(sudo /usr/bin/stat -f '%u:%Lp' "/Library/Application Support/ParentalControlAgent/endpoint-identity.key")" = "0:600"
             test "$(sudo /usr/bin/stat -f '%u:%Lp' "/Library/Application Support/ParentalControlAgent/xpc-clients.plist")" = "0:600"
+            test "$(sudo /usr/bin/stat -f '%u:%Lp' "/Library/Application Support/ParentalControlBrowserExtension/Chromium")" = "0:755"
+            test "$(sudo /usr/bin/stat -f '%u:%Lp' "/Library/Application Support/ParentalControlBrowserExtension/Chromium/manifest.json")" = "0:644"
+            node -e 'const m = require("/Library/Application Support/ParentalControlBrowserExtension/Chromium/manifest.json"); if (m.version !== "0.6.5.3") process.exit(1)'
             first_identity_hash="$(sudo /usr/bin/shasum -a 256 "/Library/Application Support/ParentalControlAgent/endpoint-identity.key" | /usr/bin/awk '{print $1}')"
             # Verify child in-place upgrade preserves endpoint identity and protected state.
             if ! sudo /usr/sbin/installer \
               -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
-              -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.2.pkg" \
+              -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.3.pkg" \
               -target /; then
               sudo /usr/bin/tail -n 200 /var/log/install.log || true
               exit 1
@@ -264,20 +267,21 @@ jobs:
           test ! -e /usr/local/bin/parental-control-agentctl
           test ! -e /Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json
           test ! -e /Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json
+          test ! -e "/Library/Application Support/ParentalControlBrowserExtension"
           test ! -e "$console_user_home/Library/Application Support/Arc/User Data/NativeMessagingHosts/com.bilalalissa.parental_control.json"
           exit "$status_exit"
       - name: Upload release candidate
         if: steps.scope.outputs.build == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ParentalControlSystem-0.6.5-rc.2
+          name: ParentalControlSystem-0.6.5-rc.3
           path: |
-            .artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.2.pkg
-            .artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.2.pkg.sha256
-            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.4-rc.1.zip
-            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.4-rc.1.zip.sha256
-            .artifacts/release-candidate/ParentalControlBrowserFirefox-0.6.4-rc.1.xpi
-            .artifacts/release-candidate/ParentalControlBrowserFirefox-0.6.4-rc.1.xpi.sha256
+            .artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.3.pkg
+            .artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.3.pkg.sha256
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.5-rc.3.zip
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.5-rc.3.zip.sha256
+            .artifacts/release-candidate/ParentalControlBrowserFirefox-0.6.5-rc.3.xpi
+            .artifacts/release-candidate/ParentalControlBrowserFirefox-0.6.5-rc.3.xpi.sha256
           if-no-files-found: error
           retention-days: 7
       - name: Clean project-owned generated output

@@ -18,6 +18,45 @@ globalThis.WebsitePolicy = (() => {
     return policy.domains.length ? [{ id: 1, priority: 1, action: { type: "block" },
       condition: { requestDomains: policy.domains, resourceTypes: ["main_frame", "sub_frame"] } }] : [];
   }
+  function hostnameForURL(value) {
+    if (typeof value !== "string") return null;
+    try {
+      const url = new URL(value);
+      if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+      return url.hostname.toLowerCase().replace(/\.+$/, "");
+    } catch {
+      return null;
+    }
+  }
+  function matchingDomain(value, policy) {
+    const hostname = hostnameForURL(value);
+    if (!hostname) return null;
+    return validate(policy).domains.find((domain) =>
+      hostname === domain || hostname.endsWith(`.${domain}`)) || null;
+  }
+  async function cached(api) {
+    const stored = await api.storage.local.get("websitePolicy");
+    return stored.websitePolicy ? validate(stored.websitePolicy) : null;
+  }
+  async function enforceTab(api, tab, policy) {
+    if (!tab || tab.incognito === true || !Number.isSafeInteger(tab.id) ||
+        !matchingDomain(tab.url, policy)) return false;
+    await api.tabs.update(tab.id, { url: api.runtime.getURL("blocked.html") });
+    return true;
+  }
+  async function enforceOpenTabs(api, policy) {
+    const validated = validate(policy);
+    const tabs = await api.tabs.query({});
+    let blocked = 0;
+    for (const tab of tabs) {
+      try {
+        if (await enforceTab(api, tab, validated)) blocked += 1;
+      } catch {
+        // A tab can close or become a protected browser page during reconciliation.
+      }
+    }
+    return blocked;
+  }
   function sameRules(actual, expected) {
     if (actual.length !== expected.length) return false;
     return !expected.length || (actual[0].id === 1 && actual[0].action.type === "block" &&
@@ -41,5 +80,8 @@ globalThis.WebsitePolicy = (() => {
     await api.storage.local.set({ websitePolicy: policy });
     return policy.version;
   }
-  return { validate, rulesFor, sameRules, apply };
+  return {
+    validate, rulesFor, hostnameForURL, matchingDomain, cached, enforceTab, enforceOpenTabs,
+    sameRules, apply
+  };
 })();

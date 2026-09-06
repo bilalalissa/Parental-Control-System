@@ -2,6 +2,16 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.5-rc.3 — 2026-09-06
+
+Status: **STAGE-06E implementing authorized browser compatibility fix; unreleased**
+
+- Retains RC2 application-use enforcement and hardens enrolled-browser domain enforcement for ordinary navigation, restored tabs and SPA URL changes.
+- Parses only local HTTP(S) hostnames, matches exact domains and subdomains, rejects lookalikes, and redirects matches to a bundled static local block page without inspecting or transmitting paths, queries, content, requests, cookies, DNS history or traffic.
+- Installs the Chromium test-extension source at a stable root-owned read-only path. Existing unpacked test profiles require one explicit adult-supervised move to that path; later installer replacements keep the path stable.
+- Updates both Chromium and temporary unsigned Firefox test packages and preserves optional tab sharing as a separate control.
+- Authorized with the exact Stage-06E scope amendment and `PROCEED: STAGE-06E 0.6.5-rc.3 BROWSER COMPATIBILITY FIX` on 2026-09-06.
+
 ## 0.6.5-rc.2 — 2026-09-06
 
 Status: **STAGE-06E ready for developer retest; unreleased**

@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06e-macos-app-use-restrictions");
-  assert.equal(active[0].version, "0.6.5-rc.2");
+  assert.equal(active[0].version, "0.6.5-rc.3");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
       active[0].status,
@@ -175,8 +175,8 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
     read("agents/endpoint-macos/Sources/ParentalControlBrowserHost/main.swift"),
   ]);
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.6.4.1");
-  assert.equal(manifest.version_name, "0.6.4-rc.1");
+  assert.equal(manifest.version, "0.6.5.3");
+  assert.equal(manifest.version_name, "0.6.5-rc.3");
   assert.deepEqual(manifest.permissions.sort(), ["alarms", "declarativeNetRequest", "nativeMessaging", "storage", "tabs"]);
   for (const forbidden of ["history", "webRequest", "cookies", "downloads", "debugger"])
     assert.ok(!manifest.permissions.includes(forbidden));
@@ -187,9 +187,14 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /\.slice\(0, MAX_TABS\)/);
   assert.match(worker, /configuration\.query/);
   assert.match(worker, /configuration\.browser \|\| browser/);
+  assert.match(worker, /WebsitePolicy\.enforceOpenTabs/);
+  assert.match(worker, /tabs\.onUpdated/);
+  assert.match(worker, /tabs\.onActivated/);
+  assert.match(worker, /runtime\.onStartup/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.4-rc\.1\.zip"/);
+  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.5-rc\.3\.zip"/);
+  assert.match(packager, /blocked\.html/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
   assert.doesNotMatch(packager, /(?:^|\s)rg(?:\s|$)/m);
@@ -366,17 +371,19 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
     read(".github/workflows/stage-03-macos.yml"),
   ]);
   for (const build of [controllerBuild, endpointBuild]) {
-    assert.match(build, /VERSION="0\.6\.5-rc\.2"/);
-    assert.match(build, /CFBundleVersion string 6502/);
+    assert.match(build, /VERSION="0\.6\.5-rc\.3"/);
+    assert.match(build, /CFBundleVersion string 6503/);
     assert.match(build, /derived-data\/stage-06e/);
   }
   assert.match(packaging, /ParentalControlSystem-\$VERSION\.pkg/);
-  assert.match(packaging, /--version 0\.6\.5\.2/);
+  assert.match(packaging, /--version 0\.6\.5\.3/);
   assert.match(packaging, /xpc-clients\.plist/);
   assert.match(endpointBuild, /file identity is authorized only for ad-hoc test builds/);
   assert.match(endpointBuild, /--options runtime/);
-  assert.doesNotMatch(packaging, /package_browser_extension\.sh/);
-  assert.match(distribution, /version="0\.6\.5\.2"/);
+  assert.match(packaging, /package_browser_extension\.sh/);
+  assert.match(packaging, /ParentalControlBrowserExtension\/Chromium/);
+  assert.match(packaging, /blocked\.html/);
+  assert.match(distribution, /version="0\.6\.5\.3"/);
   assert.match(preinstall, /\.installer-maintenance\.plist/);
   assert.doesNotMatch(preinstall + postinstall, /delete-generic-password|rm[^\n]*configuration\.json/);
   assert.match(readiness, /session-enforcement/);
@@ -402,7 +409,7 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
   assert.match(child, /Effective time remaining/);
   assert.match(child, /Next limiting rule/);
   assert.match(helper, /Effective time remaining/);
-  assert.match(workflow, /ParentalControlSystem-0\.6\.5-rc\.2\.pkg/);
+  assert.match(workflow, /ParentalControlSystem-0\.6\.5-rc\.3\.pkg/);
   assert.doesNotMatch(workflow, /ParentalControlBrowserSharing-0\.6\.1-rc\.5/);
 });
 
@@ -493,7 +500,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /STAGE-06E macOS application-use restrictions are ready for developer (?:re)?testing; STAGE-07 has not begun/);
+  assert.match(readme, /STAGE-06E macOS application-use restrictions[\s\S]*STAGE-07 has not begun/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);

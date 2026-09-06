@@ -764,9 +764,9 @@ Implement a bounded application-use restriction for the standard macOS child acc
 
 The visible per-user helper detects launches through supported workspace notifications, validates the running code identity, displays a restriction notice and requests ordinary termination. If the app remains running after a short grace period, lock the session rather than force-killing the process. Protect Apple/system, login/recovery, Finder/Dock, Parent Controller and child endpoint components unconditionally. Preserve an adult recovery administrator and state plainly that a local administrator can bypass the product.
 
-Do not claim pre-launch denial: it requires Apple's Endpoint Security entitlement and a signed system extension. Do not use mutable paths or display names as identity, arbitrary process kill, private APIs, hidden monitoring, MDM, browser changes, WAN control, or later-platform work. Acceptance requires monotonic policy/rollback tests, identity mismatch and protected-app tests, offline/restart persistence, authenticated enforcement audit, same-version upgrade preservation, one selectable macOS test installer and physical standard-user testing.
+Do not claim pre-launch denial: it requires Apple's Endpoint Security entitlement and a signed system extension. Do not use mutable paths or display names as identity, arbitrary process kill, private APIs, hidden monitoring, MDM, WAN control, or later-platform work. The 2026-09-06 authorized compatibility amendment permits only hostname-based enforcement hardening for already-enrolled browsers: new navigations, restored tabs and SPA URL changes may be redirected to a bundled local block page without inspecting or transmitting paths, queries, content, requests or traffic. Acceptance requires monotonic policy/rollback tests, identity mismatch and protected-app tests, offline/restart persistence, authenticated enforcement audit, same-version upgrade preservation, one selectable macOS test installer and physical standard-user testing.
 
-Version: `0.6.5-rc.2`.
+Version: `0.6.5-rc.3`.
 
 ### STAGE-07 — Windows Child Agent foundation
 

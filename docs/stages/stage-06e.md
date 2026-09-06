@@ -1,9 +1,10 @@
 # STAGE-06E — macOS application-use restrictions
 
-- Version: `0.6.5-rc.2` (build `6502`)
+- Version: `0.6.5-rc.3` (build `6503`)
 - Branch: `stage/06e-macos-app-use-restrictions`
-- Status: `READY_FOR_RETEST`
+- Status: `IMPLEMENTING`
 - Authorized on 2026-09-05 with `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06E MACOS APP-USE RESTRICTIONS BEFORE STAGE-07` and `PROCEED: STAGE-06E`.
+- Browser-compatibility amendment authorized on 2026-09-06 with `AUTHORIZE STAGE-06E SCOPE AMENDMENT: HARDEN DOMAIN ENFORCEMENT FOR YOUTUBE, RESTORED TABS, AND SPA NAVIGATION IN ENROLLED BROWSERS; USE LOCAL HOSTNAME MATCHING ONLY, WITH NO CONTENT INSPECTION.` and `PROCEED: STAGE-06E 0.6.5-rc.3 BROWSER COMPATIBILITY FIX`.
 
 ## Objective and included scope
 
@@ -15,13 +16,15 @@ Rules remain active when optional application-name sharing is disabled and while
 
 This local ad-hoc build has no Apple Endpoint Security entitlement. It cannot authorize or deny execution before launch, and a restricted app may appear briefly before the visible per-user helper requests a normal quit. If normal termination is refused, the safe fallback is session lock rather than force-kill, protecting unsaved work. A device administrator can bypass or remove this enforcement.
 
-Excluded: Endpoint Security/system extensions; kernel-level pre-launch denial; force termination; command-line/path-only rules; Apple/system-app restriction; administrator resistance; hidden monitoring; screen/keystroke/content collection; WAN pause; browser changes; MDM; Windows/iPad work; Stage 07.
+Excluded: Endpoint Security/system extensions; kernel-level pre-launch denial; force termination; command-line/path-only rules; Apple/system-app restriction; administrator resistance; hidden monitoring; screen/keystroke/content collection; WAN pause; Safari/private/guest browser coverage; request or traffic inspection; managed extension deployment; MDM; Windows/iPad work; Stage 07. The RC3 amendment is limited to local HTTP(S) hostname matching in explicitly enrolled profiles.
 
-## RC1 feedback and RC2 correction
+## RC1/RC2 feedback and RC3 correction
 
 Physical testing showed that both the Discord app policy and YouTube website policy reached the child, but Discord stayed open without a notice or enforcement event and the enrolled Arc profile reported `Not reporting`. The application failure was a real RC1 lifetime bug: the helper weakly retained `NSRunningApplication` while awaiting XPC status, allowing the callback to exit before enforcement. RC2 instead carries immutable PID, bundle identifier and normalized bundle path, reacquires that PID after the reply, and validates the live bundle and current signing identity before acting. The delayed close check also reacquires the PID and rejects reuse or replacement.
 
-The Stage 06D extension and domain-rule implementation are not changed in Stage 06E. RC2's child upgrade ends only any pre-upgrade `ParentalControlBrowserHost` process, so the already-installed extension's next native request launches the replacement host. It does not close, reload, remove or reinstall Arc, Chrome, Edge, Brave, Firefox, or an extension. Declarative rules govern new navigation and frames; already-loaded YouTube content is not retroactively closed and must be tested with a new navigation or ordinary page refresh.
+RC2 repaired the native host upgrade but physical testing showed a narrower browser gap: Arc acknowledged the `youtube.com` policy while a restored YouTube application shell and same-document navigation remained usable. The earlier declarative rules covered network navigation frames, but browser restoration, service-worker-backed application shells and SPA history transitions do not reliably create a new main-frame request.
+
+RC3 keeps declarative rules and adds an independent local tab reconciliation layer. It reads only the browser-provided tab URL, parses the HTTP(S) hostname locally, discards path/query/fragment values, and compares the hostname to the cached bare-domain policy. Matching new navigation, active/restored tab or SPA URL changes are redirected to the bundled static `blocked.html` page. It does not inspect page content, requests, response data, cookies, traffic or DNS, and transmits no new URL fields. The installer places the Chromium source at the stable root-owned read-only path `/Library/Application Support/ParentalControlBrowserExtension/Chromium`. Because browsers cannot silently repoint an existing unpacked extension, RC3 needs one adult-supervised move from the previous manually selected directory to that stable path. Future installer replacements keep the same path and require only a normal full browser restart.
 
 ## Acceptance criteria
 
@@ -32,40 +35,36 @@ The Stage 06D extension and domain-rule implementation are not changed in Stage 
 5. Rules continue with activity sharing disabled and across parent disconnect/restart; upgrade preserves pairing and existing schedule/browser policy.
 6. Parent audit records distinguish policy queueing, quit request, confirmed close, and lock fallback. No command line, document/window content, or mutable app path is transmitted.
 7. Controller arm64 and child universal binaries build into one selectable unsigned/ad-hoc developer package with SHA-256 verification. Physical standard-user testing remains required.
+8. Enrolled browser profiles enforce exact and subdomain hostname rules during ordinary navigation, restored-tab startup and SPA URL changes, show only a local static block page, reject lookalike domains, and continue with optional tab sharing or the parent connection disabled.
 
 ## Resource and cleanup limits
 
-Use no more than two build workers, one checkout, one Stage-06E derived-data tree and one current macOS installer. Keep at least 5 GiB free. Run unit/protocol tests before the universal Release build. Remove project-owned `dist`, derived data and package staging after verifying the replacement candidate; preserve browser test packages unchanged and do not touch installed developer processes or simulator data.
+Use no more than two build workers, one checkout, one Stage-06E derived-data tree, one current macOS installer and one current pair of browser test packages. Keep at least 5 GiB free. Run unit/protocol tests before the universal Release build. Remove project-owned `dist`, derived data and package staging after verifying the replacement candidate; replace the previous browser packages only after RC3 verification and do not touch installed developer processes or simulator data.
 
 ## Manual developer test checklist
 
-1. Install Parent Controller and Child Endpoint from `ParentalControlSystem-0.6.5-rc.2.pkg` over RC1 without uninstalling or unpairing. Keep the browsers and installed extensions in place; do not reload an extension. Confirm the same child returns Online.
+1. Install Parent Controller and Child Endpoint from `ParentalControlSystem-0.6.5-rc.3.pkg` over RC2 without uninstalling or unpairing. Confirm the same child returns Online.
 2. Use a standard child account and retain a separate adult administrator. Open one signed third-party test app once so its exact identity appears in Devices > Application-use restrictions.
 3. Select that app and apply the policy. Confirm the audit reports queued/delivered policy metadata without paths or content.
 4. Leave the selected app open while applying the policy. It must show the visible restriction banner and receive a normal quit request promptly (the bounded reconciliation scan is at most 15 seconds). Re-launch it and confirm launch notification enforcement also works. Confirm a `quit-requested` and then `closed` audit event.
 5. With unsaved content in an explicitly disposable test document, cancel/refuse the app's quit prompt. After five seconds the session should lock once. Sign back in and close the app; confirm there is no recurring five-second schedule lock loop.
 6. Launch an unselected signed third-party app: it remains available. Apple/system and Parental Control apps are marked Protected and cannot be selected.
 7. Disable application-name sharing: the selected app remains restricted. Disconnect the parent: cached restriction remains. Reconnect and verify the device returns Online.
-8. With the existing enrolled browser extension still installed, keep the browser open during the child upgrade. Within 90 seconds or after opening a new tab, the parent profile must change from `Not reporting`/`Setup required` to the current policy acknowledgement. Navigate a new tab to `https://youtube.com` (or ordinarily refresh an existing tab); the blocked page must not load. Existing loaded video/content is not retroactively closed.
-9. Reinstall the child component in place: pairing, schedule, browser policy, endpoint identity and app policy remain. No repair invitation, browser restart, or extension reinstall/reload is required.
-10. Apply empty app and website policies: the formerly restricted app and a new browser navigation work normally.
-11. Record CPU/memory over five idle minutes and report OS, hardware, app bundle ID, expected result, observed result, and only the bounded relevant audit/log lines.
+8. Complete the one-time Chromium transition. Fully quit Arc/Chrome/Edge/Brave. Open its extension page, remove the older unpacked test copy, enable Developer Mode, choose **Load unpacked**, and select `/Library/Application Support/ParentalControlBrowserExtension/Chromium`. Reopen the browser and confirm the profile changes from `Setup required` to the current policy acknowledgement. Repeat per tested profile. Do not copy this folder into Downloads or modify its root-owned contents.
+9. Apply `youtube.com`. Confirm a fresh navigation is redirected to the visible local block page. Restart the browser with a YouTube tab selected for restoration and confirm it is redirected. Confirm `notyoutube.com` remains allowed. Add `youtu.be` separately when that short-link host must also be denied.
+10. Disable optional browser-tab sharing and disconnect the parent: cached hostname enforcement continues. No page content, path, query, fragment, cookie, DNS history or traffic payload appears in the parent, audit or endpoint logs.
+11. Reinstall the child component in place and fully restart the enrolled browser: pairing, schedule, browser policy, endpoint identity, app policy and the stable extension path remain. No new extension-path selection is required after this RC3 migration.
+12. Apply empty app and website policies: the formerly restricted app and a new browser navigation work normally.
+13. Record CPU/memory over five idle minutes and report OS, hardware, app bundle ID, expected result, observed result, and only the bounded relevant audit/log lines.
 
 ## Rollback
 
-Apply empty newer app and website policies before reverting. Installing Stage 06D RC5 over Stage 06E RC2 is not a supported database downgrade because Stage 06E adds schema fields, but the new fields are additive and ignored by older code. The administrator uninstaller remains reserved for intentional endpoint removal and is not an upgrade path.
+Apply empty newer app and website policies before reverting. Installing Stage 06D RC5 over Stage 06E RC3 is not a supported database downgrade because Stage 06E adds schema fields, but the new fields are additive and ignored by older code. The administrator uninstaller removes the installer-owned stable extension source but cannot remove browser-profile registrations; remove those visibly in each browser when intentionally uninstalling.
 
 ## Automated and artifact evidence
 
-- Repository contracts: 69 passed, one Windows-only cleanup check skipped on macOS.
-- Controller/hub: 54 Swift Testing cases plus four XCTest cases passed with two workers, including policy bounds, aggregate IPC budget, migration and exact identity persistence.
-- Endpoint: 31 Swift Testing cases plus six XCTest cases passed with two workers, including identity mismatch, protected-app exclusion, rollback/persistence, XPC authorization and one-attempt-per-process/policy fallback gating.
-- Swift formatting, shell syntax and Git whitespace checks passed.
-- `ParentalControlSystem-0.6.5-rc.2.pkg` was built from commit `b6316b70c9a4`, checksum-verified, and its selectable choices passed `installer -showChoicesXML` validation.
-- Parent binary is `arm64`; child app and helpers are universal `x86_64 arm64`. Both apps passed deep/strict code-signature verification.
-- SHA-256: `20d64ba1390dd189f45b30d1471f36b3061100456f54bc4aae0dda04df4081ce`.
-- Signing status: embedded apps/helpers use hardened-runtime ad-hoc signatures with no Team ID. The product package is unsigned and not notarized. No Endpoint Security entitlement is present or claimed.
+- RC3 automated and artifact evidence will be recorded after the replacement installer and browser packages pass verification.
 
-Physical clean-install, in-place-upgrade, standard-user behavior, refusal/lock fallback and idle-resource evidence remain the developer test gate.
+Physical in-place upgrade, one-time stable extension-path migration, ordinary/restored/SPA YouTube enforcement, standard-user app behavior, refusal/lock fallback and idle-resource evidence remain the developer test gate.
 
 AWAITING DEVELOPER TEST RESULT

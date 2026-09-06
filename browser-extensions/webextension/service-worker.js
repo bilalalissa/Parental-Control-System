@@ -4,6 +4,7 @@ const api = globalThis.browser || chrome;
 const MAX_TABS = 128;
 let debounceTimer;
 let publication = Promise.resolve();
+let enforcement = Promise.resolve();
 let lastPublishedTabs;
 
 async function nativeMessage(message) {
@@ -49,7 +50,30 @@ async function sharingEnabled(browser, profile) {
   return response;
 }
 
+async function enforceCachedTab(tab) {
+  const policy = await WebsitePolicy.cached(api);
+  if (policy) await WebsitePolicy.enforceTab(api, tab, policy);
+}
+
+function queueTabEnforcement(tabID, candidate) {
+  enforcement = enforcement.then(async () => {
+    let tab = candidate;
+    if (!tab || typeof tab.url !== "string") tab = await api.tabs.get(tabID);
+    await enforceCachedTab(tab);
+  }).catch(() => {});
+}
+
+function queueEnforcementSweep() {
+  enforcement = enforcement.then(async () => {
+    const policy = await WebsitePolicy.cached(api);
+    if (policy) await WebsitePolicy.enforceOpenTabs(api, policy);
+  }).catch(() => {});
+}
+
 async function publishTabs() {
+  // Cached rules remain enforceable while the native endpoint or parent is unavailable.
+  const cachedPolicy = await WebsitePolicy.cached(api).catch(() => null);
+  if (cachedPolicy) await WebsitePolicy.enforceOpenTabs(api, cachedPolicy);
   const browser = browserName();
   const profile = await profileID();
   const configuration = await sharingEnabled(browser, profile);
@@ -58,6 +82,7 @@ async function publishTabs() {
     let state = "applied";
     try {
       await WebsitePolicy.apply(api, configuration.websitePolicy);
+      await WebsitePolicy.enforceOpenTabs(api, configuration.websitePolicy);
     } catch { state = "error"; }
     await api.storage.local.set({ websitePolicyState: state });
     await nativeMessage({ type: "policy.ack", browser: authorizedBrowser, profile, tabs: [],
@@ -102,19 +127,38 @@ function schedulePublish() {
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create("bounded-reconciliation", { periodInMinutes: 15 });
   chrome.alarms.create("website-policy-reconciliation", { periodInMinutes: 1 });
+  queueEnforcementSweep();
   schedulePublish();
 });
 chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.create("website-policy-reconciliation", { periodInMinutes: 1 });
+  queueEnforcementSweep();
   schedulePublish();
 });
-chrome.tabs.onCreated.addListener(schedulePublish);
+chrome.tabs.onCreated.addListener((tab) => {
+  queueTabEnforcement(tab.id, tab);
+  schedulePublish();
+});
 chrome.tabs.onRemoved.addListener(schedulePublish);
-chrome.tabs.onActivated.addListener(schedulePublish);
-chrome.tabs.onUpdated.addListener((_tabID, change) => {
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  queueTabEnforcement(tabId);
+  schedulePublish();
+});
+chrome.tabs.onUpdated.addListener((tabID, change, tab) => {
+  if (change.url || change.status === "loading" || change.status === "complete") {
+    queueTabEnforcement(tabID, {
+      ...(tab || {}), id: tabID, url: change.url || tab?.url
+    });
+  }
   if (change.url || change.title || change.status === "complete") schedulePublish();
 });
-chrome.windows.onFocusChanged.addListener(schedulePublish);
+chrome.windows.onFocusChanged.addListener(() => {
+  queueEnforcementSweep();
+  schedulePublish();
+});
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (["bounded-reconciliation", "website-policy-reconciliation"].includes(alarm.name)) schedulePublish();
+  if (["bounded-reconciliation", "website-policy-reconciliation"].includes(alarm.name)) {
+    queueEnforcementSweep();
+    schedulePublish();
+  }
 });

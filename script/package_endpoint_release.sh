@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-VERSION="0.6.5-rc.2"
+VERSION="0.6.5-rc.3"
 STAGING="$ROOT_DIR/.artifacts/package-staging/stage-06e"
 COMPONENTS="$STAGING/component-packages"
 CHILD_PAYLOAD="$STAGING/child-payload"
@@ -15,6 +15,8 @@ PKG="$RC_DIR/ParentalControlSystem-$VERSION.pkg"
 CHECKSUM="$PKG.sha256"
 CHILD_APP="$ROOT_DIR/dist/Parental Control Child.app"
 CONTROLLER_APP="$ROOT_DIR/dist/ParentalControlController.app"
+BROWSER_ZIP="$RC_DIR/ParentalControlBrowserSharing-$VERSION.zip"
+BROWSER_STABLE="$CHILD_PAYLOAD/Library/Application Support/ParentalControlBrowserExtension/Chromium"
 
 retry() {
   local description="$1"
@@ -32,6 +34,7 @@ retry() {
 
 "$ROOT_DIR/script/build_app.sh" Release >/dev/null
 "$ROOT_DIR/script/build_endpoint_app.sh" Release >/dev/null
+"$ROOT_DIR/script/package_browser_extension.sh" >/dev/null
 rm -rf -- "$STAGING"
 rm -f -- "$PKG" "$CHECKSUM"
 mkdir -p \
@@ -45,6 +48,7 @@ mkdir -p \
   "$CHILD_PAYLOAD/Library/Application Support/Mozilla/NativeMessagingHosts" \
   "$CHILD_PAYLOAD/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts" \
   "$CHILD_PAYLOAD/Library/Application Support/ParentalControlAgent" \
+  "$BROWSER_STABLE" \
   "$CHILD_PAYLOAD/usr/local/bin" \
   "$CHILD_SCRIPTS" \
   "$CONTROLLER_PAYLOAD/Applications" \
@@ -69,6 +73,8 @@ cp "$ROOT_DIR/browser-extensions/webextension/native-host-manifest.json" \
 cp "$ROOT_DIR/agents/endpoint-macos/Installer/preinstall" "$CHILD_SCRIPTS/preinstall"
 cp "$ROOT_DIR/agents/endpoint-macos/Installer/Distribution.xml" "$STAGING/Distribution.xml"
 cp "$ROOT_DIR/agents/endpoint-macos/Installer/Welcome.html" "$RESOURCES/Welcome.html"
+/usr/bin/unzip -q "$BROWSER_ZIP" -d "$STAGING/browser-extension"
+cp -R "$STAGING/browser-extension/ParentalControlBrowserSharing/." "$BROWSER_STABLE/"
 
 XPC_MANIFEST="$CHILD_PAYLOAD/Library/Application Support/ParentalControlAgent/xpc-clients.plist"
 /usr/bin/plutil -create xml1 "$XPC_MANIFEST"
@@ -108,7 +114,7 @@ chmod 755 \
 retry "controller pkgbuild" /usr/bin/pkgbuild \
   --root "$CONTROLLER_PAYLOAD" \
   --identifier com.bilalalissa.ParentalControlController.component \
-  --version 0.6.5.2 \
+  --version 0.6.5.3 \
   --install-location / \
   --ownership recommended \
   "$COMPONENTS/ParentalControlController.pkg"
@@ -117,7 +123,7 @@ retry "child pkgbuild" /usr/bin/pkgbuild \
   --root "$CHILD_PAYLOAD" \
   --scripts "$CHILD_SCRIPTS" \
   --identifier com.bilalalissa.ParentalControlChild.component \
-  --version 0.6.5.2 \
+  --version 0.6.5.3 \
   --install-location / \
   --ownership recommended \
   "$COMPONENTS/ParentalControlChild.pkg"
@@ -138,6 +144,10 @@ test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Microsoft/Edge/Nativ
 test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Application Support/Mozilla/NativeMessagingHosts/com.bilalalissa.parental_control.json"
 test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.bilalalissa.parental_control.json"
 test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Application Support/ParentalControlAgent/xpc-clients.plist"
+test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Application Support/ParentalControlBrowserExtension/Chromium/manifest.json"
+test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Application Support/ParentalControlBrowserExtension/Chromium/service-worker.js"
+test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Application Support/ParentalControlBrowserExtension/Chromium/website-policy.js"
+test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Application Support/ParentalControlBrowserExtension/Chromium/blocked.html"
 /usr/bin/plutil -lint "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Application Support/ParentalControlAgent/xpc-clients.plist" >/dev/null
 /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
   "$EXPANDED/ParentalControlController.pkg/Payload/Applications/Parental Control.app/Contents/Info.plist" \
@@ -148,6 +158,8 @@ test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Application Support/
 rm -rf -- "$EXPANDED"
 /usr/bin/shasum -a 256 "$PKG" > "$CHECKSUM"
 rm -f -- \
+  "$RC_DIR/ParentalControlSystem-0.6.5-rc.2.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.5-rc.2.pkg.sha256" \
   "$RC_DIR/ParentalControlSystem-0.6.5-rc.1.pkg" \
   "$RC_DIR/ParentalControlSystem-0.6.5-rc.1.pkg.sha256" \
   "$RC_DIR/ParentalControlSystem-0.6.4-rc.4.pkg" \
