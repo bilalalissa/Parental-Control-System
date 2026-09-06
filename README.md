@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-06E macOS application-use restrictions and the authorized RC3 browser-compatibility fix are being verified; STAGE-07 has not begun.** RC3 retains the RC2 application fix and hardens enrolled-browser domain enforcement for restored tabs and SPA navigation through local hostname matching only. It never inspects page content or network traffic. The child installer owns a stable read-only Chromium extension folder; existing unpacked test profiles require one adult-supervised move to that path. Without Apple's Endpoint Security entitlement, Stage 06E can visibly close a selected signed third-party app after launch but cannot claim pre-launch denial. See [Stage status](docs/stages/stage-status.json) and [Stage 06E](docs/stages/stage-06e.md).
+> **STAGE-06E macOS application-use restrictions and the authorized RC3 browser-compatibility fix are ready for developer retesting; STAGE-07 has not begun.** RC3 retains the RC2 application fix and hardens enrolled-browser domain enforcement for restored tabs and SPA navigation through local hostname matching only. It never inspects page content or network traffic. The child installer owns a stable read-only Chromium extension folder; existing unpacked test profiles require one adult-supervised move to that path. Without Apple's Endpoint Security entitlement, Stage 06E can visibly close a selected signed third-party app after launch but cannot claim pre-launch denial. See [Stage status](docs/stages/stage-status.json) and [Stage 06E](docs/stages/stage-06e.md).
 
 ## Product direction
 
