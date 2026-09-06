@@ -766,7 +766,7 @@ The visible per-user helper detects launches through supported workspace notific
 
 Do not claim pre-launch denial: it requires Apple's Endpoint Security entitlement and a signed system extension. Do not use mutable paths or display names as identity, arbitrary process kill, private APIs, hidden monitoring, MDM, browser changes, WAN control, or later-platform work. Acceptance requires monotonic policy/rollback tests, identity mismatch and protected-app tests, offline/restart persistence, authenticated enforcement audit, same-version upgrade preservation, one selectable macOS test installer and physical standard-user testing.
 
-Version: `0.6.5-rc.1`.
+Version: `0.6.5-rc.2`.
 
 ### STAGE-07 — Windows Child Agent foundation
 
