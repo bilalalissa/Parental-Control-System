@@ -24,6 +24,7 @@ final class ControllerStore {
   var pairingStatusMessage: String?
   var chatStatusMessage: String?
   var activityStatusMessage: String?
+  var applicationRestrictionStatusMessage: String?
   var browserStatusMessage: String?
   var resolvingTimeRequestIDs: Set<UUID> = []
   var presenceNow = Date()
@@ -253,6 +254,29 @@ final class ControllerStore {
           : "Collection disabled; retained activity for this device was removed."
       } catch {
         activityStatusMessage = "Could not update activity collection: \(error)"
+      }
+    }
+  }
+
+  func applyApplicationRestrictionPolicy(
+    configuration: ActivityConfiguration, rules: [ApplicationRestrictionRule]
+  ) {
+    Task {
+      do {
+        let version = max(
+          Int64(Date().timeIntervalSince1970 * 1000),
+          (configuration.restrictionPolicy?.version ?? 0) + 1)
+        let policy = try ApplicationRestrictionPolicy(version: version, rules: rules)
+        applyHubStatus(
+          try await hubClient.configureActivity(
+            deviceID: configuration.deviceID, enabled: configuration.enabled,
+            retentionDays: configuration.retentionDays, restrictionPolicy: policy))
+        applicationRestrictionStatusMessage =
+          rules.isEmpty
+          ? "Application restrictions removed with a newer signed policy."
+          : "App-use policy queued for authenticated delivery. Delivery does not prove a physical launch test."
+      } catch {
+        applicationRestrictionStatusMessage = "Could not apply app-use policy: \(error)"
       }
     }
   }

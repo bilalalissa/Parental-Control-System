@@ -302,8 +302,17 @@ struct ChildDashboard: View {
             "Website restrictions",
             status.websitePolicy.map { "\($0.domains.count) domains · policy \($0.version)" }
               ?? "No website policy")
+          row(
+            "Application restrictions",
+            status.applicationRestrictionPolicy.map {
+              "\($0.rules.count) apps · policy \($0.version)"
+            } ?? "No application policy")
           Text(
             "Website rules apply only in enrolled browser profiles, independently of tab sharing. Other profiles, private browsing and Safari are not covered; this is not a device-wide Internet pause."
+          )
+          .font(.caption).foregroundStyle(.secondary)
+          Text(
+            "Application rules use validated signing identities. A restricted app may appear briefly before the visible session helper asks it to quit. If it refuses, the session locks; system and parental-control apps are protected."
           )
           .font(.caption).foregroundStyle(.secondary)
         }
@@ -561,6 +570,12 @@ struct ChildDashboard: View {
             : "Browser sharing is disabled.",
           systemImage: status.browserCollectionEnabled
             ? "globe.badge.chevron.backward" : "eye.slash")
+        Label(
+          status.applicationRestrictionPolicy?.rules.isEmpty == false
+            ? "Application-use restrictions are active."
+            : "No application-use restrictions are active.",
+          systemImage: status.applicationRestrictionPolicy?.rules.isEmpty == false
+            ? "app.badge.checkmark" : "app")
       }.padding(.top, 14)
     }
   }

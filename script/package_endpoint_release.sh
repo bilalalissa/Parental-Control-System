@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-VERSION="0.6.4-rc.5"
-STAGING="$ROOT_DIR/.artifacts/package-staging/stage-06d"
+VERSION="0.6.5-rc.1"
+STAGING="$ROOT_DIR/.artifacts/package-staging/stage-06e"
 COMPONENTS="$STAGING/component-packages"
 CHILD_PAYLOAD="$STAGING/child-payload"
 CHILD_SCRIPTS="$STAGING/child-scripts"
@@ -108,7 +108,7 @@ chmod 755 \
 retry "controller pkgbuild" /usr/bin/pkgbuild \
   --root "$CONTROLLER_PAYLOAD" \
   --identifier com.bilalalissa.ParentalControlController.component \
-  --version 0.6.4.5 \
+  --version 0.6.5.1 \
   --install-location / \
   --ownership recommended \
   "$COMPONENTS/ParentalControlController.pkg"
@@ -117,7 +117,7 @@ retry "child pkgbuild" /usr/bin/pkgbuild \
   --root "$CHILD_PAYLOAD" \
   --scripts "$CHILD_SCRIPTS" \
   --identifier com.bilalalissa.ParentalControlChild.component \
-  --version 0.6.4.5 \
+  --version 0.6.5.1 \
   --install-location / \
   --ownership recommended \
   "$COMPONENTS/ParentalControlChild.pkg"

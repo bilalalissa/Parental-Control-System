@@ -174,6 +174,12 @@ public final class HubDatabase: @unchecked Sendable {
       INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at)
           VALUES(3, strftime('%s','now'));
       """)
+    try? execute("ALTER TABLE app_activity ADD COLUMN signing_identifier TEXT;")
+    try? execute("ALTER TABLE app_activity ADD COLUMN team_identifier TEXT;")
+    try? execute("ALTER TABLE activity_configuration ADD COLUMN restriction_policy_json TEXT;")
+    try execute(
+      "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(8, strftime('%s','now'));"
+    )
     // These two nullable columns upgrade databases created by Stage 04/earlier Stage 05 RCs.
     // Duplicate-column errors are expected when migrate() is called again.
     try? execute("ALTER TABLE hub_chat_messages ADD COLUMN edited_at REAL;")
@@ -606,17 +612,22 @@ public final class HubDatabase: @unchecked Sendable {
       try run(
         """
         INSERT INTO app_activity(
-            device_id, bundle_id, application_name, is_foreground, observed_at
-        ) VALUES(?, ?, ?, ?, ?)
+            device_id, bundle_id, application_name, is_foreground, observed_at,
+            signing_identifier, team_identifier
+        ) VALUES(?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(device_id, bundle_id) DO UPDATE SET
             application_name=excluded.application_name,
             is_foreground=excluded.is_foreground,
-            observed_at=excluded.observed_at;
+            observed_at=excluded.observed_at,
+            signing_identifier=excluded.signing_identifier,
+            team_identifier=excluded.team_identifier;
         """,
         [
           .text(deviceID), .text(record.bundleIdentifier), .text(record.applicationName),
           .integer(record.isForeground ? 1 : 0),
           .integer(Int64(record.observedAt.timeIntervalSince1970)),
+          record.signingIdentifier.map(HubSQLiteValue.text) ?? .null,
+          record.teamIdentifier.map(HubSQLiteValue.text) ?? .null,
         ])
     }
     try run(
@@ -634,7 +645,8 @@ public final class HubDatabase: @unchecked Sendable {
     var statement: OpaquePointer?
     try prepare(
       """
-      SELECT device_id, bundle_id, application_name, is_foreground, observed_at
+      SELECT device_id, bundle_id, application_name, is_foreground, observed_at,
+             signing_identifier, team_identifier
       FROM app_activity ORDER BY is_foreground DESC, observed_at DESC LIMIT ?;
       """, &statement)
     defer { sqlite3_finalize(statement) }
@@ -645,6 +657,10 @@ public final class HubDatabase: @unchecked Sendable {
         HubAppActivity(
           deviceID: text(statement, 0), bundleIdentifier: text(statement, 1),
           applicationName: text(statement, 2),
+          signingIdentifier: sqlite3_column_type(statement, 5) == SQLITE_NULL
+            ? nil : text(statement, 5),
+          teamIdentifier: sqlite3_column_type(statement, 6) == SQLITE_NULL
+            ? nil : text(statement, 6),
           isForeground: sqlite3_column_int(statement, 3) == 1,
           observedAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 4))))
     }
@@ -652,15 +668,20 @@ public final class HubDatabase: @unchecked Sendable {
   }
 
   public func saveActivityConfiguration(_ configuration: ActivityConfiguration) throws {
+    let restrictionPolicy = try configuration.restrictionPolicy.map(json)
     try run(
       """
-      INSERT INTO activity_configuration(device_id, enabled, retention_days) VALUES(?, ?, ?)
+      INSERT INTO activity_configuration(
+          device_id, enabled, retention_days, restriction_policy_json
+      ) VALUES(?, ?, ?, ?)
       ON CONFLICT(device_id) DO UPDATE SET
-          enabled=excluded.enabled, retention_days=excluded.retention_days;
+          enabled=excluded.enabled, retention_days=excluded.retention_days,
+          restriction_policy_json=excluded.restriction_policy_json;
       """,
       [
         .text(configuration.deviceID), .integer(configuration.enabled ? 1 : 0),
         .integer(Int64(configuration.retentionDays)),
+        restrictionPolicy.map(HubSQLiteValue.text) ?? .null,
       ])
     try pruneActivity(now: Date())
   }
@@ -670,7 +691,7 @@ public final class HubDatabase: @unchecked Sendable {
     defer { lock.unlock() }
     var statement: OpaquePointer?
     try prepare(
-      "SELECT device_id, enabled, retention_days FROM activity_configuration ORDER BY device_id;",
+      "SELECT device_id, enabled, retention_days, restriction_policy_json FROM activity_configuration ORDER BY device_id;",
       &statement)
     defer { sqlite3_finalize(statement) }
     var result: [ActivityConfiguration] = []
@@ -678,7 +699,11 @@ public final class HubDatabase: @unchecked Sendable {
       result.append(
         ActivityConfiguration(
           deviceID: text(statement, 0), enabled: sqlite3_column_int(statement, 1) == 1,
-          retentionDays: Int(sqlite3_column_int(statement, 2))))
+          retentionDays: Int(sqlite3_column_int(statement, 2)),
+          restrictionPolicy: sqlite3_column_type(statement, 3) == SQLITE_NULL
+            ? nil
+            : try? JSONDecoder().decode(
+              ApplicationRestrictionPolicy.self, from: Data(text(statement, 3).utf8))))
     }
     return result
   }

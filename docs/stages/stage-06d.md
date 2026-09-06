@@ -2,7 +2,7 @@
 
 - Version: `0.6.4-rc.5` (build `6405`); browser extensions remain `0.6.4-rc.1` unchanged
 - Branch: `stage/06d-macos-app-web-network-enforcement`
-- Status: `APPROVED` (developer physical browser restriction test passed on 2026-09-05; production distribution remains separately gated)
+- Status: `MERGED` (developer physical browser restriction test passed and merge was authorized on 2026-09-05; production distribution remains separately gated)
 - Scope amended by the developer on 2026-09-05: `AUTHORIZE STAGE-06D SCOPE AMENDMENT: MANAGED BROWSER WEBSITE BLOCKING. PROCEED.`
 - The former system-extension design in [ADR-0004](../adr/0004-macos-enforcement-extension-readiness.md) is deferred. Its Apple Developer ID and same Team ID gate and physical acceptance matrix apply only to future system-wide enforcement, not this browser-only test candidate.
 - Approved with the exact command `APPROVED: STAGE-06D 0.6.4-rc.5` and separately authorized for merge with `MERGE` on 2026-09-05. Approval confirms the enrolled-browser website restriction test; it does not approve Safari, app-launch denial, WAN pause, public release, or production extension distribution.

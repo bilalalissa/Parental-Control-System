@@ -289,15 +289,43 @@ public final class LocalHub: @unchecked Sendable {
     guard let device = try database.device(id: configuration.deviceID), !device.isRevoked else {
       throw LocalHubError.unknownDevice
     }
-    try database.saveActivityConfiguration(configuration)
+    let previous = try database.activityConfigurations().first {
+      $0.deviceID == configuration.deviceID
+    }
+    if configuration.restrictionPolicy != nil,
+      !device.capabilities.contains("app-use-restrictions")
+    {
+      throw LocalHubError.unexpectedMessage
+    }
+    let restrictionPolicy =
+      try configuration.restrictionPolicy?.validated()
+      ?? previous?.restrictionPolicy
+    if let incoming = configuration.restrictionPolicy,
+      let former = previous?.restrictionPolicy, incoming.version <= former.version
+    {
+      throw ApplicationRestrictionPolicyError.invalidVersion
+    }
+    let effective = ActivityConfiguration(
+      deviceID: configuration.deviceID, enabled: configuration.enabled,
+      retentionDays: configuration.retentionDays, restrictionPolicy: restrictionPolicy)
+    let others = try database.activityConfigurations().filter {
+      $0.deviceID != configuration.deviceID
+    }
+    try ApplicationRestrictionPolicy.validateStatusBudget(others + [effective])
+    try database.saveActivityConfiguration(effective)
+    var payload: [String: JSONValue] = [
+      "targetDeviceId": .string(configuration.deviceID),
+      "enabled": .bool(configuration.enabled),
+      "retentionDays": .integer(Int64(configuration.retentionDays)),
+    ]
+    if let restrictionPolicy {
+      payload["restrictionPolicy"] = .string(
+        String(decoding: try JSONEncoder().encode(restrictionPolicy), as: UTF8.self))
+    }
     let envelope = try controllerIdentity.sign(
       deviceID: "controller", sequence: nextControllerSequence(),
       type: .activityConfiguration,
-      payload: [
-        "targetDeviceId": .string(configuration.deviceID),
-        "enabled": .bool(configuration.enabled),
-        "retentionDays": .integer(Int64(configuration.retentionDays)),
-      ], lifetime: 7 * 86_400)
+      payload: payload, lifetime: 7 * 86_400)
     try sendOrQueue(
       envelope, deviceID: configuration.deviceID, lifetime: 7 * 86_400)
     try database.appendAudit(
@@ -306,6 +334,14 @@ public final class LocalHub: @unchecked Sendable {
         detail: configuration.enabled
           ? "App activity enabled; \(configuration.retentionDays)-day retention"
           : "App activity disabled and retained records removed"))
+    if let incoming = configuration.restrictionPolicy {
+      try database.appendAudit(
+        HubAuditRecord(
+          event: "application.restriction-policy", deviceID: configuration.deviceID,
+          detail:
+            "Queued app-use policy version \(incoming.version); \(incoming.rules.count) validated code identities"
+        ))
+    }
     publishStatus()
   }
 
@@ -700,6 +736,8 @@ public final class LocalHub: @unchecked Sendable {
           else { return nil }
           return HubAppActivity(
             deviceID: device.id, bundleIdentifier: bundleID, applicationName: name,
+            signingIdentifier: item["signingIdentifier"]?.stringValue,
+            teamIdentifier: item["teamIdentifier"]?.stringValue,
             isForeground: foreground, observedAt: observed)
         }
         try database.saveActivity(records, for: device.id)
@@ -711,6 +749,23 @@ public final class LocalHub: @unchecked Sendable {
         HubAuditRecord(
           event: "activity.delta", deviceID: device.id,
           detail: "Accepted bounded app activity metadata; no command lines or content"))
+    case .applicationRestrictionEvent:
+      guard let bundleIdentifier = envelope.payload["bundleIdentifier"]?.stringValue,
+        bundleIdentifier.utf8.count <= 200,
+        let policyVersion = envelope.payload["policyVersion"]?.integerValue,
+        policyVersion > 0,
+        let outcome = envelope.payload["outcome"]?.stringValue,
+        ["quit-requested", "closed", "session-locked"].contains(outcome)
+      else { throw LocalHubError.unexpectedMessage }
+      try database.appendAudit(
+        HubAuditRecord(
+          event: "application.restriction-\(outcome)", deviceID: device.id,
+          detail:
+            "App-use policy \(policyVersion) handled exact bundle identity \(String(bundleIdentifier.prefix(200)))"
+        ))
+      try database.updateSeen(
+        deviceID: device.id, sequence: envelope.sequence,
+        snapshotVersion: device.snapshotVersion)
     case .browserUpdate:
       if let reportsText = envelope.payload["protectionReports"]?.stringValue {
         let reports = try JSONDecoder().decode(

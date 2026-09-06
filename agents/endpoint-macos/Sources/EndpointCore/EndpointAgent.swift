@@ -38,7 +38,8 @@ public final class EndpointAgent: @unchecked Sendable {
     let configuration = try store.load()
     repository.configureActivity(
       enabled: configuration.activityCollectionEnabled,
-      retentionDays: configuration.activityRetentionDays)
+      retentionDays: configuration.activityRetentionDays,
+      restrictionPolicy: configuration.applicationRestrictionPolicy)
     repository.configureBrowser(
       enabled: configuration.browserCollectionEnabled,
       retentionDays: configuration.browserRetentionDays, websitePolicy: configuration.websitePolicy)
@@ -108,6 +109,7 @@ public final class EndpointAgent: @unchecked Sendable {
         .string("presence"), .string("device-info"), .string("uptime"), .string("session-state"),
         .string("network-metadata"), .string("health"), .string("delta-snapshot"),
         .string("receipt"), .string("app-activity"), .string("chat"),
+        .string("app-use-restrictions"),
         .string("browser-tabs"), .string("browser-website-policy"), .string("request-more-time"),
         .string("notifications"),
         .string("time-request-resolution"),
@@ -192,7 +194,8 @@ public final class EndpointAgent: @unchecked Sendable {
         try receiveAdultVerifier(envelope)
       case .policyQuery:
         try sendPolicyReceipt(for: envelope.id, state: "queried")
-      case .activityUpdate, .browserUpdate, .requestMoreTime, .capabilityAnnounce,
+      case .activityUpdate, .applicationRestrictionEvent, .browserUpdate, .requestMoreTime,
+        .capabilityAnnounce,
         .snapshotResponse:
         break
       }
@@ -211,6 +214,7 @@ public final class EndpointAgent: @unchecked Sendable {
     refreshed.activityCollectionEnabled = former.activityCollectionEnabled
     refreshed.activityRetentionDays = former.activityRetentionDays
     refreshed.applications = former.applications
+    refreshed.applicationRestrictionPolicy = former.applicationRestrictionPolicy
     refreshed.browserCollectionEnabled = former.browserCollectionEnabled
     refreshed.browserRetentionDays = former.browserRetentionDays
     refreshed.browserTabs = former.browserTabs
@@ -307,6 +311,8 @@ public final class EndpointAgent: @unchecked Sendable {
       .object([
         "bundleIdentifier": .string(application.bundleIdentifier),
         "applicationName": .string(application.applicationName),
+        "signingIdentifier": application.signingIdentifier.map(JSONValue.string) ?? .null,
+        "teamIdentifier": application.teamIdentifier.map(JSONValue.string) ?? .null,
         "isForeground": .bool(application.isForeground),
         "observedAt": .string(ISO8601DateFormatter().string(from: application.observedAt)),
       ])
@@ -365,14 +371,30 @@ public final class EndpointAgent: @unchecked Sendable {
       let enabled = envelope.payload["enabled"]?.boolValue
     else { throw EndpointAgentError.invalidMessage }
     let retention = Int(envelope.payload["retentionDays"]?.integerValue ?? 7)
-    try store.setActivityCollection(enabled: enabled, retentionDays: retention)
-    repository.configureActivity(enabled: enabled, retentionDays: retention)
+    let restrictionPolicy = try envelope.payload["restrictionPolicy"]?.stringValue.map {
+      try JSONDecoder().decode(
+        ApplicationRestrictionPolicy.self, from: Data($0.utf8)
+      ).validated()
+    }
+    try store.setActivityConfiguration(
+      enabled: enabled, retentionDays: retention, restrictionPolicy: restrictionPolicy)
+    repository.configureActivity(
+      enabled: enabled, retentionDays: retention,
+      restrictionPolicy: try store.load().applicationRestrictionPolicy)
+    EndpointPolicyWake.post()
     try sendReceipt(for: envelope.id, state: .delivered)
     log.write(
       event: "activity.configuration",
       detail: enabled
         ? "Collection enabled with \(max(1, min(retention, 30))) day retention"
         : "Collection disabled")
+    if let restrictionPolicy {
+      log.write(
+        event: "application.restriction-policy",
+        detail:
+          "Accepted version \(restrictionPolicy.version) with \(restrictionPolicy.rules.count) validated code identities"
+      )
+    }
   }
 
   private func receiveBrowserConfiguration(_ envelope: ProtocolEnvelope) throws {
@@ -498,6 +520,7 @@ public final class EndpointAgent: @unchecked Sendable {
         case .chat: type = .chatMessage
         case .requestMoreTime: type = .requestMoreTime
         case .receipt: type = .receipt
+        case .applicationRestrictionEvent: type = .applicationRestrictionEvent
         }
         let envelope = try identity.sign(
           deviceID: configuration.deviceID, sequence: store.nextSequence(), type: type,

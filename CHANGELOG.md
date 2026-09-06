@@ -2,9 +2,19 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.5-rc.1 — 2026-09-05
+
+Status: **STAGE-06E in progress; unreleased**
+
+- Adds bounded parent-authored application-use policies for observed signed third-party macOS apps, using exact bundle, signing and Team identity.
+- Caches the monotonic policy in root-protected child configuration, preserves it when optional activity sharing is disabled, and transports it through the authenticated local connection.
+- Uses the visible per-user helper to warn and request normal app termination after launch, with a five-second session-lock fallback if the app refuses; enforcement outcomes are authenticated and audited.
+- Unconditionally protects Apple/system, login/recovery and parental-control components. This ad-hoc build has no Endpoint Security entitlement and does not claim pre-launch denial or resistance to a local administrator.
+- Authorized with `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06E MACOS APP-USE RESTRICTIONS BEFORE STAGE-07` and `PROCEED: STAGE-06E` on 2026-09-05.
+
 ## 0.6.4-rc.5 — 2026-09-05
 
-Status: **STAGE-06D approved for merge; unreleased**
+Status: **STAGE-06D merged; unreleased**
 
 - Implements signed, bounded website-domain policy delivery to explicitly enrolled Chromium and Firefox profiles without inspecting paths, queries, content, forms, cookies, private sessions, or network traffic.
 - Preserves browser rules offline, requires rule readback before a profile acknowledgement, and reports honest per-profile setup, pending, applied, and not-reporting states.

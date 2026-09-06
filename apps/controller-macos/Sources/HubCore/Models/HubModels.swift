@@ -247,16 +247,21 @@ public struct HubAppActivity: Codable, Equatable, Identifiable, Sendable {
   public let deviceID: String
   public let bundleIdentifier: String
   public let applicationName: String
+  public let signingIdentifier: String?
+  public let teamIdentifier: String?
   public let isForeground: Bool
   public let observedAt: Date
 
   public init(
     deviceID: String, bundleIdentifier: String, applicationName: String,
+    signingIdentifier: String? = nil, teamIdentifier: String? = nil,
     isForeground: Bool, observedAt: Date = Date()
   ) {
     self.deviceID = deviceID
     self.bundleIdentifier = String(bundleIdentifier.prefix(200))
     self.applicationName = String(applicationName.prefix(120))
+    self.signingIdentifier = signingIdentifier.map { String($0.prefix(200)) }
+    self.teamIdentifier = teamIdentifier.map { String($0.prefix(64)) }
     self.isForeground = isForeground
     self.observedAt = observedAt
   }
@@ -266,11 +271,16 @@ public struct ActivityConfiguration: Codable, Equatable, Sendable {
   public let deviceID: String
   public let enabled: Bool
   public let retentionDays: Int
+  public let restrictionPolicy: ApplicationRestrictionPolicy?
 
-  public init(deviceID: String, enabled: Bool = true, retentionDays: Int = 7) {
+  public init(
+    deviceID: String, enabled: Bool = true, retentionDays: Int = 7,
+    restrictionPolicy: ApplicationRestrictionPolicy? = nil
+  ) {
     self.deviceID = deviceID
     self.enabled = enabled
     self.retentionDays = max(1, min(retentionDays, 30))
+    self.restrictionPolicy = restrictionPolicy
   }
 }
 

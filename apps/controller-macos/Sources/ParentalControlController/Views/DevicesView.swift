@@ -163,6 +163,8 @@ private struct PairedDeviceDetailView: View {
         loginEnforcementSection
         immediateActionsSection
         activitySection
+        ApplicationRestrictionView(
+          device: device, configuration: configuration, applications: activity, store: store)
         browserSection
         BrowserWebsitePolicyView(
           device: device, configuration: browserConfiguration, now: now, store: store)

@@ -29,6 +29,8 @@ public enum EndpointPolicyWake {
   func dashboard(withReply reply: @escaping (Data?, String?) -> Void)
   func updateSession(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
   func updateActivity(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
+  func reportApplicationRestriction(
+    _ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
   func browserConfiguration(withReply reply: @escaping (Data?, String?) -> Void)
   func updateBrowser(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
   func sendChat(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
@@ -44,7 +46,7 @@ public enum XPCAuthorization {
       [
         "status", "dashboard", "session-update", "activity-update", "browser-configuration",
         "browser-update", "send-chat", "mark-chat-read", "time-request", "adult-code",
-        "policy-events",
+        "policy-events", "application-restriction-event",
       ]
       .contains(operation)
     else { return false }
@@ -54,7 +56,9 @@ public enum XPCAuthorization {
         || signingIdentifier == EndpointMachService.helperIdentifier
         || signingIdentifier == EndpointMachService.controlIdentifier
     }
-    if operation == "session-update" || operation == "activity-update" {
+    if operation == "session-update" || operation == "activity-update"
+      || operation == "application-restriction-event"
+    {
       return signingIdentifier == EndpointMachService.helperIdentifier
     }
     if operation == "policy-events" {
@@ -201,11 +205,15 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     value.collectedAt = update.observedAt
   }
 
-  public func configureActivity(enabled: Bool, retentionDays: Int) {
+  public func configureActivity(
+    enabled: Bool, retentionDays: Int,
+    restrictionPolicy: ApplicationRestrictionPolicy? = nil
+  ) {
     lock.lock()
     defer { lock.unlock() }
     value.activityCollectionEnabled = enabled
     value.activityRetentionDays = max(1, min(retentionDays, 30))
+    value.applicationRestrictionPolicy = restrictionPolicy
     if !enabled { value.applications = [] }
   }
 
@@ -340,6 +348,22 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     trimOutbound()
     persistLocked()
     return request.id
+  }
+
+  public func queueApplicationRestrictionEvent(_ event: EndpointApplicationRestrictionEvent) {
+    lock.lock()
+    defer { lock.unlock() }
+    outbound.append(
+      EndpointOutboundItem(
+        kind: .applicationRestrictionEvent,
+        payload: [
+          "bundleIdentifier": .string(event.bundleIdentifier),
+          "policyVersion": .integer(event.policyVersion),
+          "outcome": .string(event.outcome.rawValue),
+          "observedAt": .string(ISO8601DateFormatter().string(from: event.observedAt)),
+        ]))
+    trimOutbound()
+    persistLocked()
   }
 
   @discardableResult
@@ -495,6 +519,28 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
       repository.applyActivity(update)
       reply(true, nil)
     } catch { reply(false, "invalid update") }
+  }
+
+  func reportApplicationRestriction(
+    _ payload: Data, withReply reply: @escaping (Bool, String?) -> Void
+  ) {
+    guard
+      XPCAuthorization.allows(
+        uid: uid, signingIdentifier: identifier, operation: "application-restriction-event")
+    else {
+      reply(false, "unauthorized")
+      return
+    }
+    do {
+      let event = try JSONDecoder.endpoint.decode(
+        EndpointApplicationRestrictionEvent.self, from: payload)
+      guard event.policyVersion > 0, abs(event.observedAt.timeIntervalSinceNow) <= 120 else {
+        reply(false, "invalid event")
+        return
+      }
+      repository.queueApplicationRestrictionEvent(event)
+      reply(true, nil)
+    } catch { reply(false, "invalid event") }
   }
 
   func browserConfiguration(withReply reply: @escaping (Data?, String?) -> Void) {
@@ -785,6 +831,21 @@ public final class EndpointXPCClient: @unchecked Sendable {
       let data = try JSONEncoder.endpoint.encode(update)
       let proxy = remoteProxy { completion(.failure($0)) }
       proxy?.updateActivity(data) { accepted, error in
+        accepted
+          ? completion(.success(()))
+          : completion(.failure(EndpointXPCError.remote(error ?? "rejected")))
+      }
+    } catch { completion(.failure(error)) }
+  }
+
+  public func reportApplicationRestriction(
+    _ event: EndpointApplicationRestrictionEvent,
+    completion: @escaping @Sendable (Result<Void, Error>) -> Void
+  ) {
+    do {
+      let data = try JSONEncoder.endpoint.encode(event)
+      let proxy = remoteProxy { completion(.failure($0)) }
+      proxy?.reportApplicationRestriction(data) { accepted, error in
         accepted
           ? completion(.success(()))
           : completion(.failure(EndpointXPCError.remote(error ?? "rejected")))

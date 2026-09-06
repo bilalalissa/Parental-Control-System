@@ -34,8 +34,8 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   const active = tracker.stages.filter((stage) => stage.id === tracker.activeStage);
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
-  assert.equal(active[0].branch, "stage/06d-macos-app-web-network-enforcement");
-  assert.equal(active[0].version, "0.6.4-rc.5");
+  assert.equal(active[0].branch, "stage/06e-macos-app-use-restrictions");
+  assert.equal(active[0].version, "0.6.5-rc.1");
   assert.ok(
     ["IMPLEMENTING", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
       active[0].status,
@@ -333,7 +333,7 @@ test("Stage 06 policy enforcement is signed, bounded, visible, and allowlisted",
   assert.match(security, /Receipts acknowledge endpoint acceptance, not completion/);
 });
 
-test("Stage 06D transition installer is versioned, upgrade-safe, and capability-honest", async () => {
+test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", async () => {
   const [
     controllerBuild,
     endpointBuild,
@@ -364,17 +364,17 @@ test("Stage 06D transition installer is versioned, upgrade-safe, and capability-
     read(".github/workflows/stage-03-macos.yml"),
   ]);
   for (const build of [controllerBuild, endpointBuild]) {
-    assert.match(build, /VERSION="0\.6\.4-rc\.5"/);
-    assert.match(build, /CFBundleVersion string 6405/);
-    assert.match(build, /derived-data\/stage-06d/);
+    assert.match(build, /VERSION="0\.6\.5-rc\.1"/);
+    assert.match(build, /CFBundleVersion string 6501/);
+    assert.match(build, /derived-data\/stage-06e/);
   }
   assert.match(packaging, /ParentalControlSystem-\$VERSION\.pkg/);
-  assert.match(packaging, /--version 0\.6\.4\.5/);
+  assert.match(packaging, /--version 0\.6\.5\.1/);
   assert.match(packaging, /xpc-clients\.plist/);
   assert.match(endpointBuild, /file identity is authorized only for ad-hoc test builds/);
   assert.match(endpointBuild, /--options runtime/);
   assert.doesNotMatch(packaging, /package_browser_extension\.sh/);
-  assert.match(distribution, /version="0\.6\.4\.5"/);
+  assert.match(distribution, /version="0\.6\.5\.1"/);
   assert.match(preinstall, /\.installer-maintenance\.plist/);
   assert.doesNotMatch(preinstall + postinstall, /delete-generic-password|rm[^\n]*configuration\.json/);
   assert.match(readiness, /session-enforcement/);
@@ -398,7 +398,7 @@ test("Stage 06D transition installer is versioned, upgrade-safe, and capability-
   assert.match(child, /Effective time remaining/);
   assert.match(child, /Next limiting rule/);
   assert.match(helper, /Effective time remaining/);
-  assert.match(workflow, /ParentalControlSystem-0\.6\.4-rc\.5\.pkg/);
+  assert.match(workflow, /ParentalControlSystem-0\.6\.5-rc\.1\.pkg/);
   assert.doesNotMatch(workflow, /ParentalControlBrowserSharing-0\.6\.1-rc\.5/);
 });
 
@@ -489,7 +489,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /STAGE-06D managed browser website blocking is ready for developer testing; STAGE-07 has not begun/);
+  assert.match(readme, /STAGE-06E macOS application-use restrictions are in progress; STAGE-07 has not begun/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);

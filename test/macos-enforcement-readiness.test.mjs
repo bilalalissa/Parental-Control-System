@@ -6,12 +6,13 @@ import { test } from "node:test";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-const [host, network, execution, checker, stage, decision, tracker] = await Promise.all([
+const [host, network, execution, checker, stage, appStage, decision, tracker] = await Promise.all([
   read("../agents/endpoint-macos/Enforcement/Entitlements/HostApp.entitlements"),
   read("../agents/endpoint-macos/Enforcement/Entitlements/NetworkFilter.entitlements"),
   read("../agents/endpoint-macos/Enforcement/Entitlements/ExecutionFilter.entitlements"),
   read("../script/check_stage06d_readiness.sh"),
   read("../docs/stages/stage-06d.md"),
+  read("../docs/stages/stage-06e.md"),
   read("../docs/adr/0004-macos-enforcement-extension-readiness.md"),
   read("../docs/stages/stage-status.json"),
 ]);
@@ -55,17 +56,20 @@ test("readiness checker help is dependency-free and documents all private profil
   assert.match(output, /never copied/);
 });
 
-test("Stage 06D amendment separates browser tests from deferred system-extension gates", () => {
+test("Stage 06E follows the approved browser stage without claiming system extensions", () => {
   const state = JSON.parse(tracker);
   const active = state.stages.find((candidate) => candidate.id === state.activeStage);
-  assert.equal(active.id, "STAGE-06D");
-  assert.equal(active.version, "0.6.4-rc.5");
+  assert.equal(active.id, "STAGE-06E");
+  assert.equal(active.version, "0.6.5-rc.1");
   assert.ok(
     ["IMPLEMENTING", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
       active.status,
     ),
   );
   assert.match(stage, /MANAGED BROWSER WEBSITE BLOCKING/);
+  assert.match(appStage, /post-launch|after launch/i);
+  assert.match(appStage, /exact bundle, signing and Team|bundle\/signing\/Team/i);
+  assert.match(appStage, /Endpoint Security entitlement/i);
   assert.match(stage, /Firefox.*unsigned|unsigned.*Firefox/i);
   assert.match(stage, /automatic updates.*require/i);
   assert.match(stage, /Safari.*unsupported|Excluded: Safari/i);

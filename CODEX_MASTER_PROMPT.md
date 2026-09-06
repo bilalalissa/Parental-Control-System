@@ -758,6 +758,16 @@ SHA-256 values; the exception must not weaken the standard-child threat model.
 
 Version: `0.6.4-rc.5`.
 
+### STAGE-06E — macOS application-use restrictions (inserted 2026-09-05)
+
+Implement a bounded application-use restriction for the standard macOS child account without claiming unavailable Endpoint Security authority. The parent selects only recently observed signed third-party apps. Rules carry exact bundle, signing and Team identifiers, are versioned, signed in transit, cached root-only, bounded, audited and independently enforceable while activity sharing or the parent connection is off.
+
+The visible per-user helper detects launches through supported workspace notifications, validates the running code identity, displays a restriction notice and requests ordinary termination. If the app remains running after a short grace period, lock the session rather than force-killing the process. Protect Apple/system, login/recovery, Finder/Dock, Parent Controller and child endpoint components unconditionally. Preserve an adult recovery administrator and state plainly that a local administrator can bypass the product.
+
+Do not claim pre-launch denial: it requires Apple's Endpoint Security entitlement and a signed system extension. Do not use mutable paths or display names as identity, arbitrary process kill, private APIs, hidden monitoring, MDM, browser changes, WAN control, or later-platform work. Acceptance requires monotonic policy/rollback tests, identity mismatch and protected-app tests, offline/restart persistence, authenticated enforcement audit, same-version upgrade preservation, one selectable macOS test installer and physical standard-user testing.
+
+Version: `0.6.5-rc.1`.
+
 ### STAGE-07 — Windows Child Agent foundation
 
 On Windows hardware or Windows CI, build the automatic service, visible per-user UI, authenticated named pipes, pairing, heartbeat, device/uptime/session/network data, health, bounded logs, protected configuration, icon, read-only dashboard, x64 MSI, and uninstaller.

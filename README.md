@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-06D managed browser website blocking is ready for developer testing; STAGE-07 has not begun.** The developer amended scope on 2026-09-05 to Chromium/Firefox extensions managed through the authenticated child host. Safari, app-launch denial and device-wide Internet pause remain unavailable. Test packages are not production automatic-update distribution. See [Stage status](docs/stages/stage-status.json) and [Stage 06D](docs/stages/stage-06d.md).
+> **STAGE-06E macOS application-use restrictions are in progress; STAGE-07 has not begun.** The developer approved and merged Stage 06D browser restrictions, then inserted Stage 06E. Without Apple's Endpoint Security entitlement, Stage 06E can visibly close a selected signed third-party app immediately after launch but cannot claim pre-launch denial. See [Stage status](docs/stages/stage-status.json) and [Stage 06E](docs/stages/stage-06e.md).
 
 ## Product direction
 
@@ -17,7 +17,7 @@ The project is intentionally visible and bounded. It will not implement hidden i
 | --- | --- | --- | --- |
 | Visible child UI | Stage 03 candidate | Planned | Planned |
 | Local policy enforcement | Stage 06 candidate | Planned | Planned through Family Controls APIs |
-| Foreground/running apps | Stage 04 candidate (names/bundle IDs only) | Planned | Not available |
+| Foreground/running apps | Stage 04 metadata plus Stage 06E signed-identity restrictions in progress | Planned | Not available |
 | Browser-tab metadata | Stage 05 visible Chrome/Edge/Arc extension | Visible extension planned | Not available |
 | Reliable uptime or login state | Stage 04 candidate | Planned | Not available |
 | Text chat and announcements | Stage 04 candidate | Planned | While app is active in a later stage |
@@ -84,7 +84,7 @@ npm test
 npm run cleanup:list
 ```
 
-Building the Stage 06D browser-policy test candidate requires macOS 14 or newer with Xcode and Swift installed. Stages 06B and 06C are documentation-only. Native build work remains constrained to two workers and one project-owned output tree:
+Building the Stage 06E app-use test candidate requires macOS 14 or newer with Xcode and Swift installed. Stages 06B and 06C are documentation-only. Native build work remains constrained to two workers and one project-owned output tree:
 
 ```sh
 swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests
@@ -96,7 +96,7 @@ swift test --package-path agents/endpoint-macos --jobs 2
 ./script/package_endpoint_release.sh
 ```
 
-The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; protected XPC and enforcement require the installed daemon/helper. `package_endpoint_release.sh` creates the selectable Stage 06A `.pkg`; the already-installed browser extension does not need removal, reinstallation, or manual reload because its native host is updated in place. Builders default to ad-hoc app/helper signing for credential-free CI; a physical developer candidate can set `MACOS_SIGNING_IDENTITY` to one stable local Apple Development identity. The product package remains unsigned and not notarized.
+The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; protected XPC and enforcement require the installed daemon/helper. `package_endpoint_release.sh` creates the selectable Stage 06E `.pkg`; the already-installed browser extension does not need removal, reinstallation, or manual reload because its native host is updated in place. Builders default to ad-hoc app/helper signing for credential-free CI; a physical developer candidate can set `MACOS_SIGNING_IDENTITY` to one stable local Apple Development identity. The product package remains unsigned and not notarized.
 
 Install the same package on the parent Mac with its default **Parent Controller** choice. On the child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. Confirm the endpoint service before pairing:
 

@@ -91,6 +91,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var activityCollectionEnabled: Bool
   public var activityRetentionDays: Int
   public var applications: [EndpointApplicationActivity]
+  public var applicationRestrictionPolicy: ApplicationRestrictionPolicy?
   public var browserCollectionEnabled: Bool
   public var browserRetentionDays: Int
   public var browserTabs: [EndpointBrowserTab]
@@ -126,6 +127,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     activityCollectionEnabled: Bool = true,
     activityRetentionDays: Int = 7,
     applications: [EndpointApplicationActivity] = [],
+    applicationRestrictionPolicy: ApplicationRestrictionPolicy? = nil,
     browserCollectionEnabled: Bool = false,
     browserRetentionDays: Int = 7,
     browserTabs: [EndpointBrowserTab] = [], policyVersion: UInt64? = nil,
@@ -153,6 +155,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     self.activityCollectionEnabled = activityCollectionEnabled
     self.activityRetentionDays = max(1, min(activityRetentionDays, 30))
     self.applications = Array(applications.prefix(64))
+    self.applicationRestrictionPolicy = applicationRestrictionPolicy
     self.browserCollectionEnabled = browserCollectionEnabled
     self.browserRetentionDays = max(1, min(browserRetentionDays, 30))
     self.browserTabs = Array(browserTabs.prefix(128))
@@ -174,15 +177,20 @@ public struct EndpointApplicationActivity: Codable, Equatable, Identifiable, Sen
   public var id: String { bundleIdentifier }
   public let bundleIdentifier: String
   public let applicationName: String
+  public let signingIdentifier: String?
+  public let teamIdentifier: String?
   public let isForeground: Bool
   public let observedAt: Date
 
   public init(
-    bundleIdentifier: String, applicationName: String, isForeground: Bool,
+    bundleIdentifier: String, applicationName: String,
+    signingIdentifier: String? = nil, teamIdentifier: String? = nil, isForeground: Bool,
     observedAt: Date = Date()
   ) {
     self.bundleIdentifier = String(bundleIdentifier.prefix(200))
     self.applicationName = String(applicationName.prefix(120))
+    self.signingIdentifier = signingIdentifier.map { String($0.prefix(200)) }
+    self.teamIdentifier = teamIdentifier.map { String($0.prefix(64)) }
     self.isForeground = isForeground
     self.observedAt = observedAt
   }
@@ -194,6 +202,29 @@ public struct EndpointActivityUpdate: Codable, Equatable, Sendable {
 
   public init(applications: [EndpointApplicationActivity], observedAt: Date = Date()) {
     self.applications = Array(applications.prefix(64))
+    self.observedAt = observedAt
+  }
+}
+
+public enum EndpointApplicationRestrictionOutcome: String, Codable, Sendable {
+  case quitRequested = "quit-requested"
+  case closed
+  case sessionLocked = "session-locked"
+}
+
+public struct EndpointApplicationRestrictionEvent: Codable, Equatable, Sendable {
+  public let bundleIdentifier: String
+  public let policyVersion: Int64
+  public let outcome: EndpointApplicationRestrictionOutcome
+  public let observedAt: Date
+
+  public init(
+    bundleIdentifier: String, policyVersion: Int64,
+    outcome: EndpointApplicationRestrictionOutcome, observedAt: Date = Date()
+  ) {
+    self.bundleIdentifier = String(bundleIdentifier.prefix(200))
+    self.policyVersion = policyVersion
+    self.outcome = outcome
     self.observedAt = observedAt
   }
 }
@@ -339,6 +370,7 @@ public enum EndpointOutboundKind: String, Codable, Sendable {
   case chat
   case requestMoreTime
   case receipt
+  case applicationRestrictionEvent
 }
 
 public struct EndpointOutboundItem: Codable, Equatable, Identifiable, Sendable {
