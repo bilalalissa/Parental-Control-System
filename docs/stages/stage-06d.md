@@ -2,7 +2,7 @@
 
 - Version: `0.6.4-rc.5` (build `6405`); browser extensions remain `0.6.4-rc.1` unchanged
 - Branch: `stage/06d-macos-app-web-network-enforcement`
-- Status: `IMPLEMENTING` (browser native-host authorization retest; production distribution is not ready)
+- Status: `READY_FOR_RETEST` (browser native-host authorization retest; production distribution is not ready)
 - Scope amended by the developer on 2026-09-05: `AUTHORIZE STAGE-06D SCOPE AMENDMENT: MANAGED BROWSER WEBSITE BLOCKING. PROCEED.`
 - The former system-extension design in [ADR-0004](../adr/0004-macos-enforcement-extension-readiness.md) is deferred. Its Apple Developer ID and same Team ID gate and physical acceptance matrix apply only to future system-wide enforcement, not this browser-only test candidate.
 
@@ -179,21 +179,21 @@ After packaging, remove only project-owned `dist`, derived-data, icon renders an
 
 ## Evidence and resources
 
-Source/build commit: `8dede95a2e6915d9d313c141051cf35c53fc20e6`. Existing draft PR: [#11](https://github.com/bilalalissa/Parental-Control-System/pull/11). The final documentation commit does not change packaged application/extension source.
+Source/build commit: `05aa6b376b2061967a5a2f04cda574e4996f45b4`. Existing draft PR: [#11](https://github.com/bilalalissa/Parental-Control-System/pull/11). The final documentation commit does not change packaged application/extension source.
 
 Local checks on 2026-09-05:
 
-- `node --test --test-concurrency=2 --test-reporter=tap`: 69 passed, one Windows-only skip (70 total), including browser policy tests and static verification of the RC4 identity/XPC package boundary.
+- `node --test --test-concurrency=2 --test-reporter=tap`: 69 passed, one Windows-only skip (70 total), including browser policy tests and static verification of the RC5 native-host path and package boundary.
 - `swift test --package-path apps/controller-macos --scratch-path .artifacts/derived-data/stage-06d/controller-tests --jobs 2`: 54 passed (4 XCTest + 50 Swift Testing).
-- `swift test --package-path agents/endpoint-macos --scratch-path .artifacts/derived-data/stage-06d/endpoint-tests --jobs 2`: 34 passed (4 XCTest + 30 Swift Testing). Includes isolated signed LAN policy delivery, child persistence, file-identity permission/corruption checks, consumed-once maintenance-marker bounds, exact XPC manifest coverage, capability refresh, and an adult-authorized credential rotation that retains the existing record and browser configuration.
+- `swift test --package-path agents/endpoint-macos --scratch-path .artifacts/derived-data/stage-06d/endpoint-tests --jobs 2`: 36 passed (6 XCTest + 30 Swift Testing). Includes kernel process-path resolution, static vendor identity validation against installed Arc, isolated signed LAN policy delivery, child persistence, file-identity permission/corruption checks, exact XPC manifest coverage, and pairing-preserving credential rotation.
 - `swift format lint` for both source/test trees, shell syntax checks and `git diff --check`: passed.
-- `script/package_endpoint_release.sh`: passed for RC4, including package expansion, exact embedded pre/postinstall scripts, identity/manifest permissions, expected native hosts, version/build/commit checks and package-generated SHA-256 binding for all four XPC clients. Browser source/packages are unchanged from RC1; their existing checksums were reverified, not regenerated.
+- `script/package_endpoint_release.sh`: passed for RC5, including package expansion, exact embedded pre/postinstall scripts, identity/manifest permissions, expected native hosts, version/build/commit checks and package-generated SHA-256 binding for all four XPC clients. Browser source/packages are unchanged from RC1; their existing checksums were reverified, not regenerated.
 - `codesign --verify --deep --strict` on both apps: passed. Endpoint executables use hardened-runtime ad-hoc signatures with the expected identifiers; Team ID is absent. Installer is unsigned; no notarization or Apple managed entitlements claimed.
 - `lipo -archs`: parent arm64; child, daemon, user helper and browser host arm64 + x86_64.
 - `installer -showChoicesXML`: Parent selected by default; Child available separately. Authorized read-only inspection succeeded. No local installation was performed.
 - SHA-256 sidecars verified with `shasum -a 256 -c`.
 
-CI results are not claimed here. Installed-path XPC authorization, first RC4 repair, same-version in-place identity persistence, absence of the lock loop, real browser navigation, native-host authorization against installed browser versions, Intel execution and idle runtime resource use remain physical developer tests. Existing UI/hub processes were not used as test fixtures.
+CI results are not claimed here. RC4-to-RC5 in-place identity and pairing persistence, real child-browser navigation, native-host authorization against each installed browser version, Intel execution and idle runtime resource use remain physical developer tests. Existing UI/hub processes were not used as test fixtures.
 
 ### Retained artifacts
 
@@ -201,15 +201,15 @@ All three files are in `.artifacts/release-candidate/`; each has a `.sha256` sid
 
 | File | Purpose / status | SHA-256 |
 | --- | --- | --- |
-| `ParentalControlSystem-0.6.4-rc.4.pkg` | Selectable parent/child recovery installer; root-only ad-hoc identity, exact XPC manifest and one final pairing repair; unsigned package with hardened-runtime ad-hoc apps | `9dffc66891267893f9caafd195758f04f8a41a8671d8736fb352c8a9e824ecc5` |
+| `ParentalControlSystem-0.6.4-rc.5.pkg` | Selectable parent/child compatibility installer; preserves RC4 identity/pairing and repairs native browser-host authorization; unsigned package with hardened-runtime ad-hoc apps | `904569b534834cbff7c28f3de7445639adf8127c4b7f1d9376765300d8da34e4` |
 | `ParentalControlBrowserSharing-0.6.4-rc.1.zip` | Chromium unpacked developer test extension | `ab4e1585c211edbc3c311c7747a1db2754d444e22a83ef901b4f9b31668fb4e2` |
 | `ParentalControlBrowserFirefox-0.6.4-rc.1.xpi` | Firefox unsigned temporary test extension | `3fd6e3df59222562e98db64b85739b6e716e7ede7f5f609545909dafa4ef04f4` |
 
 ### Resource report
 
-Free disk before: 15 GiB; final free disk: 14 GiB. Initial repository: about 30 MiB; final repository: 30 MiB. Largest observed project output was 769 MiB before cleanup; peak estimate including transient package staging was under 900 MiB. Two build workers, sequential platform builds. No capacity exception; stayed above the 5 GiB floor.
+Free disk before: 13 GiB; final free disk: 14 GiB. Initial repository: about 30 MiB; final repository: 30 MiB. Largest observed project output was 610 MiB during tests; the clean release build occupied 176 MiB before cleanup. Two build workers, sequential platform builds. No capacity exception; stayed above the 5 GiB floor.
 
-Cleanup removed only reviewed project-owned `dist`, `.artifacts/derived-data`, `.artifacts/package-staging`, the exact temporary package-inspection directory, and the superseded `0.6.4-rc.3` macOS installer/checksum after RC4 replacement verification. Prior binaries were deleted, not archived; source remains in Git for rebuilding. Final artifacts occupy 16 MiB. Only one current installer and the two required browser-specific test packages remain. No project-started processes remain. No simulator was started; the pre-existing installed Parent Controller and hub processes were left untouched.
+Cleanup removed only reviewed project-owned `dist`, `.artifacts/derived-data`, `.artifacts/package-staging`, the exact temporary package-inspection directory, and the superseded `0.6.4-rc.4` macOS installer/checksum after RC5 package verification. Prior binaries were deleted, not archived; source remains in Git for rebuilding. Final artifacts occupy 16 MiB. Only one current installer and the two required browser-specific test packages remain. No project-started processes remain. No simulator was started; the pre-existing installed Parent Controller and hub processes were left untouched.
 
 ## Failure evidence and feedback
 
