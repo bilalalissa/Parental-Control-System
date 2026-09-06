@@ -569,9 +569,6 @@ private struct PairedDeviceDetailView: View {
     if let status = store.activityStatusMessage {
       Text(status).font(.caption).foregroundStyle(.secondary)
     }
-    if let status = store.browserStatusMessage {
-      Text(status).font(.caption).foregroundStyle(.secondary)
-    }
   }
 
   private func capabilityTitle(_ value: String) -> String {

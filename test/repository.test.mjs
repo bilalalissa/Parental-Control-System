@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06d-macos-app-web-network-enforcement");
-  assert.equal(active[0].version, "0.6.4-rc.4");
+  assert.equal(active[0].version, "0.6.4-rc.5");
   assert.ok(["IMPLEMENTING", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "BLOCKED"].includes(active[0].status));
   const idPattern = new RegExp(schema.properties.stages.items.properties.id.pattern);
   assert.ok(tracker.stages.every((stage) => idPattern.test(stage.id)));
@@ -158,7 +158,7 @@ test("macOS packages can use one stable signing identity without requiring CI cr
 });
 
 test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minimal", async () => {
-  const [manifest, nativeManifest, worker, popup, packager, postinstall, authorization] = await Promise.all([
+  const [manifest, nativeManifest, worker, popup, packager, postinstall, authorization, browserHost] = await Promise.all([
     readJson("browser-extensions/webextension/manifest.json"),
     readJson("browser-extensions/webextension/native-host-manifest.json"),
     read("browser-extensions/webextension/service-worker.js"),
@@ -166,6 +166,7 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
     read("script/package_browser_extension.sh"),
     read("agents/endpoint-macos/Installer/postinstall"),
     read("agents/endpoint-macos/Sources/EndpointCore/BrowserNativeMessaging.swift"),
+    read("agents/endpoint-macos/Sources/ParentalControlBrowserHost/main.swift"),
   ]);
   assert.equal(manifest.manifest_version, 3);
   assert.equal(manifest.version, "0.6.4.1");
@@ -193,6 +194,9 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.doesNotMatch(postinstall, /(?:Chrome|Edge|Arc)[^\n]*Extensions\//);
   assert.match(authorization, /company\.thebrowser\.Browser/);
   assert.match(authorization, /S6N382Y83G/);
+  assert.match(authorization, /proc_pidpath/);
+  assert.match(browserHost, /BrowserProcessInspector\.expectedBrowser/);
+  assert.doesNotMatch(browserHost, /SecCodeCopyGuestWithAttributes/);
 });
 
 test("endpoint XPC clients reconnect after the privileged daemon is replaced", async () => {
@@ -356,17 +360,17 @@ test("Stage 06D transition installer is versioned, upgrade-safe, and capability-
     read(".github/workflows/stage-03-macos.yml"),
   ]);
   for (const build of [controllerBuild, endpointBuild]) {
-    assert.match(build, /VERSION="0\.6\.4-rc\.4"/);
-    assert.match(build, /CFBundleVersion string 6404/);
+    assert.match(build, /VERSION="0\.6\.4-rc\.5"/);
+    assert.match(build, /CFBundleVersion string 6405/);
     assert.match(build, /derived-data\/stage-06d/);
   }
   assert.match(packaging, /ParentalControlSystem-\$VERSION\.pkg/);
-  assert.match(packaging, /--version 0\.6\.4\.4/);
+  assert.match(packaging, /--version 0\.6\.4\.5/);
   assert.match(packaging, /xpc-clients\.plist/);
   assert.match(endpointBuild, /file identity is authorized only for ad-hoc test builds/);
   assert.match(endpointBuild, /--options runtime/);
   assert.doesNotMatch(packaging, /package_browser_extension\.sh/);
-  assert.match(distribution, /version="0\.6\.4\.4"/);
+  assert.match(distribution, /version="0\.6\.4\.5"/);
   assert.match(preinstall, /\.installer-maintenance\.plist/);
   assert.doesNotMatch(preinstall + postinstall, /delete-generic-password|rm[^\n]*configuration\.json/);
   assert.match(readiness, /session-enforcement/);
@@ -390,7 +394,7 @@ test("Stage 06D transition installer is versioned, upgrade-safe, and capability-
   assert.match(child, /Effective time remaining/);
   assert.match(child, /Next limiting rule/);
   assert.match(helper, /Effective time remaining/);
-  assert.match(workflow, /ParentalControlSystem-0\.6\.4-rc\.4\.pkg/);
+  assert.match(workflow, /ParentalControlSystem-0\.6\.4-rc\.5\.pkg/);
   assert.doesNotMatch(workflow, /ParentalControlBrowserSharing-0\.6\.1-rc\.5/);
 });
 

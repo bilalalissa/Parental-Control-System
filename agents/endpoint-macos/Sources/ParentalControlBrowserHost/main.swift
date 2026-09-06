@@ -2,7 +2,6 @@ import Darwin
 import EndpointCore
 import Foundation
 import HubCore
-import Security
 
 private enum HostError: Error {
   case unauthorized
@@ -13,33 +12,7 @@ private enum HostError: Error {
 
 private struct BrowserParentInspector {
   static func expectedBrowser(origin: String) -> String? {
-    let parentPID = getppid()
-    var dynamicCode: SecCode?
-    guard
-      SecCodeCopyGuestWithAttributes(
-        nil, [kSecGuestAttributePid as String: NSNumber(value: parentPID)] as CFDictionary, [],
-        &dynamicCode) == errSecSuccess,
-      let dynamicCode
-    else { return nil }
-    var staticCode: SecStaticCode?
-    guard SecCodeCopyStaticCode(dynamicCode, [], &staticCode) == errSecSuccess, let staticCode
-    else { return nil }
-    let valid =
-      SecStaticCodeCheckValidity(
-        staticCode, SecCSFlags(rawValue: kSecCSCheckAllArchitectures), nil) == errSecSuccess
-    var path: CFURL?
-    var information: CFDictionary?
-    guard SecCodeCopyPath(staticCode, [], &path) == errSecSuccess,
-      SecCodeCopySigningInformation(
-        staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
-      let executablePath = (path as URL?)?.path,
-      let signing = information as? [CFString: Any],
-      let identifier = signing[kSecCodeInfoIdentifier] as? String,
-      let teamIdentifier = signing[kSecCodeInfoTeamIdentifier] as? String
-    else { return nil }
-    return BrowserCallerAuthorization.expectedBrowser(
-      origin: origin, executablePath: executablePath, signingIdentifier: identifier,
-      teamIdentifier: teamIdentifier, signatureValid: valid)
+    BrowserProcessInspector.expectedBrowser(origin: origin, parentPID: getppid())
   }
 }
 

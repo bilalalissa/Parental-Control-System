@@ -756,7 +756,7 @@ migrate back to Keychain when stable Developer ID signing becomes available. Con
 remain in Keychain. Installed XPC clients must be bound to exact package paths, identifiers and
 SHA-256 values; the exception must not weaken the standard-child threat model.
 
-Version: `0.6.4-rc.4`.
+Version: `0.6.4-rc.5`.
 
 ### STAGE-07 — Windows Child Agent foundation
 

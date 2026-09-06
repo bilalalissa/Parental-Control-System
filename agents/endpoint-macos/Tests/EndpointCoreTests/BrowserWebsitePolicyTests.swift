@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import HubCore
 import XCTest
@@ -60,5 +61,31 @@ final class BrowserWebsitePolicyTests: XCTestCase {
         executablePath: "/Applications/Firefox.app/Contents/MacOS/firefox",
         signingIdentifier: "org.mozilla.firefox",
         teamIdentifier: "43AQ936H96", signatureValid: true))
+  }
+
+  func testBrowserParentPathUsesKernelProcessMetadata() {
+    let expected = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().path
+    XCTAssertEqual(BrowserProcessInspector.processPath(pid: getpid()), expected)
+    XCTAssertNil(BrowserProcessInspector.processPath(pid: -1))
+  }
+
+  func testInstalledArcStaticIdentityIsRecognizedWhenAvailable() throws {
+    let executable = "/Applications/Arc.app/Contents/MacOS/Arc"
+    guard FileManager.default.fileExists(atPath: executable) else {
+      throw XCTSkip("Arc is not installed on this test host")
+    }
+    guard let identity = BrowserProcessInspector.signingIdentity(path: executable) else {
+      throw XCTSkip("Installed Arc copy does not currently pass static code-signature validation")
+    }
+    XCTAssertEqual(identity.signingIdentifier, "company.thebrowser.Browser")
+    XCTAssertEqual(identity.teamIdentifier, "S6N382Y83G")
+    XCTAssertEqual(
+      BrowserCallerAuthorization.expectedBrowser(
+        origin: BrowserNativeMessaging.allowedOrigin,
+        executablePath: identity.executablePath,
+        signingIdentifier: identity.signingIdentifier,
+        teamIdentifier: identity.teamIdentifier,
+        signatureValid: true),
+      "arc")
   }
 }

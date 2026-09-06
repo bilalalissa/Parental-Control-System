@@ -1,14 +1,38 @@
 # STAGE-06D — Managed browser website blocking
 
-- Version: `0.6.4-rc.4` (build `6404`); browser extensions remain `0.6.4-rc.1` unchanged
+- Version: `0.6.4-rc.5` (build `6405`); browser extensions remain `0.6.4-rc.1` unchanged
 - Branch: `stage/06d-macos-app-web-network-enforcement`
-- Status: `READY_FOR_RETEST` (identity/XPC recovery candidate; production distribution is not ready)
+- Status: `IMPLEMENTING` (browser native-host authorization retest; production distribution is not ready)
 - Scope amended by the developer on 2026-09-05: `AUTHORIZE STAGE-06D SCOPE AMENDMENT: MANAGED BROWSER WEBSITE BLOCKING. PROCEED.`
 - The former system-extension design in [ADR-0004](../adr/0004-macos-enforcement-extension-readiness.md) is deferred. Its Apple Developer ID and same Team ID gate and physical acceptance matrix apply only to future system-wide enforcement, not this browser-only test candidate.
 
 ## Objective and scope
 
 Apply one parent-authored domain blocklist independently in each enrolled Chromium or Firefox profile through the existing authenticated LAN and native host. Preserve upgrades/pairing, current schedules and optional tab sharing. Do not modify browser installations or live family policies during development.
+
+### RC5 retest: browser native-host authorization
+
+RC4 physical evidence confirmed that the endpoint identity and XPC recovery succeeded: the child
+returned Online, the protected identity and client manifest were both `root:wheel` mode `0600`, and
+the other retest points passed. Enrolled browsers nevertheless remained `Setup required`, and an
+applied example-domain policy did not reach the extension.
+
+The browser native host was still resolving its browser parent through the PID-to-dynamic-code
+Security API that failed during RC3 XPC testing. A rejected browser parent exits before querying the
+endpoint policy, so no dynamic rule or current profile acknowledgement can exist. RC5 resolves the
+parent PID through the kernel-reported executable path, validates that exact static code across all
+architectures, and retains the existing allowlist of browser bundle path, signing identifier, Team
+ID and fixed extension origin/ID. It does not trust a browser name supplied by the extension.
+
+The parent now displays website-policy queue success or validation failure directly below the Apply
+button. Browser packages are unchanged from `0.6.4-rc.1`; an already loaded extension must not be
+removed or reloaded for this native-host repair. RC4 file identity and pairing remain compatible, so
+installing RC5 must reconnect without another invitation.
+
+Acceptance: after installing both RC5 components and restarting each test browser once, its loaded
+extension reports a current profile; applying `example.com` changes that profile from `Setup
+required` to `Policy applied`; new navigation to the domain and its subdomains is blocked; an
+unlisted domain remains available; and applying an empty list removes the rule.
 
 ### RC4 retest: ad-hoc identity and XPC recovery
 
@@ -122,15 +146,10 @@ Official references:
 
 ## Installation and manual developer tests
 
-1. Quit the Parent app, install the RC4 Parent Controller component on the parent Mac, then reopen it. Install only Child Endpoint RC4 on the child Mac. Use an ordinary standard child account and retain an adult recovery administrator. Install over existing apps without uninstalling or clicking Unpair. The installer should stop the RC3 lock loop and provide at most ten minutes for recovery.
-2. Perform the one final RC4 invitation repair exactly as described above. Confirm that the parent still shows the same device once, now online with website blocking available. Do not unpair or delete the existing device record. On the child Mac, paste the complete fresh invitation from the parent in place of `$TOKEN`, then run:
+1. Quit the Parent app, install the RC5 Parent Controller component on the parent Mac, then reopen it. Install only Child Endpoint RC5 on the child Mac. Use an ordinary standard child account and retain an adult recovery administrator. Install over RC4 without uninstalling, unpairing or creating a new invitation. The protected endpoint identity and pairing must remain unchanged.
+2. Wait 30–60 seconds for the authenticated heartbeat. Confirm that the parent still shows the same device once, Online, with website blocking available. An invitation repair is required only when upgrading directly from RC3 or earlier, as described in the RC4 recovery section above; RC4-to-RC5 must not require it.
 
-   ```bash
-   sudo /usr/local/bin/parental-control-agentctl pair --invitation "$TOKEN"
-   sudo /bin/launchctl kickstart -k system/com.bilalalissa.ParentalControlAgent.daemon
-   ```
-
-   Allow 30–60 seconds for the authenticated heartbeat. If it does not reconnect, collect the bounded logs listed below rather than repeatedly pairing.
+   If it does not reconnect, collect the bounded logs listed below rather than repeatedly pairing.
 3. Verify the two new root-only files without printing or hashing the private identity:
 
    ```bash
@@ -140,16 +159,16 @@ Official references:
    ```
 
    Both must report `root:wheel 600`. Never copy the identity file into feedback or a public issue.
-4. Keep an existing loaded 0.6.4-rc.1 extension unchanged. Otherwise extract the Chromium ZIP to a stable location, load it through the browser's extension developer UI and approve the declarative blocking permission. Repeat per Chrome/Edge/Arc/Brave profile being tested.
+4. Keep each existing loaded `0.6.4-rc.1` extension unchanged. Do not remove, reload or repack it for RC5. If a test profile never had the extension, extract the Chromium ZIP to a stable location, load it through that browser profile's extension developer UI and approve the declarative blocking permission. Repeat per Chrome/Edge/Arc/Brave profile being tested.
 5. For Firefox, temporarily load the unsigned XPI via about:debugging. Permanent restart/automatic-update testing is blocked until a signed distribution is available.
-6. In Devices > Browser website restrictions, enter `example.com` and `youtube.com`, confirm Apply and wait for each reporting profile's matching policy acknowledgement (normally within 1–2 minutes).
-7. Navigate to those domains/subdomains: denied. Unlisted domains remain available. Similar-looking unrelated domains must not match. Reloading an already loaded page must be tested separately.
+6. Fully quit and reopen each Chromium/Firefox browser once so it starts the RC5 native host. In Devices > Browser website restrictions, enter `example.com`, confirm Apply, and verify that the parent displays the queue result directly below the Apply button.
+7. Wait for each tested profile to change from `Setup required` to `Policy applied` (normally within 1–2 minutes). Navigate a new tab to `https://example.com` and a subdomain: denied. An unlisted domain remains available. Similar-looking unrelated domains must not match. Reloading already loaded content is a separate test.
 8. Turn off tab sharing: domain denial continues; new tab titles/origins must not arrive.
 9. Disconnect the parent LAN connection: stored restrictions continue in the running browser. Restore the LAN and apply a changed policy: matching acknowledgements return.
 10. Close/restart Chromium: dynamic rules persist. Firefox temporary install restart is explicitly not a pass for permanent persistence.
 11. Apply an empty list: confirm the formerly blocked sites become available and new-version acknowledgements arrive.
 12. Disable/remove the extension or close the browser: after three minutes, status becomes Not reporting. Add another profile: do not infer protection from the first profile. Safari must remain Unsupported.
-13. Reinstall the RC4 child component in place: it must reconnect without another invitation; the schedule, file identity and extension identity remain. Verify chat and schedule behavior remain intact and no repeated lock loop occurs.
+13. Reinstall the RC5 child component in place: it must reconnect without another invitation; the schedule, file identity, pairing and extension identity remain. Verify chat and schedule behavior remain intact and no repeated lock loop occurs.
 14. Confirm the Parent app never claims device-wide WAN/app blocking or complete browser protection.
 
 ## Rollback and cleanup
@@ -199,7 +218,7 @@ Collect OS/browser version, selected installer component, test step, requested p
 ```text
 STAGE FEEDBACK
 Stage: STAGE-06D
-Version: 0.6.4-rc.4 (6404)
+Version: 0.6.4-rc.5 (6405)
 Platform and OS:
 Hardware:
 Result: PASS | FAIL | PARTIAL

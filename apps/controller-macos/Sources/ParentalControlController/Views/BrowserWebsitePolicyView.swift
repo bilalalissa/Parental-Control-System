@@ -23,6 +23,10 @@ struct BrowserWebsitePolicyView: View {
           .disabled(!device.capabilities.contains("browser-website-policy"))
         Button("Apply Website Policy…") { confirming = true }
           .disabled(!device.capabilities.contains("browser-website-policy"))
+        if let status = store.browserStatusMessage {
+          Text(status).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
         if !device.capabilities.contains("browser-website-policy") {
           Text(
             "The connected child service has not advertised website blocking. Update the child endpoint and reconnect; re-pairing is not required."

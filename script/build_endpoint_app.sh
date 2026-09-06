@@ -14,13 +14,13 @@ MACOS="$CONTENTS/MacOS"
 HELPERS="$CONTENTS/Helpers"
 RESOURCES="$CONTENTS/Resources"
 MODE="$(printf '%s' "$CONFIGURATION" | tr '[:upper:]' '[:lower:]')"
-VERSION="0.6.4-rc.4"
+VERSION="0.6.4-rc.5"
 COMMIT="$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD)"
 SIGN_IDENTITY="${MACOS_SIGNING_IDENTITY:--}"
 PRODUCTS=(ParentalControlChild ParentalControlAgentDaemon ParentalControlAgentUser ParentalControlAgentCtl ParentalControlBrowserHost)
 
 if [[ "$SIGN_IDENTITY" != "-" ]]; then
-  echo "RC4's file identity is authorized only for ad-hoc test builds; Developer ID builds require the Keychain migration." >&2
+  echo "The RC4+ file identity is authorized only for ad-hoc test builds; Developer ID builds require the Keychain migration." >&2
   exit 1
 fi
 
@@ -60,7 +60,7 @@ cp "$ICON" "$RESOURCES/ChildAgentIcon.icns"
 /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'Parental Control Child'" "$CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" "$CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "$CONTENTS/Info.plist"
-/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 6404" "$CONTENTS/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 6405" "$CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :BuildCommit string $COMMIT" "$CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string ChildAgentIcon" "$CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 14.0" "$CONTENTS/Info.plist"
