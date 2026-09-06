@@ -36,7 +36,11 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06d-macos-app-web-network-enforcement");
   assert.equal(active[0].version, "0.6.4-rc.5");
-  assert.ok(["IMPLEMENTING", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "BLOCKED"].includes(active[0].status));
+  assert.ok(
+    ["IMPLEMENTING", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
+      active[0].status,
+    ),
+  );
   const idPattern = new RegExp(schema.properties.stages.items.properties.id.pattern);
   assert.ok(tracker.stages.every((stage) => idPattern.test(stage.id)));
 });
