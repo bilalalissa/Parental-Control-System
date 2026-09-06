@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.6.5-rc.5 — 2026-09-06
 
-Status: **STAGE-06E implementing; unreleased**
+Status: **STAGE-06E ready for developer retest; unreleased**
 
 - Adds an ad-hoc local-test Safari Web Extension in a visible companion app embedded in the child installer.
 - Uses Safari declarative hostname rules and the shared restored-tab/SPA hostname reconciliation without content or traffic inspection.

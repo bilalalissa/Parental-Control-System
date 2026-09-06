@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-06E macOS application-use restrictions RC5 with Safari local-test coverage are being prepared; STAGE-07 has not begun.** RC5 retains signed-identity app restrictions and hostname-only enforcement for new, restored and SPA browser navigation. It never inspects page content or network traffic. Chromium/Firefox remain manually enrolled; Safari uses an ad-hoc companion extension that an adult must explicitly enable per profile. Production Safari distribution is not claimed. Without Apple's Endpoint Security entitlement, Stage 06E can visibly close a selected signed third-party app after launch but cannot claim pre-launch denial. See [Stage status](docs/stages/stage-status.json) and [Stage 06E](docs/stages/stage-06e.md).
+> **STAGE-06E macOS application-use restrictions RC5 with Safari local-test coverage is ready for developer retest; STAGE-07 has not begun.** RC5 retains signed-identity app restrictions and hostname-only enforcement for new, restored and SPA browser navigation. It never inspects page content or network traffic. Chromium/Firefox remain manually enrolled; Safari uses an ad-hoc companion extension that an adult must explicitly enable per profile. Production Safari distribution is not claimed. Without Apple's Endpoint Security entitlement, Stage 06E can visibly close a selected signed third-party app after launch but cannot claim pre-launch denial. See [Stage status](docs/stages/stage-status.json) and [Stage 06E](docs/stages/stage-06e.md).
 
 ## Product direction
 

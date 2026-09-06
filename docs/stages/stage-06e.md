@@ -2,7 +2,7 @@
 
 - Version: `0.6.5-rc.5` (build `6505`)
 - Branch: `stage/06e-macos-app-use-restrictions`
-- Status: `IMPLEMENTING`
+- Status: `READY_FOR_RETEST`
 - Authorized on 2026-09-05 with `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06E MACOS APP-USE RESTRICTIONS BEFORE STAGE-07` and `PROCEED: STAGE-06E`.
 - Browser-compatibility amendment authorized on 2026-09-06 with `AUTHORIZE STAGE-06E SCOPE AMENDMENT: HARDEN DOMAIN ENFORCEMENT FOR YOUTUBE, RESTORED TABS, AND SPA NAVIGATION IN ENROLLED BROWSERS; USE LOCAL HOSTNAME MATCHING ONLY, WITH NO CONTENT INSPECTION.` and `PROCEED: STAGE-06E 0.6.5-rc.3 BROWSER COMPATIBILITY FIX`.
 - Safari local-test amendment authorized conversationally on 2026-09-06 after the developer asked whether a Safari extension was available and then instructed `go ahead`.
@@ -75,16 +75,16 @@ Apply empty newer app and website policies before reverting. Installing Stage 06
 
 ## Automated and artifact evidence
 
-- Repository contracts: 70 passed, one Windows-only cleanup check skipped on macOS. The focused browser suite includes 11 passing cases for policy validation/readback, privacy permissions, native outage behavior, restored tabs and SPA URL changes. Installer assertions additionally require bounded normal termination, no force-kill, a root-only relaunch marker and console-user relaunch.
+- Repository contracts: 73 passed, one Windows-only cleanup check skipped on macOS. The focused browser suite includes 13 passing cases for Chromium/Firefox/Safari rule generation, policy validation/readback, privacy permissions, native outage behavior, restored tabs and SPA URL changes. Installer assertions additionally require bounded normal termination, no force-kill, a root-only relaunch marker, console-user relaunch and Safari-open refusal.
 - Controller/hub: 54 Swift Testing cases plus four XCTest cases passed with two workers, including policy bounds, aggregate IPC budget, migration and exact identity persistence.
-- Endpoint: 31 Swift Testing cases plus six XCTest cases passed with two workers, including identity mismatch, protected-app exclusion, rollback/persistence, XPC authorization and one-attempt-per-process/policy fallback gating.
+- Endpoint: 31 Swift Testing cases plus seven XCTest cases passed with two workers, including identity mismatch, protected-app exclusion, rollback/persistence, exact Safari XPC admission and one-attempt-per-process/policy fallback gating.
 - Swift formatting, shell syntax and Git whitespace checks passed.
-- `ParentalControlSystem-0.6.5-rc.4.pkg` was built from commit `eeafd66d4e3b`, checksum-verified, expanded-payload inspected, and its selectable choices passed `installer -showChoicesXML` validation. The embedded preinstall and postinstall scripts exactly match the reviewed source, the XPC client manifest is mode `0600`, and the payload includes the stable Chromium source and static block page.
-- Parent binary is `arm64`; child app and helpers are universal `x86_64 arm64`. Both apps passed deep/strict code-signature verification.
-- SHA-256: installer `3205eabbd709bc5e7dfb7dbd6812d7cea2f5727478df2c589b1840e35d45f9bb`; Chromium ZIP `d2026793705dfab2201d5f4790cbf5fdc215a9870bad885bafa658e99687a8d7`; Firefox XPI `0447bafd42d7df49956444c4ffd386db6989ff1386d13fed5580c2dac7f1964b`.
-- Signing status: embedded apps/helpers use hardened-runtime ad-hoc signatures with no Team ID. The product package is unsigned and not notarized. The Firefox XPI is unsigned and temporary. No Endpoint Security entitlement is present or claimed.
-- GitHub Actions run `34044737285` passed on its clean macOS rerun. It verified the default parent-only choice, a fresh child install, endpoint/helper health, exact protected-file permissions, a Child UI kept open across in-place reinstall and replaced by a new process, unchanged endpoint identity, daemon-only reconnect, package cleanup and uninstall. Contracts, POSIX/Windows cleanup safety and the repository secret scan also passed. The first attempt ended at the pre-existing parent-only assertion before reaching the child-upgrade test; the clean rerun passed that assertion and the complete new path.
+- `ParentalControlSystem-0.6.5-rc.5.pkg` was built from implementation commit `d10e82f237a7`, checksum-verified, expanded-payload inspected, and its selectable choices were read successfully with `installer -showChoicesXML`. The embedded preinstall and postinstall scripts exactly match the reviewed source. The XPC client manifest contains exactly five allowlisted, package-hashed executables, including the installed Safari extension, and the payload includes the stable Chromium source and local static block page.
+- Parent binary is `arm64`; the child app, helpers, Safari companion and Safari extension are universal `x86_64 arm64`. The expanded Safari companion passed deep/strict code-signature verification, and its extension hash `864376e3ad6e6592291636d055f22f134c678a920e2364ac3801c2526591cbb5` exactly matches the XPC manifest.
+- SHA-256: installer `990a21a965c3a26ab033f3e3b20870e810a4e07f18ebfa4447aec1af2d509924`; Chromium ZIP `058ce4709c49ae1e7f355470669ba00408215afd29b070a87ef6ce491b6ac855`; Firefox XPI `080b9604df166c2d027183a74fe715331c3413f8a7b76e04d4ae4988dc922f31`.
+- Signing status: embedded apps/helpers use hardened-runtime ad-hoc signatures with no Team ID. The Safari extension is sandboxed and has only the temporary fixed mach-service lookup exception required by this unsigned local-test bridge. The product package is unsigned and not notarized. The Firefox XPI is unsigned and temporary. No Endpoint Security entitlement is present or claimed.
+- RC5 has not yet run in GitHub Actions or on the developer's physical child Mac. The prior RC4 clean macOS CI run is historical evidence only and is not represented as RC5 Safari or upgrade evidence.
 
-Physical in-place upgrade with the RC3 Child UI left open, connection recovery, one-time stable extension-path migration, ordinary/restored/SPA YouTube enforcement, standard-user app behavior, refusal/lock fallback and idle-resource evidence remain the developer test gate. Local package inspection cannot prove the console-session relaunch; the updated macOS CI job and developer hardware test provide that evidence.
+Physical RC4-to-RC5 in-place upgrade with the Child UI left open, connection recovery without uninstalling/unpairing, Safari registration/XPC admission, per-profile acknowledgement, ordinary/restored/SPA YouTube enforcement, standard-user app behavior, refusal/lock fallback and idle-resource evidence remain the developer test gate. Local package inspection cannot prove Safari browser behavior or the console-session relaunch.
 
 AWAITING DEVELOPER TEST RESULT
