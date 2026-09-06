@@ -59,6 +59,50 @@ struct EndpointPolicyRuntimeTests {
     #expect(until == start.addingTimeInterval(1_211))
   }
 
+  @Test("installer maintenance opens briefly and expires fail closed")
+  func installerMaintenance() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let start = Date(timeIntervalSince1970: 2_000_000_000)
+    let blocked = ParentalControlPolicy(
+      version: 1, deviceID: "child-policy-test", timezone: "UTC",
+      effectiveAt: start.addingTimeInterval(-3_600),
+      expiresAt: start.addingTimeInterval(3_600), defaultAction: .lock,
+      gracePeriodSeconds: 0,
+      weeklyAllowed: PolicyWeekday.allCases.map {
+        PolicyWeeklyWindow(day: $0, start: "00:00", end: "23:59")
+      },
+      blockedIntervals: [
+        PolicyBlockedInterval(
+          start: start.addingTimeInterval(-60), end: start.addingTimeInterval(1_200),
+          action: .lock, reason: "Synthetic installer recovery test")
+      ], dailyQuotaMinutes: 1_440, childExplanation: "Synthetic installer recovery test",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.install(
+      identity.sign(policy: blocked), controllerPublicKey: identity.publicKeyData)
+    #expect(
+      runtime.tick(now: start, uptime: 100, sessionActive: true).contains {
+        if case .enforce = $0 { return true }
+        return false
+      })
+
+    let expiry = start.addingTimeInterval(600)
+    try runtime.beginInstallerMaintenance(until: expiry, now: start)
+    #expect(runtime.tick(now: start, uptime: 100, sessionActive: true).isEmpty)
+    #expect(runtime.snapshot(now: start).1.adultOverrideUntil == expiry)
+    #expect(
+      runtime.tick(now: expiry, uptime: 700, sessionActive: true).contains {
+        if case .enforce = $0 { return true }
+        return false
+      })
+    #expect(throws: EndpointPolicyError.invalidInstallerMaintenance) {
+      try runtime.beginInstallerMaintenance(
+        until: start.addingTimeInterval(601), now: start)
+    }
+  }
+
   @Test("clock discontinuity fails closed and an immediate action is isolated")
   func clockAndAction() throws {
     let root = temporaryRoot()

@@ -74,6 +74,39 @@ struct EndpointCoreTests {
       Thread.sleep(forTimeInterval: 0.02)
     }
     #expect(try store.load().invitation == nil)
+    // Exercise the real signed envelope path with collection disabled.
+    let websitePolicy = try BrowserWebsitePolicy(version: 10, domains: ["example.com"])
+    try hub.configureBrowser(
+      BrowserConfiguration(
+        deviceID: configuration.deviceID,
+        enabled: false, websitePolicy: websitePolicy))
+    let websiteDeadline = Date().addingTimeInterval(3)
+    while Date() < websiteDeadline, try store.load().websitePolicy != websitePolicy {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(try store.load().websitePolicy == websitePolicy)
+    #expect(repository.status().websitePolicy == websitePolicy)
+    #expect(repository.status().browserCollectionEnabled == false)
+    var browserAck = EndpointBrowserUpdate(
+      browser: "chrome", profileID: "synthetic-profile", tabs: [])
+    browserAck.protectionReport = BrowserProtectionReport(
+      browser: "chrome", profile: "synthetic-profile",
+      version: 10, state: "applied", observedAt: Date())
+    repository.applyBrowser(browserAck)
+    // A new message prompts the normal endpoint snapshot/queue path without a long heartbeat wait.
+    _ = try hub.sendChat(deviceID: configuration.deviceID, text: "Policy test", audience: .direct)
+    let coverageDeadline = Date().addingTimeInterval(5)
+    while Date() < coverageDeadline,
+      try database.browserConfigurations().first?.protectionReports?.contains(where: {
+        $0.profile == "synthetic-profile"
+      }) != true
+    {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(
+      try database.browserConfigurations().first?.protectionReports?.contains(where: {
+        $0.profile == "synthetic-profile" && $0.version == 10
+      }) == true)
     let familyThread = UUID()
     repository.queueChat(text: "Child reply", audience: .familyGroup, threadID: familyThread)
     repository.queueMoreTime(minutes: 20, note: "Finish homework")
@@ -155,6 +188,16 @@ struct EndpointCoreTests {
     hub.stop()
     Thread.sleep(forTimeInterval: 0.2)
 
+    // Model an in-place upgrade: the hub still has the pre-upgrade pairing capabilities.
+    let oldRecord = try #require(deviceBeforeRestart)
+    try database.upsertDevice(
+      HubDeviceRecord(
+        id: oldRecord.id, name: oldRecord.name, platform: oldRecord.platform,
+        keyID: oldRecord.keyID, publicKey: oldRecord.publicKey,
+        capabilities: ["presence", "chat", "obsolete-test-capability"],
+        pairedAt: oldRecord.pairedAt, lastSeen: oldRecord.lastSeen,
+        lastSequence: oldRecord.lastSequence, snapshotVersion: oldRecord.snapshotVersion))
+
     let restartedHub = try LocalHub(
       database: database, tlsIdentity: tls, controllerIdentity: controllerIdentity,
       heartbeat: AdaptiveHeartbeat(activeInterval: 1, idleInterval: 2, offlineAfter: 4),
@@ -182,6 +225,48 @@ struct EndpointCoreTests {
     #expect(repository.status().connectionState == .online)
     let deviceAfterRestart = try database.device(id: configuration.deviceID)
     #expect(try #require(deviceAfterRestart).lastSequence > sequenceBeforeRestart)
+    #expect(deviceAfterRestart?.capabilities.contains("browser-website-policy") == true)
+    #expect(deviceAfterRestart?.capabilities.contains("obsolete-test-capability") == false)
+    #expect(deviceAfterRestart?.publicKey == oldRecord.publicKey)
+    #expect(deviceAfterRestart?.pairedAt == oldRecord.pairedAt)
+    #expect(try store.load().invitation == nil)
+    let revisedWebsitePolicy = try BrowserWebsitePolicy(version: 11, domains: ["example.org"])
+    try restartedHub.configureBrowser(
+      BrowserConfiguration(
+        deviceID: configuration.deviceID,
+        enabled: false, websitePolicy: revisedWebsitePolicy))
+    let revisionDeadline = Date().addingTimeInterval(3)
+    while Date() < revisionDeadline, try store.load().websitePolicy != revisedWebsitePolicy {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    #expect(try store.load().websitePolicy == revisedWebsitePolicy)
+
+    // An rc.5 ad-hoc daemon cannot share its Keychain ACL with a changed executable. Model the
+    // bounded adult repair path: a fresh one-time invitation rotates only the device credential,
+    // while retaining the stable device ID, original pairing date, configuration and history.
+    restartedAgent.stop()
+    let repairInvitation = try restartedHub.createPairingInvitation()
+    try store.installPairingInvitation(repairInvitation)
+    let replacementIdentity = try Ed25519Identity(keyID: "device-\(configuration.deviceID)")
+    let repairAgent = try EndpointAgent(
+      store: store, repository: repository,
+      log: BoundedLog(directory: logDirectory), suppliedIdentity: replacementIdentity,
+      policyRuntime: policyRuntime, pairedControllerPort: restartedPort)
+    defer { repairAgent.stop() }
+    try repairAgent.start()
+    let repairDeadline = Date().addingTimeInterval(5)
+    while try store.load().invitation != nil, Date() < repairDeadline {
+      Thread.sleep(forTimeInterval: 0.02)
+    }
+    let repairedDevice = try database.device(id: configuration.deviceID)
+    let repaired = try #require(repairedDevice)
+    #expect(try store.load().invitation == nil)
+    #expect(repaired.publicKey == replacementIdentity.publicKeyData)
+    #expect(repaired.publicKey != oldRecord.publicKey)
+    #expect(repaired.pairedAt == oldRecord.pairedAt)
+    #expect(repaired.id == oldRecord.id)
+    #expect(repaired.capabilities.contains("browser-website-policy"))
+    #expect(try database.browserConfigurations().first?.websitePolicy == revisedWebsitePolicy)
 
     try restartedHub.revoke(deviceID: configuration.deviceID)
     #expect(try database.device(id: configuration.deviceID)?.isRevoked == true)

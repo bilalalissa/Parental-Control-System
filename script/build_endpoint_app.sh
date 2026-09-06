@@ -5,7 +5,7 @@ CONFIGURATION="${1:-Release}"
 if [[ "$CONFIGURATION" != "Release" && "$CONFIGURATION" != "Debug" ]]; then echo "usage: $0 [Debug|Release]" >&2; exit 2; fi
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 PACKAGE_DIR="$ROOT_DIR/agents/endpoint-macos"
-DERIVED="$ROOT_DIR/.artifacts/derived-data/stage-06a"
+DERIVED="$ROOT_DIR/.artifacts/derived-data/stage-06d"
 ARCH_ROOT="$DERIVED/architectures"
 DIST="$ROOT_DIR/dist"
 APP="$DIST/Parental Control Child.app"
@@ -14,10 +14,15 @@ MACOS="$CONTENTS/MacOS"
 HELPERS="$CONTENTS/Helpers"
 RESOURCES="$CONTENTS/Resources"
 MODE="$(printf '%s' "$CONFIGURATION" | tr '[:upper:]' '[:lower:]')"
-VERSION="0.6.1-rc.5"
+VERSION="0.6.4-rc.5"
 COMMIT="$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD)"
 SIGN_IDENTITY="${MACOS_SIGNING_IDENTITY:--}"
 PRODUCTS=(ParentalControlChild ParentalControlAgentDaemon ParentalControlAgentUser ParentalControlAgentCtl ParentalControlBrowserHost)
+
+if [[ "$SIGN_IDENTITY" != "-" ]]; then
+  echo "The RC4+ file identity is authorized only for ad-hoc test builds; Developer ID builds require the Keychain migration." >&2
+  exit 1
+fi
 
 mkdir -p "$DERIVED/module-cache" "$DERIVED/cache" "$DERIVED/config" "$DERIVED/security"
 for architecture in arm64 x86_64; do
@@ -55,7 +60,7 @@ cp "$ICON" "$RESOURCES/ChildAgentIcon.icns"
 /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'Parental Control Child'" "$CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" "$CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "$CONTENTS/Info.plist"
-/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 6105" "$CONTENTS/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 6405" "$CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :BuildCommit string $COMMIT" "$CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string ChildAgentIcon" "$CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 14.0" "$CONTENTS/Info.plist"
@@ -64,12 +69,12 @@ cp "$ICON" "$RESOURCES/ChildAgentIcon.icns"
 /usr/libexec/PlistBuddy -c "Add :NSHighResolutionCapable bool true" "$CONTENTS/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :NSLocalNetworkUsageDescription string 'Connect visibly to the parent controller on your local network.'" "$CONTENTS/Info.plist"
 
-/usr/bin/codesign --force --sign "$SIGN_IDENTITY" --identifier com.bilalalissa.ParentalControlAgent.daemon "$HELPERS/ParentalControlAgentDaemon"
-/usr/bin/codesign --force --sign "$SIGN_IDENTITY" --identifier com.bilalalissa.ParentalControlAgent.user "$HELPERS/ParentalControlAgentUser"
-/usr/bin/codesign --force --sign "$SIGN_IDENTITY" --identifier com.bilalalissa.ParentalControlAgent.ctl "$HELPERS/ParentalControlAgentCtl"
-/usr/bin/codesign --force --sign "$SIGN_IDENTITY" --identifier com.bilalalissa.ParentalControlBrowserHost "$HELPERS/ParentalControlBrowserHost"
-/usr/bin/codesign --force --sign "$SIGN_IDENTITY" --identifier com.bilalalissa.ParentalControlChild "$MACOS/ParentalControlChild"
-/usr/bin/codesign --force --sign "$SIGN_IDENTITY" --identifier com.bilalalissa.ParentalControlChild "$APP"
+/usr/bin/codesign --force --options runtime --sign "$SIGN_IDENTITY" --identifier com.bilalalissa.ParentalControlAgent.daemon "$HELPERS/ParentalControlAgentDaemon"
+/usr/bin/codesign --force --options runtime --sign "$SIGN_IDENTITY" --identifier com.bilalalissa.ParentalControlAgent.user "$HELPERS/ParentalControlAgentUser"
+/usr/bin/codesign --force --options runtime --sign "$SIGN_IDENTITY" --identifier com.bilalalissa.ParentalControlAgent.ctl "$HELPERS/ParentalControlAgentCtl"
+/usr/bin/codesign --force --options runtime --sign "$SIGN_IDENTITY" --identifier com.bilalalissa.ParentalControlBrowserHost "$HELPERS/ParentalControlBrowserHost"
+/usr/bin/codesign --force --options runtime --sign "$SIGN_IDENTITY" --identifier com.bilalalissa.ParentalControlChild "$MACOS/ParentalControlChild"
+/usr/bin/codesign --force --options runtime --sign "$SIGN_IDENTITY" --identifier com.bilalalissa.ParentalControlChild "$APP"
 /usr/bin/codesign --verify --deep --strict "$APP"
 
 rm -rf -- "$ARCH_ROOT/arm64" "$ARCH_ROOT/x86_64"

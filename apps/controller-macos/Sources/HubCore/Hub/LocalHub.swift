@@ -313,15 +313,46 @@ public final class LocalHub: @unchecked Sendable {
     guard let device = try database.device(id: configuration.deviceID), !device.isRevoked else {
       throw LocalHubError.unknownDevice
     }
-    try database.saveBrowserConfiguration(configuration)
+    let previous = try database.browserConfigurations().first {
+      $0.deviceID == configuration.deviceID
+    }
+    if configuration.websitePolicy != nil, !device.capabilities.contains("browser-website-policy") {
+      throw LocalHubError.unexpectedMessage
+    }
+    let websitePolicy = try configuration.websitePolicy?.validated() ?? previous?.websitePolicy
+    if let incoming = configuration.websitePolicy, let former = previous?.websitePolicy,
+      incoming.version <= former.version
+    {
+      throw BrowserPolicyError.stalePolicy
+    }
+    let effective = BrowserConfiguration(
+      deviceID: configuration.deviceID, enabled: configuration.enabled,
+      retentionDays: configuration.retentionDays, websitePolicy: websitePolicy)
+    let others = try database.browserConfigurations().filter {
+      $0.deviceID != configuration.deviceID
+    }
+    try BrowserWebsitePolicy.validateStatusBudget(others + [effective])
+    try database.saveBrowserConfiguration(effective)
+    var payload: [String: JSONValue] = [
+      "targetDeviceId": .string(configuration.deviceID), "enabled": .bool(configuration.enabled),
+      "retentionDays": .integer(Int64(configuration.retentionDays)),
+    ]
+    if let websitePolicy {
+      payload["websitePolicy"] = .string(
+        String(decoding: try JSONEncoder().encode(websitePolicy), as: UTF8.self))
+    }
     let envelope = try controllerIdentity.sign(
       deviceID: "controller", sequence: nextControllerSequence(), type: .browserConfiguration,
-      payload: [
-        "targetDeviceId": .string(configuration.deviceID),
-        "enabled": .bool(configuration.enabled),
-        "retentionDays": .integer(Int64(configuration.retentionDays)),
-      ], lifetime: 7 * 86_400)
+      payload: payload, lifetime: 7 * 86_400)
     try sendOrQueue(envelope, deviceID: configuration.deviceID, lifetime: 7 * 86_400)
+    if let policy = configuration.websitePolicy {
+      try database.appendAudit(
+        HubAuditRecord(
+          event: "browser.website-policy", deviceID: configuration.deviceID,
+          detail:
+            "Queued website policy version \(policy.version); \(policy.domains.count) domains; enforcement requires profile acknowledgement"
+        ))
+    }
     try database.appendAudit(
       HubAuditRecord(
         event: "browser.configuration", deviceID: configuration.deviceID,
@@ -506,14 +537,48 @@ public final class LocalHub: @unchecked Sendable {
     let envelope = try ProtocolCodec.decode(data)
     if let existing = try database.device(id: envelope.deviceID) {
       guard !existing.isRevoked else { throw LocalHubError.revokedDevice }
-      guard existing.keyID == envelope.auth.keyID else { throw LocalHubError.identityMismatch }
-      try replay.verify(envelope, publicKey: existing.publicKey)
-      bind(peer: peer, deviceID: existing.id)
-      try accept(envelope, device: existing, peer: peer)
+      if envelope.type == .capabilityAnnounce,
+        envelope.payload["pairingCode"]?.stringValue?.isEmpty == false
+      {
+        try acceptPairingRepair(envelope, existing: existing, peer: peer)
+      } else {
+        guard existing.keyID == envelope.auth.keyID else { throw LocalHubError.identityMismatch }
+        try replay.verify(envelope, publicKey: existing.publicKey)
+        bind(peer: peer, deviceID: existing.id)
+        try accept(envelope, device: existing, peer: peer)
+      }
     } else {
       try acceptInitialPairing(envelope, peer: peer)
     }
     publishStatus()
+  }
+
+  private func acceptPairingRepair(
+    _ envelope: ProtocolEnvelope, existing: HubDeviceRecord, peer: SecureWebSocketPeer
+  ) throws {
+    guard let code = envelope.payload["pairingCode"]?.stringValue,
+      let name = envelope.payload["name"]?.stringValue,
+      let platform = envelope.payload["platform"]?.stringValue,
+      let publicKeyText = envelope.payload["publicKey"]?.stringValue,
+      let publicKey = Data(base64Encoded: publicKeyText), publicKey.count == 32,
+      envelope.auth.keyID == "device-\(envelope.deviceID)", publicKey != existing.publicKey
+    else { throw LocalHubError.malformedAnnouncement }
+    try replay.verify(envelope, publicKey: publicKey)
+    let capabilities = try Self.validatedCapabilities(envelope.payload)
+    try pairing.consume(code: code)
+    try database.repairDeviceIdentity(
+      deviceID: existing.id, name: String(name.prefix(80)), platform: String(platform.prefix(40)),
+      keyID: envelope.auth.keyID, publicKey: publicKey, capabilities: capabilities,
+      sequence: envelope.sequence)
+    lock.lock()
+    invitation = nil
+    lock.unlock()
+    bind(peer: peer, deviceID: existing.id)
+    try database.appendAudit(
+      HubAuditRecord(
+        event: "device.identity-repaired", deviceID: existing.id,
+        detail: "Accepted adult-authorized endpoint credential repair; history retained"))
+    try sendReceipt(for: envelope, state: "accepted", to: peer, deviceID: existing.id)
   }
 
   private func acceptInitialPairing(_ envelope: ProtocolEnvelope, peer: SecureWebSocketPeer) throws
@@ -524,16 +589,14 @@ public final class LocalHub: @unchecked Sendable {
       let name = envelope.payload["name"]?.stringValue,
       let platform = envelope.payload["platform"]?.stringValue,
       let publicKeyText = envelope.payload["publicKey"]?.stringValue,
-      let publicKey = Data(base64Encoded: publicKeyText),
-      case .array(let capabilityValues) = envelope.payload["capabilities"],
-      capabilityValues.allSatisfy({ $0.stringValue != nil })
+      let publicKey = Data(base64Encoded: publicKeyText)
     else { throw LocalHubError.malformedAnnouncement }
     guard envelope.auth.keyID == "device-\(envelope.deviceID)" else {
       throw LocalHubError.identityMismatch
     }
     try replay.verify(envelope, publicKey: publicKey)
+    let capabilities = try Self.validatedCapabilities(envelope.payload)
     try pairing.consume(code: code)
-    let capabilities = capabilityValues.compactMap(\.stringValue)
     let device = HubDeviceRecord(
       id: envelope.deviceID,
       name: String(name.prefix(80)),
@@ -556,6 +619,19 @@ public final class LocalHub: @unchecked Sendable {
     try sendReceipt(for: envelope, state: "accepted", to: peer, deviceID: device.id)
   }
 
+  static func validatedCapabilities(_ payload: [String: JSONValue]) throws -> [String] {
+    guard case .array(let values) = payload["capabilities"], values.count <= 32 else {
+      throw LocalHubError.malformedAnnouncement
+    }
+    let capabilities = try values.map { value -> String in
+      guard let name = value.stringValue, !name.isEmpty, name.utf8.count <= 64,
+        name.utf8.allSatisfy({ (97...122).contains($0) || (48...57).contains($0) || $0 == 45 })
+      else { throw LocalHubError.malformedAnnouncement }
+      return name
+    }
+    return Array(Set(capabilities)).sorted()
+  }
+
   private func accept(
     _ envelope: ProtocolEnvelope,
     device: HubDeviceRecord,
@@ -563,6 +639,21 @@ public final class LocalHub: @unchecked Sendable {
   ) throws {
     switch envelope.type {
     case .capabilityAnnounce:
+      // handle() has already checked revocation, the pinned key and replay protection.
+      // Reconnect is also the upgrade negotiation point, not a new pairing operation.
+      guard let publicKeyText = envelope.payload["publicKey"]?.stringValue,
+        Data(base64Encoded: publicKeyText) == device.publicKey
+      else { throw LocalHubError.identityMismatch }
+      let capabilities = try Self.validatedCapabilities(envelope.payload)
+      if capabilities != device.capabilities {
+        try database.refreshCapabilities(deviceID: device.id, capabilities: capabilities)
+        try database.appendAudit(
+          HubAuditRecord(
+            event: "device.capabilities-refreshed",
+            deviceID: device.id,
+            detail: "Accepted authenticated capability refresh; \(capabilities.count) capabilities")
+        )
+      }
       try database.updateSeen(
         deviceID: device.id, sequence: envelope.sequence,
         snapshotVersion: device.snapshotVersion)
@@ -621,6 +712,12 @@ public final class LocalHub: @unchecked Sendable {
           event: "activity.delta", deviceID: device.id,
           detail: "Accepted bounded app activity metadata; no command lines or content"))
     case .browserUpdate:
+      if let reportsText = envelope.payload["protectionReports"]?.stringValue {
+        let reports = try JSONDecoder().decode(
+          [BrowserProtectionReport].self, from: Data(reportsText.utf8))
+        guard reports.count <= 32 else { throw LocalHubError.unexpectedMessage }
+        try database.saveBrowserProtectionReports(reports, deviceID: device.id)
+      }
       let enabled =
         try database.browserConfigurations().first { $0.deviceID == device.id }?.enabled ?? false
       if enabled, case .array(let values) = envelope.payload["tabs"] {

@@ -17,10 +17,10 @@
   </choice>
   <choice id="child-endpoint"
           title="Child Endpoint"
-          description="Install or update the visible universal child app, boot daemon, and login helper. In-place updates preserve pairing; the uninstaller intentionally removes pairing data."
+          description="Install or update the visible universal child app, boot daemon, and login helper. RC3 and earlier ad-hoc endpoints require one final adult-authorized pairing repair; later in-place test upgrades preserve the root-only endpoint identity."
           start_selected="false" start_enabled="true" start_visible="true">
     <pkg-ref id="com.bilalalissa.ParentalControlChild.component"/>
   </choice>
-  <pkg-ref id="com.bilalalissa.ParentalControlController.component" version="0.6.1.5" onConclusion="none">ParentalControlController.pkg</pkg-ref>
-  <pkg-ref id="com.bilalalissa.ParentalControlChild.component" version="0.6.1.5" onConclusion="none">ParentalControlChild.pkg</pkg-ref>
+  <pkg-ref id="com.bilalalissa.ParentalControlController.component" version="0.6.4.5" onConclusion="none">ParentalControlController.pkg</pkg-ref>
+  <pkg-ref id="com.bilalalissa.ParentalControlChild.component" version="0.6.4.5" onConclusion="none">ParentalControlChild.pkg</pkg-ref>
 </installer-gui-script>

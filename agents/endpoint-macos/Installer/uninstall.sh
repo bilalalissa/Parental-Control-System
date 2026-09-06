@@ -16,6 +16,8 @@ fi
 /bin/rm -f -- /usr/local/bin/parental-control-agentctl
 /bin/rm -f -- /Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json
 /bin/rm -f -- /Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json
+/bin/rm -f -- "/Library/Application Support/Mozilla/NativeMessagingHosts/com.bilalalissa.parental_control.json"
+/bin/rm -f -- "/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.bilalalissa.parental_control.json"
 CONSOLE_USER="$(/usr/bin/stat -f '%Su' /dev/console)"
 CONSOLE_HOME="$(/usr/bin/dscl . -read "/Users/$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | /usr/bin/awk '{print $2}')"
 if [[ "$CONSOLE_HOME" == /Users/* ]]; then

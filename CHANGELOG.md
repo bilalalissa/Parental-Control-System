@@ -2,6 +2,16 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.4-rc.5 — 2026-09-05
+
+Status: **STAGE-06D approved for merge; unreleased**
+
+- Implements signed, bounded website-domain policy delivery to explicitly enrolled Chromium and Firefox profiles without inspecting paths, queries, content, forms, cookies, private sessions, or network traffic.
+- Preserves browser rules offline, requires rule readback before a profile acknowledgement, and reports honest per-profile setup, pending, applied, and not-reporting states.
+- Repairs ad-hoc child identity persistence and installed XPC/browser-host authorization while preserving pairing during in-place upgrades.
+- Keeps Safari, unenrolled/private/guest profiles, application launch denial, WAN pause, managed force-install, and production browser distribution outside this stage.
+- Developer physical testing confirmed `example.com` and `youtube.com` restrictions in the enrolled browser. Approved with `APPROVED: STAGE-06D 0.6.4-rc.5` and separately authorized for merge with `MERGE` on 2026-09-05; no public release is implied.
+
 ## 0.6.3-rc.1 — 2026-09-04
 
 Status: **STAGE-06C merged; unreleased**

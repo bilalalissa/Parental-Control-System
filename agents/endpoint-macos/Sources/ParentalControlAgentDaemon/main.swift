@@ -12,24 +12,44 @@ enum DaemonMain {
       initial: DeviceSnapshotCollector.collect(deviceID: configuration.deviceID),
       persistenceURL: root.appendingPathComponent("runtime-queue.json"))
     let log = BoundedLog(directory: root.appendingPathComponent("Logs", isDirectory: true))
+    let identityData = try EndpointIdentityFileStore(
+      root: root, expectedOwnerID: arguments.root == nil ? 0 : nil
+    ).loadOrCreateRandom()
+    let identity = try Ed25519Identity(
+      keyID: "device-\(configuration.deviceID)", rawPrivateKey: identityData)
     let policyRuntime = EndpointPolicyRuntime(
       root: root, deviceID: configuration.deviceID,
       controllerPublicKey: configuration.pairedController?.controllerPublicKey
         ?? configuration.invitation?.controllerPublicKey)
+    if let maintenanceUntil = EndpointInstallerMaintenanceMarker.consume(
+      root: root, expectedOwnerID: arguments.root == nil ? 0 : nil)
+    {
+      try policyRuntime.beginInstallerMaintenance(until: maintenanceUntil)
+      log.write(
+        event: "installer.maintenance",
+        detail: "Administrator-authorized recovery window activated with hard expiry")
+    }
     let policyScheduler = EndpointPolicyScheduler(
       runtime: policyRuntime, repository: repository, log: log)
-    let service =
-      arguments.noXPC
-      ? nil
-      : EndpointXPCService(repository: repository, policyRuntime: policyRuntime) { detail in
+    let service: EndpointXPCService?
+    if arguments.noXPC {
+      service = nil
+    } else {
+      service = try EndpointXPCService(
+        repository: repository,
+        policyRuntime: policyRuntime,
+        clientManifestURL: root.appendingPathComponent(EndpointXPCClientManifest.fileName),
+        requireRootProtection: arguments.root == nil
+      ) { detail in
         log.write(event: "xpc.rejected", detail: detail)
       }
+    }
     service?.resume()
     log.write(event: "daemon.started", detail: "Visible parental control endpoint started")
 
     let retry = EndpointDaemonRetryLoop(
       store: store, repository: repository, log: log,
-      policyRuntime: policyRuntime, keychainService: arguments.keychainService)
+      policyRuntime: policyRuntime, identity: identity)
     retry.start()
     policyScheduler.start()
 
@@ -59,7 +79,7 @@ private final class EndpointDaemonRetryLoop: @unchecked Sendable {
   private let repository: EndpointStatusRepository
   private let log: BoundedLog
   private let policyRuntime: EndpointPolicyRuntime
-  private let keychainService: String
+  private let identity: Ed25519Identity
   private let queue = DispatchQueue(label: "parental-control.endpoint.retry")
   private let timer: DispatchSourceTimer
   private var policy = EndpointReconnectPolicy()
@@ -68,14 +88,13 @@ private final class EndpointDaemonRetryLoop: @unchecked Sendable {
 
   init(
     store: ProtectedConfigurationStore, repository: EndpointStatusRepository, log: BoundedLog,
-    policyRuntime: EndpointPolicyRuntime,
-    keychainService: String
+    policyRuntime: EndpointPolicyRuntime, identity: Ed25519Identity
   ) {
     self.store = store
     self.repository = repository
     self.log = log
     self.policyRuntime = policyRuntime
-    self.keychainService = keychainService
+    self.identity = identity
     timer = DispatchSource.makeTimerSource(queue: queue)
   }
 
@@ -136,7 +155,7 @@ private final class EndpointDaemonRetryLoop: @unchecked Sendable {
     do {
       let next = try EndpointAgent(
         store: store, repository: repository, log: log,
-        keychain: KeychainStore(service: keychainService),
+        suppliedIdentity: identity,
         policyRuntime: policyRuntime,
         onEstablishedConnectionLoss: { [weak self] in self?.connectionLost() })
       agent = next
@@ -243,7 +262,6 @@ private struct Arguments {
   var root: URL?
   var noXPC = false
   var runSeconds: TimeInterval?
-  var keychainService = "com.bilalalissa.ParentalControlAgent.device"
   init(_ values: [String]) {
     func value(_ flag: String) -> String? {
       guard let index = values.firstIndex(of: flag), index + 1 < values.count else { return nil }
@@ -252,7 +270,6 @@ private struct Arguments {
     if let path = value("--root") { root = URL(fileURLWithPath: path, isDirectory: true) }
     noXPC = values.contains("--no-xpc")
     runSeconds = value("--run-seconds").flatMap(Double.init)
-    if let service = value("--keychain-service") { keychainService = String(service.prefix(200)) }
   }
 }
 

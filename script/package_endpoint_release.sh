@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-VERSION="0.6.1-rc.5"
-STAGING="$ROOT_DIR/.artifacts/package-staging/stage-06a"
+VERSION="0.6.4-rc.5"
+STAGING="$ROOT_DIR/.artifacts/package-staging/stage-06d"
 COMPONENTS="$STAGING/component-packages"
 CHILD_PAYLOAD="$STAGING/child-payload"
 CHILD_SCRIPTS="$STAGING/child-scripts"
@@ -42,6 +42,9 @@ mkdir -p \
   "$CHILD_PAYLOAD/Library/LaunchAgents" \
   "$CHILD_PAYLOAD/Library/Google/Chrome/NativeMessagingHosts" \
   "$CHILD_PAYLOAD/Library/Microsoft/Edge/NativeMessagingHosts" \
+  "$CHILD_PAYLOAD/Library/Application Support/Mozilla/NativeMessagingHosts" \
+  "$CHILD_PAYLOAD/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts" \
+  "$CHILD_PAYLOAD/Library/Application Support/ParentalControlAgent" \
   "$CHILD_PAYLOAD/usr/local/bin" \
   "$CHILD_SCRIPTS" \
   "$CONTROLLER_PAYLOAD/Applications" \
@@ -59,9 +62,43 @@ cp "$ROOT_DIR/browser-extensions/webextension/native-host-manifest.json" \
 cp "$ROOT_DIR/browser-extensions/webextension/native-host-manifest.json" \
   "$CHILD_PAYLOAD/Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json"
 cp "$ROOT_DIR/agents/endpoint-macos/Installer/postinstall" "$CHILD_SCRIPTS/postinstall"
+cp "$ROOT_DIR/browser-extensions/webextension/firefox-native-host-manifest.json" \
+  "$CHILD_PAYLOAD/Library/Application Support/Mozilla/NativeMessagingHosts/com.bilalalissa.parental_control.json"
+cp "$ROOT_DIR/browser-extensions/webextension/native-host-manifest.json" \
+  "$CHILD_PAYLOAD/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.bilalalissa.parental_control.json"
 cp "$ROOT_DIR/agents/endpoint-macos/Installer/preinstall" "$CHILD_SCRIPTS/preinstall"
 cp "$ROOT_DIR/agents/endpoint-macos/Installer/Distribution.xml" "$STAGING/Distribution.xml"
 cp "$ROOT_DIR/agents/endpoint-macos/Installer/Welcome.html" "$RESOURCES/Welcome.html"
+
+XPC_MANIFEST="$CHILD_PAYLOAD/Library/Application Support/ParentalControlAgent/xpc-clients.plist"
+/usr/bin/plutil -create xml1 "$XPC_MANIFEST"
+/usr/libexec/PlistBuddy -c "Add :version integer 1" "$XPC_MANIFEST"
+/usr/libexec/PlistBuddy -c "Add :clients array" "$XPC_MANIFEST"
+add_xpc_client() {
+  local index="$1"
+  local identifier="$2"
+  local installed_path="$3"
+  local packaged_binary="$4"
+  local digest
+  digest="$(/usr/bin/shasum -a 256 "$packaged_binary" | /usr/bin/awk '{print $1}')"
+  /usr/libexec/PlistBuddy -c "Add :clients:$index dict" "$XPC_MANIFEST"
+  /usr/libexec/PlistBuddy -c "Add :clients:$index:identifier string $identifier" "$XPC_MANIFEST"
+  /usr/libexec/PlistBuddy -c "Add :clients:$index:path string $installed_path" "$XPC_MANIFEST"
+  /usr/libexec/PlistBuddy -c "Add :clients:$index:sha256 string $digest" "$XPC_MANIFEST"
+}
+add_xpc_client 0 com.bilalalissa.ParentalControlChild \
+  "/Applications/Parental Control Child.app/Contents/MacOS/ParentalControlChild" \
+  "$CHILD_APP/Contents/MacOS/ParentalControlChild"
+add_xpc_client 1 com.bilalalissa.ParentalControlAgent.user \
+  "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlAgentUser" \
+  "$CHILD_APP/Contents/Helpers/ParentalControlAgentUser"
+add_xpc_client 2 com.bilalalissa.ParentalControlAgent.ctl \
+  "/usr/local/bin/parental-control-agentctl" \
+  "$CHILD_PAYLOAD/usr/local/bin/parental-control-agentctl"
+add_xpc_client 3 com.bilalalissa.ParentalControlBrowserHost \
+  "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost" \
+  "$CHILD_APP/Contents/Helpers/ParentalControlBrowserHost"
+/bin/chmod 600 "$XPC_MANIFEST"
 chmod 755 \
   "$CHILD_SCRIPTS/postinstall" \
   "$CHILD_SCRIPTS/preinstall" \
@@ -71,7 +108,7 @@ chmod 755 \
 retry "controller pkgbuild" /usr/bin/pkgbuild \
   --root "$CONTROLLER_PAYLOAD" \
   --identifier com.bilalalissa.ParentalControlController.component \
-  --version 0.6.1.5 \
+  --version 0.6.4.5 \
   --install-location / \
   --ownership recommended \
   "$COMPONENTS/ParentalControlController.pkg"
@@ -80,7 +117,7 @@ retry "child pkgbuild" /usr/bin/pkgbuild \
   --root "$CHILD_PAYLOAD" \
   --scripts "$CHILD_SCRIPTS" \
   --identifier com.bilalalissa.ParentalControlChild.component \
-  --version 0.6.1.5 \
+  --version 0.6.4.5 \
   --install-location / \
   --ownership recommended \
   "$COMPONENTS/ParentalControlChild.pkg"
@@ -98,6 +135,10 @@ test -d "$EXPANDED/ParentalControlChild.pkg/Payload/Applications/Parental Contro
 test -x "$EXPANDED/ParentalControlChild.pkg/Payload/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost"
 test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json"
 test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json"
+test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Application Support/Mozilla/NativeMessagingHosts/com.bilalalissa.parental_control.json"
+test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.bilalalissa.parental_control.json"
+test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Application Support/ParentalControlAgent/xpc-clients.plist"
+/usr/bin/plutil -lint "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Application Support/ParentalControlAgent/xpc-clients.plist" >/dev/null
 /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
   "$EXPANDED/ParentalControlController.pkg/Payload/Applications/Parental Control.app/Contents/Info.plist" \
   | /usr/bin/grep -Fx "$VERSION" >/dev/null
@@ -107,6 +148,12 @@ test -f "$EXPANDED/ParentalControlChild.pkg/Payload/Library/Microsoft/Edge/Nativ
 rm -rf -- "$EXPANDED"
 /usr/bin/shasum -a 256 "$PKG" > "$CHECKSUM"
 rm -f -- \
+  "$RC_DIR/ParentalControlSystem-0.6.4-rc.4.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.4-rc.4.pkg.sha256" \
+  "$RC_DIR/ParentalControlSystem-0.6.4-rc.3.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.4-rc.3.pkg.sha256" \
+  "$RC_DIR/ParentalControlSystem-0.6.4-rc.2.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.4-rc.2.pkg.sha256" \
   "$RC_DIR/ParentalControlSystem-0.6.1-rc.4.pkg" \
   "$RC_DIR/ParentalControlSystem-0.6.1-rc.4.pkg.sha256" \
   "$RC_DIR/ParentalControlSystem-0.6.1-rc.2.pkg" \

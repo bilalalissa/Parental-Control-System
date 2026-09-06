@@ -151,13 +151,18 @@ final class HubClient {
   }
 
   func configureBrowser(
-    deviceID: String, enabled: Bool, retentionDays: Int
+    deviceID: String, enabled: Bool, retentionDays: Int, websitePolicy: BrowserWebsitePolicy? = nil
   ) async throws -> LocalHubStatus? {
-    try await request(
+    var payload: [String: JSONValue] = [
+      "enabled": .bool(enabled), "retentionDays": .integer(Int64(retentionDays)),
+    ]
+    if let websitePolicy {
+      payload["websitePolicy"] = .string(
+        String(decoding: try JSONEncoder().encode(websitePolicy), as: UTF8.self))
+    }
+    return try await request(
       .configureBrowser, deviceID: deviceID,
-      payload: [
-        "enabled": .bool(enabled), "retentionDays": .integer(Int64(retentionDays)),
-      ])
+      payload: payload)
   }
 
   func markChatRead(deviceID: String, audience: ChatAudience) async throws -> LocalHubStatus? {

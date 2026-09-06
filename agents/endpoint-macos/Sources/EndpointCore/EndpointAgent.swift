@@ -25,8 +25,7 @@ public final class EndpointAgent: @unchecked Sendable {
 
   public init(
     store: ProtectedConfigurationStore, repository: EndpointStatusRepository, log: BoundedLog,
-    keychain: KeychainStore = KeychainStore(service: "com.bilalalissa.ParentalControlAgent.device"),
-    suppliedIdentity: Ed25519Identity? = nil, policyRuntime: EndpointPolicyRuntime? = nil,
+    suppliedIdentity: Ed25519Identity, policyRuntime: EndpointPolicyRuntime? = nil,
     pairedControllerPort: UInt16 = SecureWebSocketServer.parentControlPort,
     onEstablishedConnectionLoss: @escaping @Sendable () -> Void = {}
   ) throws {
@@ -42,14 +41,8 @@ public final class EndpointAgent: @unchecked Sendable {
       retentionDays: configuration.activityRetentionDays)
     repository.configureBrowser(
       enabled: configuration.browserCollectionEnabled,
-      retentionDays: configuration.browserRetentionDays)
-    if let suppliedIdentity {
-      identity = suppliedIdentity
-    } else {
-      let key = try keychain.loadOrCreateRandom(
-        account: "device-\(configuration.deviceID)", byteCount: 32)
-      identity = try Ed25519Identity(keyID: "device-\(configuration.deviceID)", rawPrivateKey: key)
-    }
+      retentionDays: configuration.browserRetentionDays, websitePolicy: configuration.websitePolicy)
+    identity = suppliedIdentity
   }
 
   public func start() throws {
@@ -115,7 +108,8 @@ public final class EndpointAgent: @unchecked Sendable {
         .string("presence"), .string("device-info"), .string("uptime"), .string("session-state"),
         .string("network-metadata"), .string("health"), .string("delta-snapshot"),
         .string("receipt"), .string("app-activity"), .string("chat"),
-        .string("browser-tabs"), .string("request-more-time"), .string("notifications"),
+        .string("browser-tabs"), .string("browser-website-policy"), .string("request-more-time"),
+        .string("notifications"),
         .string("time-request-resolution"),
         .string("signed-policy"), .string("offline-enforcement"), .string("policy-warning"),
         .string(HubLoginEnforcementCapability.session.rawValue),
@@ -220,6 +214,8 @@ public final class EndpointAgent: @unchecked Sendable {
     refreshed.browserCollectionEnabled = former.browserCollectionEnabled
     refreshed.browserRetentionDays = former.browserRetentionDays
     refreshed.browserTabs = former.browserTabs
+    refreshed.websitePolicy = former.websitePolicy
+    refreshed.browserProtectionReports = former.browserProtectionReports
     refreshed.policyVersion = former.policyVersion
     refreshed.policyDecision = former.policyDecision
     refreshed.policyAction = former.policyAction
@@ -278,7 +274,8 @@ public final class EndpointAgent: @unchecked Sendable {
     let changed = tabs != lastSentBrowserTabs
     if changed { lastSentBrowserTabs = tabs }
     lock.unlock()
-    guard changed else { return }
+    // Coverage is a heartbeat, independent of tab-sharing consent or changed tabs.
+    let reports = BrowserCoverageInventory.reports(status.browserProtectionReports ?? [])
     let values: [JSONValue] = tabs.map { tab in
       .object([
         "browser": .string(tab.browser), "profile": .string(tab.profileID),
@@ -289,7 +286,11 @@ public final class EndpointAgent: @unchecked Sendable {
     }
     let envelope = try identity.sign(
       deviceID: configuration.deviceID, sequence: store.nextSequence(), type: .browserUpdate,
-      payload: ["tabs": .array(values)])
+      payload: [
+        "tabs": .array(changed ? values : []),
+        "protectionReports": .string(
+          String(decoding: try JSONEncoder().encode(reports), as: UTF8.self)),
+      ])
     try send(envelope)
   }
 
@@ -380,8 +381,13 @@ public final class EndpointAgent: @unchecked Sendable {
       let enabled = envelope.payload["enabled"]?.boolValue
     else { throw EndpointAgentError.invalidMessage }
     let retention = Int(envelope.payload["retentionDays"]?.integerValue ?? 7)
-    try store.setBrowserCollection(enabled: enabled, retentionDays: retention)
-    repository.configureBrowser(enabled: enabled, retentionDays: retention)
+    let policy = try envelope.payload["websitePolicy"]?.stringValue.map {
+      try JSONDecoder().decode(BrowserWebsitePolicy.self, from: Data($0.utf8)).validated()
+    }
+    try store.setBrowserCollection(
+      enabled: enabled, retentionDays: retention, websitePolicy: policy)
+    repository.configureBrowser(
+      enabled: enabled, retentionDays: retention, websitePolicy: try store.load().websitePolicy)
     try sendReceipt(for: envelope.id, state: .delivered)
     log.write(
       event: "browser.configuration",

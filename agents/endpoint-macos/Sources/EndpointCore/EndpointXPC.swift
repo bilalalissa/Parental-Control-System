@@ -1,7 +1,6 @@
 import CoreFoundation
 @preconcurrency import Foundation
 import HubCore
-import Security
 
 public enum EndpointMachService {
   public static let name = "com.bilalalissa.ParentalControlAgent.xpc"
@@ -75,76 +74,6 @@ public enum XPCAuthorization {
     ].contains(signingIdentifier)
   }
 
-  public static func signingIdentifier(pid: pid_t) -> String? {
-    guard let (staticCode, executablePath) = staticCode(pid: pid) else { return nil }
-    guard
-      SecStaticCodeCheckValidity(
-        staticCode, SecCSFlags(rawValue: kSecCSCheckAllArchitectures), nil) == errSecSuccess
-    else { return nil }
-    var information: CFDictionary?
-    guard
-      SecCodeCopySigningInformation(
-        staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
-      let dictionary = information as? [CFString: Any]
-    else { return nil }
-    guard let identifier = dictionary[kSecCodeInfoIdentifier] as? String,
-      isExpectedInstalledPath(executablePath, identifier: identifier),
-      isRootProtected(executablePath)
-    else { return nil }
-    return identifier
-  }
-
-  public static func diagnostic(pid: pid_t) -> String {
-    var dynamicCode: SecCode?
-    let guestStatus = SecCodeCopyGuestWithAttributes(
-      nil, [kSecGuestAttributePid as String: NSNumber(value: pid)] as CFDictionary, [],
-      &dynamicCode)
-    guard guestStatus == errSecSuccess, let dynamicCode else {
-      return "guest-code=\(guestStatus)"
-    }
-    var staticCode: SecStaticCode?
-    let staticStatus = SecCodeCopyStaticCode(dynamicCode, [], &staticCode)
-    guard staticStatus == errSecSuccess, let staticCode else {
-      return "guest-code=\(guestStatus) static-code=\(staticStatus)"
-    }
-    var path: CFURL?
-    let pathStatus = SecCodeCopyPath(staticCode, [], &path)
-    guard pathStatus == errSecSuccess, let executablePath = (path as URL?)?.path else {
-      return
-        "guest-code=\(guestStatus) static-code=\(staticStatus) code-path=\(pathStatus)"
-    }
-    let validityStatus = SecStaticCodeCheckValidity(
-      staticCode, SecCSFlags(rawValue: kSecCSCheckAllArchitectures), nil)
-    var information: CFDictionary?
-    let informationStatus = SecCodeCopySigningInformation(
-      staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information)
-    let identifier = (information as? [CFString: Any])?[kSecCodeInfoIdentifier] as? String
-    let expected =
-      identifier.map { isExpectedInstalledPath(executablePath, identifier: $0) } ?? false
-    return
-      "guest-code=\(guestStatus) static-code=\(staticStatus) code-path=\(pathStatus) path=\(executablePath) code-valid=\(validityStatus) signing-info=\(informationStatus) identifier=\(identifier ?? "none") expected-path=\(expected) root-protected=\(isRootProtected(executablePath))"
-  }
-
-  private static func staticCode(pid: pid_t) -> (SecStaticCode, String)? {
-    var dynamicCode: SecCode?
-    guard
-      SecCodeCopyGuestWithAttributes(
-        nil, [kSecGuestAttributePid as String: NSNumber(value: pid)] as CFDictionary, [],
-        &dynamicCode) == errSecSuccess,
-      let dynamicCode
-    else { return nil }
-    var staticCode: SecStaticCode?
-    guard SecCodeCopyStaticCode(dynamicCode, [], &staticCode) == errSecSuccess, let staticCode
-    else {
-      return nil
-    }
-    var path: CFURL?
-    guard SecCodeCopyPath(staticCode, [], &path) == errSecSuccess,
-      let executablePath = (path as URL?)?.path
-    else { return nil }
-    return (staticCode, executablePath)
-  }
-
   public static func isExpectedInstalledPath(_ path: String, identifier: String) -> Bool {
     let expected: [String]
     switch identifier {
@@ -169,7 +98,7 @@ public enum XPCAuthorization {
     return expected.contains(resolved)
   }
 
-  private static func isRootProtected(_ path: String) -> Bool {
+  public static func isRootProtected(_ path: String) -> Bool {
     let application = "/Applications/Parental Control Child.app"
     for item in [path, application] {
       guard let attributes = try? FileManager.default.attributesOfItem(atPath: item),
@@ -253,6 +182,13 @@ public final class EndpointStatusRepository: @unchecked Sendable {
   public func applyBrowser(_ update: EndpointBrowserUpdate) {
     lock.lock()
     defer { lock.unlock() }
+    if let report = update.protectionReport {
+      var reports = value.browserProtectionReports ?? []
+      reports.removeAll { $0.id == report.id }
+      reports.append(report)
+      value.browserProtectionReports = Array(reports.suffix(24))
+      return
+    }
     guard value.browserCollectionEnabled else {
       value.browserTabs = []
       return
@@ -273,11 +209,14 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     if !enabled { value.applications = [] }
   }
 
-  public func configureBrowser(enabled: Bool, retentionDays: Int) {
+  public func configureBrowser(
+    enabled: Bool, retentionDays: Int, websitePolicy: BrowserWebsitePolicy? = nil
+  ) {
     lock.lock()
     defer { lock.unlock() }
     value.browserCollectionEnabled = enabled
     value.browserRetentionDays = max(1, min(retentionDays, 30))
+    value.websitePolicy = websitePolicy
     if !enabled { value.browserTabs = [] }
   }
 
@@ -572,7 +511,7 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
         try JSONEncoder.endpoint.encode(
           EndpointBrowserConfiguration(
             enabled: status.browserCollectionEnabled,
-            retentionDays: status.browserRetentionDays)), nil)
+            retentionDays: status.browserRetentionDays, websitePolicy: status.websitePolicy)), nil)
     } catch { reply(nil, "encoding failed") }
   }
 
@@ -701,13 +640,19 @@ public final class EndpointXPCService: NSObject, NSXPCListenerDelegate, @uncheck
   private let listener: NSXPCListener
   private let repository: EndpointStatusRepository
   private let policyRuntime: EndpointPolicyRuntime?
+  private let clientVerifier: EndpointXPCClientVerifier
   private let rejectionHandler: @Sendable (String) -> Void
   public init(
     repository: EndpointStatusRepository, policyRuntime: EndpointPolicyRuntime? = nil,
+    clientManifestURL: URL = ProtectedConfigurationStore.systemRoot.appendingPathComponent(
+      EndpointXPCClientManifest.fileName),
+    requireRootProtection: Bool = true,
     rejectionHandler: @escaping @Sendable (String) -> Void = { _ in }
-  ) {
+  ) throws {
     self.repository = repository
     self.policyRuntime = policyRuntime
+    clientVerifier = try EndpointXPCClientVerifier(
+      manifestURL: clientManifestURL, requireRootProtection: requireRootProtection)
     self.rejectionHandler = rejectionHandler
     listener = NSXPCListener(machServiceName: EndpointMachService.name)
     super.init()
@@ -719,11 +664,12 @@ public final class EndpointXPCService: NSObject, NSXPCListenerDelegate, @uncheck
     _ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection
   ) -> Bool {
     let uid = connection.effectiveUserIdentifier
-    let identifier = XPCAuthorization.signingIdentifier(pid: connection.processIdentifier)
+    let identifier = clientVerifier.signingIdentifier(
+      pid: connection.processIdentifier, uid: uid)
     guard let identifier, XPCAuthorization.isRecognizedClient(identifier)
     else {
       rejectionHandler(
-        "uid=\(uid) pid=\(connection.processIdentifier) \(XPCAuthorization.diagnostic(pid: connection.processIdentifier))"
+        clientVerifier.diagnostic(pid: connection.processIdentifier, uid: uid)
       )
       return false
     }
