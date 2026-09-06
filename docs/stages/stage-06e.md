@@ -1,10 +1,11 @@
 # STAGE-06E — macOS application-use restrictions
 
-- Version: `0.6.5-rc.4` (build `6504`)
+- Version: `0.6.5-rc.5` (build `6505`)
 - Branch: `stage/06e-macos-app-use-restrictions`
-- Status: `READY_FOR_RETEST`
+- Status: `IMPLEMENTING`
 - Authorized on 2026-09-05 with `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06E MACOS APP-USE RESTRICTIONS BEFORE STAGE-07` and `PROCEED: STAGE-06E`.
 - Browser-compatibility amendment authorized on 2026-09-06 with `AUTHORIZE STAGE-06E SCOPE AMENDMENT: HARDEN DOMAIN ENFORCEMENT FOR YOUTUBE, RESTORED TABS, AND SPA NAVIGATION IN ENROLLED BROWSERS; USE LOCAL HOSTNAME MATCHING ONLY, WITH NO CONTENT INSPECTION.` and `PROCEED: STAGE-06E 0.6.5-rc.3 BROWSER COMPATIBILITY FIX`.
+- Safari local-test amendment authorized conversationally on 2026-09-06 after the developer asked whether a Safari extension was available and then instructed `go ahead`.
 
 ## Objective and included scope
 
@@ -16,7 +17,7 @@ Rules remain active when optional application-name sharing is disabled and while
 
 This local ad-hoc build has no Apple Endpoint Security entitlement. It cannot authorize or deny execution before launch, and a restricted app may appear briefly before the visible per-user helper requests a normal quit. If normal termination is refused, the safe fallback is session lock rather than force-kill, protecting unsaved work. A device administrator can bypass or remove this enforcement.
 
-Excluded: Endpoint Security/system extensions; kernel-level pre-launch denial; force termination; command-line/path-only rules; Apple/system-app restriction; administrator resistance; hidden monitoring; screen/keystroke/content collection; WAN pause; Safari/private/guest browser coverage; request or traffic inspection; managed extension deployment; MDM; Windows/iPad work; Stage 07. The RC3 amendment is limited to local HTTP(S) hostname matching in explicitly enrolled profiles.
+Excluded: Endpoint Security/system extensions; kernel-level pre-launch denial; force termination; command-line/path-only rules; Apple/system-app restriction; administrator resistance; hidden monitoring; screen/keystroke/content collection; WAN pause; private/guest browser coverage; request or traffic inspection; managed extension deployment; MDM; Windows/iPad work; Stage 07. Browser enforcement remains limited to local HTTP(S) hostname matching in explicitly enrolled profiles. Safari is supported only as an adult-enabled unsigned local developer test; production signing/publication is not claimed.
 
 ## RC1/RC2 feedback and RC3 correction
 
@@ -30,6 +31,10 @@ Physical RC3 feedback found an installer lifecycle regression: if the visible Ch
 
 RC4 detects only the exact package-owned Child executable in the current console session and requests its normal termination before payload replacement. It never force-kills the UI; if it does not exit within five seconds, the installer stops with a readable instruction instead of replacing a running client. A separate atomic `root:wheel` mode `0600` marker records that the UI was open. After replacing and restarting the daemon and helper, postinstall validates the marker owner, mode, console UID and ten-minute age, consumes it, and relaunches the new Child app in that user's GUI context. This changes no endpoint identity, pairing, schedule, app policy, website policy or collected data.
 
+RC4 passed clean reinstall testing only after the child endpoint, extension and pairing were removed and recreated. That is a functional clean-install result, not proof of the required in-place upgrade path, so RC4 is not approved. RC5 retains the upgrade repair and adds a visible universal Safari companion app with an embedded Safari Web Extension. The extension sends only typed configuration, policy acknowledgement and optionally sanitized tab-origin records to the existing privileged endpoint service. The daemon admits its exact root-protected installed executable and package hash only for browser-configuration and browser-update operations. Safari declarative rules use one local `urlFilter` hostname rule per parent domain, while the shared restored-tab/SPA reconciliation still parses only the local HTTP(S) hostname.
+
+The Safari candidate is ad-hoc signed. Its sandbox has one temporary global mach-service lookup exception for the fixed endpoint service, solely for unsigned local tests. The installer refuses to replace the companion while Safari is open. An adult must enable unsigned extensions and grant per-profile website access; production distribution requires an Apple Developer Program identity and a supported Safari extension entitlement/profile. The temporary exception must be removed before such distribution.
+
 ## Acceptance criteria
 
 1. Parent selection is limited to observed apps with exact bundle/signing/Team identity; protected or unsigned identities cannot be selected.
@@ -40,6 +45,7 @@ RC4 detects only the exact package-owned Child executable in the current console
 6. Parent audit records distinguish policy queueing, quit request, confirmed close, and lock fallback. No command line, document/window content, or mutable app path is transmitted.
 7. Controller arm64 and child universal binaries build into one selectable unsigned/ad-hoc developer package with SHA-256 verification. Physical standard-user testing remains required.
 8. Enrolled browser profiles enforce exact and subdomain hostname rules during ordinary navigation, restored-tab startup and SPA URL changes, show only a local static block page, reject lookalike domains, and continue with optional tab sharing or the parent connection disabled.
+9. An explicitly enabled Safari test profile reports its current policy version and enforces the same hostname-only behavior. An unenabled profile remains `Setup required`; no universal/private coverage is claimed.
 
 ## Resource and cleanup limits
 
@@ -47,7 +53,7 @@ Use no more than two build workers, one checkout, one Stage-06E derived-data tre
 
 ## Manual developer test checklist
 
-1. Leave the RC3 Child app open, then install the Child Endpoint from `ParentalControlSystem-0.6.5-rc.4.pkg` in place without uninstalling or unpairing. Confirm the old window closes, the RC4 window reopens, and the same child returns Online without showing a persistent protected-service connection message.
+1. Quit Safari completely. Leave the RC4 Child app open, then install the Child Endpoint from `ParentalControlSystem-0.6.5-rc.5.pkg` in place without uninstalling, removing browser extensions or unpairing. Confirm the old Child window closes, RC5 reopens, the same child returns Online, and the existing endpoint identity, pairing, app policy and website policy remain.
 2. Use a standard child account and retain a separate adult administrator. Open one signed third-party test app once so its exact identity appears in Devices > Application-use restrictions.
 3. Select that app and apply the policy. Confirm the audit reports queued/delivered policy metadata without paths or content.
 4. Leave the selected app open while applying the policy. It must show the visible restriction banner and receive a normal quit request promptly (the bounded reconciliation scan is at most 15 seconds). Re-launch it and confirm launch notification enforcement also works. Confirm a `quit-requested` and then `closed` audit event.
@@ -57,13 +63,15 @@ Use no more than two build workers, one checkout, one Stage-06E derived-data tre
 8. Complete the one-time Chromium transition. Fully quit Arc/Chrome/Edge/Brave. Open its extension page, remove the older unpacked test copy, enable Developer Mode, choose **Load unpacked**, and select `/Library/Application Support/ParentalControlBrowserExtension/Chromium`. Reopen the browser and confirm the profile changes from `Setup required` to the current policy acknowledgement. Repeat per tested profile. Do not copy this folder into Downloads or modify its root-owned contents.
 9. Test all three paths with `youtube.com`. For an already-loaded/SPA-style app shell, first remove the rule, open YouTube, then apply the rule while the tab remains open; it must redirect to the visible local block page. For restoration, remove the rule, open YouTube, configure the browser to restore tabs, quit it, apply `youtube.com` while it is closed, then reopen it; the restored tab must redirect after extension startup. A fresh navigation must also redirect. Confirm `notyoutube.com` remains allowed. Add `youtu.be` separately when that short-link host must also be denied.
 10. Disable optional browser-tab sharing and disconnect the parent: cached hostname enforcement continues. No page content, path, query, fragment, cookie, DNS history or traffic payload appears in the parent, audit or endpoint logs.
-11. Reinstall the RC4 child component in place once with the Child app open and once with it closed. The open app must be normally replaced and relaunched; the closed app must remain closed. Pairing, schedule, browser policy, endpoint identity, app policy and the stable extension path remain. No new extension-path selection is required after the RC3 migration.
-12. Apply empty app and website policies: the formerly restricted app and a new browser navigation work normally.
-13. Record CPU/memory over five idle minutes and report OS, hardware, app bundle ID, expected result, observed result, and only the bounded relevant audit/log lines.
+11. Open `/Applications/Parental Control Safari.app`. In Safari, expose the Develop menu if needed, choose **Develop > Allow Unsigned Extensions**, then enable **Parental Control Safari Extension** in Safari Settings > Extensions. For every tested Safari profile, enable it and grant access on every website. This is an adult setup step; the unsigned permission may need to be enabled again after Safari relaunch.
+12. With `youtube.com` applied, confirm the Safari profile changes from `Setup required` to `Policy applied`. Repeat fresh navigation, an already-open/SPA navigation and restored-tab tests. Confirm `notyoutube.com` remains allowed. Disable the extension in that profile and confirm status no longer claims current protection.
+13. Reinstall RC5 in place once with the Child app open and once with it closed, always with Safari quit. The open Child app must be normally replaced and relaunched; the closed Child app must remain closed. Pairing, schedule, browser policy, endpoint identity, app policy, Chromium registration and Safari extension enablement remain. Attempt installation with Safari open and confirm it stops with a readable quit-Safari instruction.
+14. Apply empty app and website policies: the formerly restricted app and a new browser navigation work normally.
+15. Record CPU/memory over five idle minutes and report OS, hardware, app bundle ID, expected result, observed result, and only the bounded relevant audit/log lines.
 
 ## Rollback
 
-Apply empty newer app and website policies before reverting. Installing Stage 06D RC5 over Stage 06E RC4 is not a supported database downgrade because Stage 06E adds schema fields, but the new fields are additive and ignored by older code. The administrator uninstaller removes the installer-owned stable extension source but cannot remove browser-profile registrations; remove those visibly in each browser when intentionally uninstalling.
+Apply empty newer app and website policies before reverting. Installing Stage 06D RC5 over Stage 06E RC5 is not a supported database downgrade because Stage 06E adds schema fields, but the new fields are additive and ignored by older code. The administrator uninstaller removes the installer-owned stable extension source and Safari companion but cannot remove browser-profile registrations; remove or disable those visibly in each browser when intentionally uninstalling.
 
 ## Automated and artifact evidence
 

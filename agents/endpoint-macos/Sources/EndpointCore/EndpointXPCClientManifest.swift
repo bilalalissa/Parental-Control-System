@@ -26,7 +26,7 @@ public struct EndpointXPCClientManifest: Codable, Equatable, Sendable {
   }
 
   public func validatedRecords() throws -> [String: EndpointXPCClientRecord] {
-    guard version == 1, clients.count == 4 else {
+    guard version == 1, clients.count == 5 else {
       throw EndpointXPCManifestError.invalidManifest
     }
     var result: [String: EndpointXPCClientRecord] = [:]
@@ -45,6 +45,7 @@ public struct EndpointXPCClientManifest: Codable, Equatable, Sendable {
         == Set([
           EndpointMachService.childIdentifier, EndpointMachService.helperIdentifier,
           EndpointMachService.controlIdentifier, EndpointMachService.browserHostIdentifier,
+          EndpointMachService.safariExtensionIdentifier,
         ])
     else { throw EndpointXPCManifestError.invalidManifest }
     return result

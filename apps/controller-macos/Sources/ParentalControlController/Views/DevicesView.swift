@@ -460,7 +460,7 @@ private struct PairedDeviceDetailView: View {
       VStack(alignment: .leading, spacing: 10) {
         HStack {
           Toggle(
-            "Share Chrome/Edge/Arc tab titles and origins",
+            "Share enrolled browser tab titles and origins",
             isOn: Binding(
               get: { browserConfiguration.enabled },
               set: {

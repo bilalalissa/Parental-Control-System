@@ -21,6 +21,8 @@ chmod 644 "$TARGET_VOLUME/Library/LaunchAgents/com.bilalalissa.ParentalControlAg
 chmod 755 "$INSTALLED_DAEMON"
 chown -R root:wheel "$TARGET_VOLUME/Applications/Parental Control Child.app"
 chmod -R go-w "$TARGET_VOLUME/Applications/Parental Control Child.app"
+chown -R root:wheel "$TARGET_VOLUME/Applications/Parental Control Safari.app"
+chmod -R go-w "$TARGET_VOLUME/Applications/Parental Control Safari.app"
 chown -R root:wheel "$BROWSER_EXTENSION"
 chmod -R a+rX,go-w "$BROWSER_EXTENSION"
 chmod 644 \
@@ -84,6 +86,11 @@ if [[ "$TARGET_VOLUME" == "/" ]]; then
       exit 1
     fi
     /bin/launchctl kickstart -k "$USER_SERVICE"
+
+    # Launch the visible containing app once so Safari registers the bundled extension. Safari
+    # itself is not opened or modified; the adult must explicitly enable the extension/profile.
+    /bin/launchctl asuser "$CONSOLE_UID" /usr/bin/sudo -u "$CONSOLE_USER" \
+      /usr/bin/open -g "/Applications/Parental Control Safari.app" || true
 
     # Restore the visible UI only when this installer stopped it. Validate the root-only,
     # short-lived marker and launch the package-owned app in the console user's GUI context.

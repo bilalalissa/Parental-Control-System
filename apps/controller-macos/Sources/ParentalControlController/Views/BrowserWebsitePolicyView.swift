@@ -56,7 +56,7 @@ struct BrowserWebsitePolicyView: View {
           }
         }
         Text(
-          "Coverage is limited to reporting profiles. New, guest/private or unregistered profiles and browsers outside known installation locations are not proven protected. Safari is unsupported. A stopped browser and a removed extension may both show Not reporting. This does not pause device Internet or stop already loaded content."
+          "Coverage is limited to reporting profiles. New, guest/private or unregistered profiles and browsers outside known installation locations are not proven protected. Safari requires its installed companion extension to be enabled for each tested profile with website access. A stopped browser and a removed extension may both show Not reporting. This does not pause device Internet or stop already loaded content."
         )
         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         Text(

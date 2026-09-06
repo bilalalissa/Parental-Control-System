@@ -60,7 +60,7 @@ test("Stage 06E follows the approved browser stage without claiming system exten
   const state = JSON.parse(tracker);
   const active = state.stages.find((candidate) => candidate.id === state.activeStage);
   assert.equal(active.id, "STAGE-06E");
-  assert.equal(active.version, "0.6.5-rc.4");
+  assert.equal(active.version, "0.6.5-rc.5");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
       active.status,
@@ -72,7 +72,7 @@ test("Stage 06E follows the approved browser stage without claiming system exten
   assert.match(appStage, /Endpoint Security entitlement/i);
   assert.match(stage, /Firefox.*unsigned|unsigned.*Firefox/i);
   assert.match(stage, /automatic updates.*require/i);
-  assert.match(stage, /Safari.*unsupported|Excluded: Safari/i);
+  assert.match(appStage, /Safari.*local.*test|local.*test.*Safari/i);
   assert.match(decision, /Developer ID/);
   assert.match(decision, /same Team ID/i);
   assert.match(decision, /physical acceptance matrix/i);

@@ -669,6 +669,14 @@ struct EndpointCoreTests {
         uid: 501, signingIdentifier: EndpointMachService.browserHostIdentifier,
         operation: "browser-update"))
     #expect(
+      XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.safariExtensionIdentifier,
+        operation: "browser-configuration"))
+    #expect(
+      !XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.safariExtensionIdentifier,
+        operation: "send-chat"))
+    #expect(
       !XPCAuthorization.allows(
         uid: 501, signingIdentifier: EndpointMachService.browserHostIdentifier,
         operation: "send-chat"))

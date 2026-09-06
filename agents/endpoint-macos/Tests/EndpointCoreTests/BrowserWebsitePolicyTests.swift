@@ -48,6 +48,13 @@ final class BrowserWebsitePolicyTests: XCTestCase {
       r.label(expectedVersion: 2, now: now.addingTimeInterval(181), online: true), "Not reporting")
   }
 
+  func testSafariIsReportedAsSetupRequiredUntilItsProfileAcknowledges() {
+    let reports = BrowserCoverageInventory.reports([])
+    if let safari = reports.first(where: { $0.browser == "safari" }) {
+      XCTAssertEqual(safari.state, "setup-required")
+    }
+  }
+
   func testFirefoxRequiresItsOwnExtensionAndVendorIdentity() {
     XCTAssertEqual(
       BrowserCallerAuthorization.expectedBrowser(

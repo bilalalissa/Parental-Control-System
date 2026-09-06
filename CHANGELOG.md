@@ -2,9 +2,19 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.5-rc.5 — 2026-09-06
+
+Status: **STAGE-06E implementing; unreleased**
+
+- Adds an ad-hoc local-test Safari Web Extension in a visible companion app embedded in the child installer.
+- Uses Safari declarative hostname rules and the shared restored-tab/SPA hostname reconciliation without content or traffic inspection.
+- Allows only the exact root-protected, package-hashed Safari extension executable to call browser configuration/update XPC operations.
+- Requires explicit adult enablement, per-profile website access, Safari to be quit during installation, and a physical test; production signing/publication is not claimed.
+- Carries forward the required RC4-to-RC5 in-place upgrade test because RC4 was only confirmed after uninstall/reinstall/re-pair.
+
 ## 0.6.5-rc.4 — 2026-09-06
 
-Status: **STAGE-06E ready for developer retest; unreleased**
+Status: **STAGE-06E changes requested; superseded by RC5**
 
 - Replaces RC3 after physical in-place installation left an already-running ad-hoc Child UI unable to reconnect to the replacement protected endpoint service.
 - The child installer now detects only the exact package-owned visible app in the console session, requests normal termination before replacing its bundle, and fails safely instead of force-killing it if it does not exit.

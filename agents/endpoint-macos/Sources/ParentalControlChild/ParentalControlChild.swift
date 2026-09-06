@@ -308,7 +308,7 @@ struct ChildDashboard: View {
               "\($0.rules.count) apps · policy \($0.version)"
             } ?? "No application policy")
           Text(
-            "Website rules apply only in enrolled browser profiles, independently of tab sharing. Other profiles, private browsing and Safari are not covered; this is not a device-wide Internet pause."
+            "Website rules apply only in enrolled browser profiles, independently of tab sharing. Other profiles and private browsing are not covered; Safari requires its visible companion extension and per-profile website access. This is not a device-wide Internet pause."
           )
           .font(.caption).foregroundStyle(.secondary)
           Text(

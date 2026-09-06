@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-06E macOS application-use restrictions and the authorized RC3 browser-compatibility fix are ready for developer retesting; STAGE-07 has not begun.** RC3 retains the RC2 application fix and hardens enrolled-browser domain enforcement for restored tabs and SPA navigation through local hostname matching only. It never inspects page content or network traffic. The child installer owns a stable read-only Chromium extension folder; existing unpacked test profiles require one adult-supervised move to that path. Without Apple's Endpoint Security entitlement, Stage 06E can visibly close a selected signed third-party app after launch but cannot claim pre-launch denial. See [Stage status](docs/stages/stage-status.json) and [Stage 06E](docs/stages/stage-06e.md).
+> **STAGE-06E macOS application-use restrictions RC5 with Safari local-test coverage are being prepared; STAGE-07 has not begun.** RC5 retains signed-identity app restrictions and hostname-only enforcement for new, restored and SPA browser navigation. It never inspects page content or network traffic. Chromium/Firefox remain manually enrolled; Safari uses an ad-hoc companion extension that an adult must explicitly enable per profile. Production Safari distribution is not claimed. Without Apple's Endpoint Security entitlement, Stage 06E can visibly close a selected signed third-party app after launch but cannot claim pre-launch denial. See [Stage status](docs/stages/stage-status.json) and [Stage 06E](docs/stages/stage-06e.md).
 
 ## Product direction
 
@@ -18,7 +18,7 @@ The project is intentionally visible and bounded. It will not implement hidden i
 | Visible child UI | Stage 03 candidate | Planned | Planned |
 | Local policy enforcement | Stage 06 candidate | Planned | Planned through Family Controls APIs |
 | Foreground/running apps | Stage 04 metadata plus Stage 06E signed-identity restrictions in progress | Planned | Not available |
-| Browser-tab metadata | Stage 05 visible Chrome/Edge/Arc extension | Visible extension planned | Not available |
+| Browser-tab metadata | Visible enrolled Chromium/Firefox extensions plus Stage 06E Safari local-test extension | Visible extension planned | Not available |
 | Reliable uptime or login state | Stage 04 candidate | Planned | Not available |
 | Text chat and announcements | Stage 04 candidate | Planned | While app is active in a later stage |
 | Lock/logoff/restart/shutdown | Stage 06 public macOS mechanisms with confirmation for high-impact actions | Supported APIs only | Not available to a normal app |

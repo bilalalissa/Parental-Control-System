@@ -9,6 +9,7 @@ public enum EndpointMachService {
   public static let helperIdentifier = "com.bilalalissa.ParentalControlAgent.user"
   public static let controlIdentifier = "com.bilalalissa.ParentalControlAgent.ctl"
   public static let browserHostIdentifier = "com.bilalalissa.ParentalControlBrowserHost"
+  public static let safariExtensionIdentifier = "com.bilalalissa.ParentalControlSafari.Extension"
 }
 
 public enum EndpointPolicyWake {
@@ -66,6 +67,7 @@ public enum XPCAuthorization {
     }
     if operation == "browser-configuration" || operation == "browser-update" {
       return signingIdentifier == EndpointMachService.browserHostIdentifier
+        || signingIdentifier == EndpointMachService.safariExtensionIdentifier
     }
     return signingIdentifier == EndpointMachService.childIdentifier
   }
@@ -75,6 +77,7 @@ public enum XPCAuthorization {
     return [
       EndpointMachService.childIdentifier, EndpointMachService.helperIdentifier,
       EndpointMachService.controlIdentifier, EndpointMachService.browserHostIdentifier,
+      EndpointMachService.safariExtensionIdentifier,
     ].contains(signingIdentifier)
   }
 
@@ -96,6 +99,10 @@ public enum XPCAuthorization {
       expected = [
         "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost"
       ]
+    case EndpointMachService.safariExtensionIdentifier:
+      expected = [
+        "/Applications/Parental Control Safari.app/Contents/PlugIns/Parental Control Safari Extension.appex/Contents/MacOS/Parental Control Safari Extension"
+      ]
     default: expected = []
     }
     let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
@@ -103,7 +110,10 @@ public enum XPCAuthorization {
   }
 
   public static func isRootProtected(_ path: String) -> Bool {
-    let application = "/Applications/Parental Control Child.app"
+    let application =
+      path.hasPrefix("/Applications/Parental Control Safari.app/")
+      ? "/Applications/Parental Control Safari.app"
+      : "/Applications/Parental Control Child.app"
     for item in [path, application] {
       guard let attributes = try? FileManager.default.attributesOfItem(atPath: item),
         (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == 0,

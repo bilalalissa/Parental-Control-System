@@ -27,6 +27,7 @@ async function profileID() {
 
 function browserName() {
   if (navigator.userAgent.includes("Firefox/")) return "firefox";
+  if (navigator.userAgent.includes("Safari/") && !navigator.userAgent.includes("Chrome/")) return "safari";
   return navigator.userAgent.includes("Edg/") ? "edge" : "chrome";
 }
 
@@ -81,7 +82,7 @@ async function publishTabs() {
   if (configuration.accepted === true && configuration.websitePolicy) {
     let state = "applied";
     try {
-      await WebsitePolicy.apply(api, configuration.websitePolicy);
+      await WebsitePolicy.apply(api, configuration.websitePolicy, authorizedBrowser);
       await WebsitePolicy.enforceOpenTabs(api, configuration.websitePolicy);
     } catch { state = "error"; }
     await api.storage.local.set({ websitePolicyState: state });

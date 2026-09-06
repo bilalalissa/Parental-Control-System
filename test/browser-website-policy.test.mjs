@@ -39,6 +39,16 @@ test('domain-only rules cover navigations and frames, without observing requests
   assert.deepEqual(rules[0].condition, { requestDomains: ['example.org', 'youtube.com'], resourceTypes: ['main_frame', 'sub_frame'] });
   assert.equal(rules[0].action.type, 'block');
 });
+test('Safari receives equivalent hostname-only urlFilter rules', () => {
+  const rules = plain(policy.rulesFor(
+    policy.validate({ version: 1, domains: ['youtube.com', 'example.org'] }), 'safari'));
+  assert.deepEqual(rules, [
+    { id: 1, priority: 1, action: { type: 'block' },
+      condition: { urlFilter: '||example.org^', resourceTypes: ['main_frame', 'sub_frame'] } },
+    { id: 2, priority: 1, action: { type: 'block' },
+      condition: { urlFilter: '||youtube.com^', resourceTypes: ['main_frame', 'sub_frame'] } }
+  ]);
+});
 test('local hostname matching covers exact, subdomain, restored and SPA URLs without inspecting paths', async () => {
   const api = browser();
   const configured = policy.validate({ version: 2, domains: ['youtube.com'] });
@@ -120,6 +130,22 @@ test('Firefox packaging generates a stable explicit identity without duplicating
     assert.equal(generated.key, undefined);
     assert.equal(generated.update_url, undefined);
     assert.equal(generated.incognito, 'not_allowed');
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('Safari packaging removes browser-store identity fields without broadening permissions', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'parental-safari-test-'));
+  try {
+    const output = join(directory, 'manifest.json');
+    execFileSync(process.execPath, [fileURLToPath(new URL('../script/safari_manifest.mjs', import.meta.url)),
+      fileURLToPath(new URL('../browser-extensions/webextension/manifest.json', import.meta.url)), output]);
+    const generated = JSON.parse(await readFile(output, 'utf8'));
+    assert.equal(generated.key, undefined);
+    assert.equal(generated.version_name, undefined);
+    assert.equal(generated.incognito, undefined);
+    assert.ok(generated.permissions.includes('nativeMessaging'));
+    assert.ok(generated.permissions.includes('declarativeNetRequest'));
+    assert.equal(generated.content_scripts, undefined);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 

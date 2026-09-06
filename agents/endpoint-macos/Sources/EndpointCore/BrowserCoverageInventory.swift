@@ -18,7 +18,7 @@ public enum BrowserCoverageInventory {
         result.append(
           BrowserProtectionReport(
             browser: browser, profile: "", version: nil,
-            state: browser == "safari" ? "unsupported" : "setup-required", observedAt: now))
+            state: "setup-required", observedAt: now))
       }
     }
     return Array(result.prefix(32))

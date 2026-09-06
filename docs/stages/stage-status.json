@@ -93,8 +93,8 @@
     {
       "id": "STAGE-06E",
       "name": "macOS application-use restrictions",
-      "version": "0.6.5-rc.4",
-      "status": "READY_FOR_RETEST",
+      "version": "0.6.5-rc.5",
+      "status": "IMPLEMENTING",
       "branch": "stage/06e-macos-app-use-restrictions",
       "document": "stage-06e.md"
     }

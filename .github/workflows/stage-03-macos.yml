@@ -89,15 +89,15 @@ jobs:
       - name: Verify universal slices
         if: steps.scope.outputs.build == 'true'
         run: |
-          for binary in "dist/Parental Control Child.app/Contents/MacOS/ParentalControlChild" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlAgentDaemon" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlAgentUser" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost"; do
+          for binary in "dist/Parental Control Child.app/Contents/MacOS/ParentalControlChild" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlAgentDaemon" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlAgentUser" "dist/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost" "dist/Parental Control Safari.app/Contents/MacOS/Parental Control Safari" "dist/Parental Control Safari.app/Contents/PlugIns/Parental Control Safari Extension.appex/Contents/MacOS/Parental Control Safari Extension"; do
             /usr/bin/lipo -archs "$binary" | grep -q arm64
             /usr/bin/lipo -archs "$binary" | grep -q x86_64
           done
       - name: Verify selectable package choices
         if: steps.scope.outputs.build == 'true'
         run: |
-          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.4.pkg" -target / | /usr/bin/plutil -lint -
-          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.4.pkg" || true
+          /usr/sbin/installer -showChoicesXML -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.5.pkg" -target / | /usr/bin/plutil -lint -
+          /usr/sbin/pkgutil --check-signature ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.5.pkg" || true
       - name: Reset macOS installer test fixture
         if: steps.scope.outputs.build == 'true'
         run: |
@@ -111,7 +111,7 @@ jobs:
           else
             sudo /usr/bin/pkill -x ParentalControlAgentUser >/dev/null 2>&1 || true
             sudo /usr/bin/pkill -x ParentalControlChild >/dev/null 2>&1 || true
-            sudo /bin/rm -rf -- "/Applications/Parental Control Child.app" "/Library/Application Support/ParentalControlAgent"
+            sudo /bin/rm -rf -- "/Applications/Parental Control Child.app" "/Applications/Parental Control Safari.app" "/Library/Application Support/ParentalControlAgent"
             sudo /bin/rm -f -- \
               /Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist \
               /Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist \
@@ -124,15 +124,17 @@ jobs:
           sudo /bin/rm -rf -- "/Applications/Parental Control.app"
           sudo /usr/sbin/pkgutil --forget com.bilalalissa.ParentalControlController.component >/dev/null 2>&1 || true
           test ! -e "/Applications/Parental Control Child.app"
+          test ! -e "/Applications/Parental Control Safari.app"
           test ! -e "/Applications/Parental Control.app"
       - name: Install default parent choice
         if: steps.scope.outputs.build == 'true'
         run: |
           sudo /usr/sbin/installer \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.4.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.5.pkg" \
             -target /
           test -x "/Applications/Parental Control.app/Contents/MacOS/ParentalControlController"
           test ! -e "/Applications/Parental Control Child.app"
+          test ! -e "/Applications/Parental Control Safari.app"
           /usr/bin/codesign --verify --deep --strict "/Applications/Parental Control.app"
           sudo /bin/rm -rf -- "/Applications/Parental Control.app"
           sudo /usr/sbin/pkgutil --forget com.bilalalissa.ParentalControlController.component >/dev/null
@@ -141,7 +143,7 @@ jobs:
         run: |
           if ! sudo /usr/sbin/installer \
             -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
-            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.4.pkg" \
+            -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.5.pkg" \
             -target /; then
             sudo /usr/bin/tail -n 200 /var/log/install.log || true
             exit 1
@@ -165,7 +167,8 @@ jobs:
             test "$(sudo /usr/bin/stat -f '%u:%Lp' "/Library/Application Support/ParentalControlAgent/xpc-clients.plist")" = "0:600"
             test "$(sudo /usr/bin/stat -f '%u:%Lp' "/Library/Application Support/ParentalControlBrowserExtension/Chromium")" = "0:755"
             test "$(sudo /usr/bin/stat -f '%u:%Lp' "/Library/Application Support/ParentalControlBrowserExtension/Chromium/manifest.json")" = "0:644"
-            node -e 'const m = require("/Library/Application Support/ParentalControlBrowserExtension/Chromium/manifest.json"); if (m.version !== "0.6.5.4") process.exit(1)'
+            node -e 'const m = require("/Library/Application Support/ParentalControlBrowserExtension/Chromium/manifest.json"); if (m.version !== "0.6.5.5") process.exit(1)'
+            test -x "/Applications/Parental Control Safari.app/Contents/PlugIns/Parental Control Safari Extension.appex/Contents/MacOS/Parental Control Safari Extension"
             first_identity_hash="$(sudo /usr/bin/shasum -a 256 "/Library/Application Support/ParentalControlAgent/endpoint-identity.key" | /usr/bin/awk '{print $1}')"
             # Keep the visible app open across the upgrade. The installer must normally stop the
             # old ad-hoc client before bundle replacement and restore a new connected process.
@@ -180,7 +183,7 @@ jobs:
             # Verify child in-place upgrade preserves endpoint identity and protected state.
             if ! sudo /usr/sbin/installer \
               -applyChoiceChangesXML agents/endpoint-macos/Installer/ci-child-choices.xml \
-              -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.4.pkg" \
+              -pkg ".artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.5.pkg" \
               -target /; then
               sudo /usr/bin/tail -n 200 /var/log/install.log || true
               exit 1
@@ -279,6 +282,7 @@ jobs:
           /usr/bin/pkill -f "/Applications/Parental Control Child.app/Contents/MacOS/ParentalControlChild" >/dev/null 2>&1 || true
           sudo "/Applications/Parental Control Child.app/Contents/Resources/uninstall.sh"
           test ! -e "/Applications/Parental Control Child.app"
+          test ! -e "/Applications/Parental Control Safari.app"
           test ! -e /Library/LaunchDaemons/com.bilalalissa.ParentalControlAgent.daemon.plist
           test ! -e /Library/LaunchAgents/com.bilalalissa.ParentalControlAgent.user.plist
           test ! -e /Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon
@@ -292,14 +296,14 @@ jobs:
         if: steps.scope.outputs.build == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ParentalControlSystem-0.6.5-rc.4
+          name: ParentalControlSystem-0.6.5-rc.5
           path: |
-            .artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.4.pkg
-            .artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.4.pkg.sha256
-            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.5-rc.4.zip
-            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.5-rc.4.zip.sha256
-            .artifacts/release-candidate/ParentalControlBrowserFirefox-0.6.5-rc.4.xpi
-            .artifacts/release-candidate/ParentalControlBrowserFirefox-0.6.5-rc.4.xpi.sha256
+            .artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.5.pkg
+            .artifacts/release-candidate/ParentalControlSystem-0.6.5-rc.5.pkg.sha256
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.5-rc.5.zip
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.6.5-rc.5.zip.sha256
+            .artifacts/release-candidate/ParentalControlBrowserFirefox-0.6.5-rc.5.xpi
+            .artifacts/release-candidate/ParentalControlBrowserFirefox-0.6.5-rc.5.xpi.sha256
           if-no-files-found: error
           retention-days: 7
       - name: Clean project-owned generated output
