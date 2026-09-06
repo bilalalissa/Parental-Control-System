@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.6.5-rc.1 — 2026-09-05
 
-Status: **STAGE-06E in progress; unreleased**
+Status: **STAGE-06E ready for developer test; unreleased**
 
 - Adds bounded parent-authored application-use policies for observed signed third-party macOS apps, using exact bundle, signing and Team identity.
 - Caches the monotonic policy in root-protected child configuration, preserves it when optional activity sharing is disabled, and transports it through the authenticated local connection.

@@ -2,7 +2,7 @@
 
 - Version: `0.6.5-rc.1` (build `6501`)
 - Branch: `stage/06e-macos-app-use-restrictions`
-- Status: `IMPLEMENTING`
+- Status: `READY_FOR_DEVELOPER_TEST`
 - Authorized on 2026-09-05 with `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06E MACOS APP-USE RESTRICTIONS BEFORE STAGE-07` and `PROCEED: STAGE-06E`.
 
 ## Objective and included scope
@@ -48,4 +48,17 @@ Use no more than two build workers, one checkout, one Stage-06E derived-data tre
 
 Apply an empty newer app policy before reverting. Installing RC5 over RC1 is not a supported database downgrade because RC1 adds schema fields, but the new fields are additive and ignored by older code. The administrator uninstaller remains reserved for intentional endpoint removal and is not an upgrade path.
 
-AWAITING IMPLEMENTATION AND AUTOMATED VERIFICATION
+## Automated and artifact evidence
+
+- Repository contracts: 69 passed, one Windows-only cleanup check skipped on macOS.
+- Controller/hub: 54 Swift Testing cases plus four XCTest cases passed with two workers, including policy bounds, aggregate IPC budget, migration and exact identity persistence.
+- Endpoint: 31 Swift Testing cases plus six XCTest cases passed with two workers, including identity mismatch, protected-app exclusion, rollback/persistence, XPC authorization and one-attempt-per-process/policy fallback gating.
+- Swift formatting, shell syntax and Git whitespace checks passed.
+- `ParentalControlSystem-0.6.5-rc.1.pkg` was built from commit `2c413675b42a`, checksum-verified, and its selectable choices passed `installer -showChoicesXML` validation.
+- Parent binary is `arm64`; child app and helpers are universal `x86_64 arm64`. Both apps passed deep/strict code-signature verification.
+- SHA-256: `57f759b5d554671c2cd91e576a9fae15cdfc674a0d84c912d7f85c180849a52d`.
+- Signing status: embedded apps/helpers use hardened-runtime ad-hoc signatures with no Team ID. The product package is unsigned and not notarized. No Endpoint Security entitlement is present or claimed.
+
+Physical clean-install, in-place-upgrade, standard-user behavior, refusal/lock fallback and idle-resource evidence remain the developer test gate.
+
+AWAITING DEVELOPER TEST RESULT

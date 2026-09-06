@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-06E macOS application-use restrictions are in progress; STAGE-07 has not begun.** The developer approved and merged Stage 06D browser restrictions, then inserted Stage 06E. Without Apple's Endpoint Security entitlement, Stage 06E can visibly close a selected signed third-party app immediately after launch but cannot claim pre-launch denial. See [Stage status](docs/stages/stage-status.json) and [Stage 06E](docs/stages/stage-06e.md).
+> **STAGE-06E macOS application-use restrictions are ready for developer testing; STAGE-07 has not begun.** The developer approved and merged Stage 06D browser restrictions, then inserted Stage 06E. Without Apple's Endpoint Security entitlement, Stage 06E can visibly close a selected signed third-party app immediately after launch but cannot claim pre-launch denial. See [Stage status](docs/stages/stage-status.json) and [Stage 06E](docs/stages/stage-06e.md).
 
 ## Product direction
 
