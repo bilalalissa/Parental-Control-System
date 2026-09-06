@@ -2,9 +2,18 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.5-rc.4 — 2026-09-06
+
+Status: **STAGE-06E changes requested; unreleased**
+
+- Replaces RC3 after physical in-place installation left an already-running ad-hoc Child UI unable to reconnect to the replacement protected endpoint service.
+- The child installer now detects only the exact package-owned visible app in the console session, requests normal termination before replacing its bundle, and fails safely instead of force-killing it if it does not exit.
+- A short-lived root-only marker records whether the UI was open. After the daemon and session helper restart, the installer validates and consumes that marker and relaunches the new Child app in the standard user's GUI session.
+- CI now keeps the visible Child app open during a same-version in-place reinstall and requires the post-upgrade process to have a new PID while endpoint identity and protected state remain unchanged.
+
 ## 0.6.5-rc.3 — 2026-09-06
 
-Status: **STAGE-06E ready for developer retest; unreleased**
+Status: **STAGE-06E changes requested; superseded by RC4**
 
 - Retains RC2 application-use enforcement and hardens enrolled-browser domain enforcement for ordinary navigation, restored tabs and SPA URL changes.
 - Parses only local HTTP(S) hostnames, matches exact domains and subdomains, rejects lookalikes, and redirects matches to a bundled static local block page without inspecting or transmitting paths, queries, content, requests, cookies, DNS history or traffic.

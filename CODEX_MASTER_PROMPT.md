@@ -766,7 +766,7 @@ The visible per-user helper detects launches through supported workspace notific
 
 Do not claim pre-launch denial: it requires Apple's Endpoint Security entitlement and a signed system extension. Do not use mutable paths or display names as identity, arbitrary process kill, private APIs, hidden monitoring, MDM, WAN control, or later-platform work. The 2026-09-06 authorized compatibility amendment permits only hostname-based enforcement hardening for already-enrolled browsers: new navigations, restored tabs and SPA URL changes may be redirected to a bundled local block page without inspecting or transmitting paths, queries, content, requests or traffic. Acceptance requires monotonic policy/rollback tests, identity mismatch and protected-app tests, offline/restart persistence, authenticated enforcement audit, same-version upgrade preservation, one selectable macOS test installer and physical standard-user testing.
 
-Version: `0.6.5-rc.3`.
+Version: `0.6.5-rc.4`.
 
 ### STAGE-07 — Windows Child Agent foundation
 

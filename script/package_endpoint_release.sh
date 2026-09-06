@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-VERSION="0.6.5-rc.3"
+VERSION="0.6.5-rc.4"
 STAGING="$ROOT_DIR/.artifacts/package-staging/stage-06e"
 COMPONENTS="$STAGING/component-packages"
 CHILD_PAYLOAD="$STAGING/child-payload"
@@ -114,7 +114,7 @@ chmod 755 \
 retry "controller pkgbuild" /usr/bin/pkgbuild \
   --root "$CONTROLLER_PAYLOAD" \
   --identifier com.bilalalissa.ParentalControlController.component \
-  --version 0.6.5.3 \
+  --version 0.6.5.4 \
   --install-location / \
   --ownership recommended \
   "$COMPONENTS/ParentalControlController.pkg"
@@ -123,7 +123,7 @@ retry "child pkgbuild" /usr/bin/pkgbuild \
   --root "$CHILD_PAYLOAD" \
   --scripts "$CHILD_SCRIPTS" \
   --identifier com.bilalalissa.ParentalControlChild.component \
-  --version 0.6.5.3 \
+  --version 0.6.5.4 \
   --install-location / \
   --ownership recommended \
   "$COMPONENTS/ParentalControlChild.pkg"
@@ -160,6 +160,8 @@ rm -rf -- "$EXPANDED"
 rm -f -- \
   "$RC_DIR/ParentalControlSystem-0.6.5-rc.2.pkg" \
   "$RC_DIR/ParentalControlSystem-0.6.5-rc.2.pkg.sha256" \
+  "$RC_DIR/ParentalControlSystem-0.6.5-rc.3.pkg" \
+  "$RC_DIR/ParentalControlSystem-0.6.5-rc.3.pkg.sha256" \
   "$RC_DIR/ParentalControlSystem-0.6.5-rc.1.pkg" \
   "$RC_DIR/ParentalControlSystem-0.6.5-rc.1.pkg.sha256" \
   "$RC_DIR/ParentalControlSystem-0.6.4-rc.4.pkg" \

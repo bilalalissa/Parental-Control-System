@@ -60,7 +60,7 @@ test("Stage 06E follows the approved browser stage without claiming system exten
   const state = JSON.parse(tracker);
   const active = state.stages.find((candidate) => candidate.id === state.activeStage);
   assert.equal(active.id, "STAGE-06E");
-  assert.equal(active.version, "0.6.5-rc.3");
+  assert.equal(active.version, "0.6.5-rc.4");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
       active.status,

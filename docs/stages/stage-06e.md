@@ -1,8 +1,8 @@
 # STAGE-06E — macOS application-use restrictions
 
-- Version: `0.6.5-rc.3` (build `6503`)
+- Version: `0.6.5-rc.4` (build `6504`)
 - Branch: `stage/06e-macos-app-use-restrictions`
-- Status: `READY_FOR_RETEST`
+- Status: `CHANGES_REQUESTED`
 - Authorized on 2026-09-05 with `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06E MACOS APP-USE RESTRICTIONS BEFORE STAGE-07` and `PROCEED: STAGE-06E`.
 - Browser-compatibility amendment authorized on 2026-09-06 with `AUTHORIZE STAGE-06E SCOPE AMENDMENT: HARDEN DOMAIN ENFORCEMENT FOR YOUTUBE, RESTORED TABS, AND SPA NAVIGATION IN ENROLLED BROWSERS; USE LOCAL HOSTNAME MATCHING ONLY, WITH NO CONTENT INSPECTION.` and `PROCEED: STAGE-06E 0.6.5-rc.3 BROWSER COMPATIBILITY FIX`.
 
@@ -26,6 +26,10 @@ RC2 repaired the native host upgrade but physical testing showed a narrower brow
 
 RC3 keeps declarative rules and adds an independent local tab reconciliation layer. It reads only the browser-provided tab URL, parses the HTTP(S) hostname locally, discards path/query/fragment values, and compares the hostname to the cached bare-domain policy. Matching new navigation, active/restored tab or SPA URL changes are redirected to the bundled static `blocked.html` page. It does not inspect page content, requests, response data, cookies, traffic or DNS, and transmits no new URL fields. The installer places the Chromium source at the stable root-owned read-only path `/Library/Application Support/ParentalControlBrowserExtension/Chromium`. Because browsers cannot silently repoint an existing unpacked extension, RC3 needs one adult-supervised move from the previous manually selected directory to that stable path. Future installer replacements keep the same path and require only a normal full browser restart.
 
+Physical RC3 feedback found an installer lifecycle regression: if the visible Child app was open during an in-place update, the old ad-hoc process survived while its bundle and the daemon's exact XPC client manifest were replaced. The old process could then remain indefinitely at `Connecting to the protected endpoint service…`, even though the new daemon and helper had been installed.
+
+RC4 detects only the exact package-owned Child executable in the current console session and requests its normal termination before payload replacement. It never force-kills the UI; if it does not exit within five seconds, the installer stops with a readable instruction instead of replacing a running client. A separate atomic `root:wheel` mode `0600` marker records that the UI was open. After replacing and restarting the daemon and helper, postinstall validates the marker owner, mode, console UID and ten-minute age, consumes it, and relaunches the new Child app in that user's GUI context. This changes no endpoint identity, pairing, schedule, app policy, website policy or collected data.
+
 ## Acceptance criteria
 
 1. Parent selection is limited to observed apps with exact bundle/signing/Team identity; protected or unsigned identities cannot be selected.
@@ -43,7 +47,7 @@ Use no more than two build workers, one checkout, one Stage-06E derived-data tre
 
 ## Manual developer test checklist
 
-1. Install Parent Controller and Child Endpoint from `ParentalControlSystem-0.6.5-rc.3.pkg` over RC2 without uninstalling or unpairing. Confirm the same child returns Online.
+1. Leave the RC3 Child app open, then install the Child Endpoint from `ParentalControlSystem-0.6.5-rc.4.pkg` in place without uninstalling or unpairing. Confirm the old window closes, the RC4 window reopens, and the same child returns Online without showing a persistent protected-service connection message.
 2. Use a standard child account and retain a separate adult administrator. Open one signed third-party test app once so its exact identity appears in Devices > Application-use restrictions.
 3. Select that app and apply the policy. Confirm the audit reports queued/delivered policy metadata without paths or content.
 4. Leave the selected app open while applying the policy. It must show the visible restriction banner and receive a normal quit request promptly (the bounded reconciliation scan is at most 15 seconds). Re-launch it and confirm launch notification enforcement also works. Confirm a `quit-requested` and then `closed` audit event.
@@ -53,13 +57,13 @@ Use no more than two build workers, one checkout, one Stage-06E derived-data tre
 8. Complete the one-time Chromium transition. Fully quit Arc/Chrome/Edge/Brave. Open its extension page, remove the older unpacked test copy, enable Developer Mode, choose **Load unpacked**, and select `/Library/Application Support/ParentalControlBrowserExtension/Chromium`. Reopen the browser and confirm the profile changes from `Setup required` to the current policy acknowledgement. Repeat per tested profile. Do not copy this folder into Downloads or modify its root-owned contents.
 9. Test all three paths with `youtube.com`. For an already-loaded/SPA-style app shell, first remove the rule, open YouTube, then apply the rule while the tab remains open; it must redirect to the visible local block page. For restoration, remove the rule, open YouTube, configure the browser to restore tabs, quit it, apply `youtube.com` while it is closed, then reopen it; the restored tab must redirect after extension startup. A fresh navigation must also redirect. Confirm `notyoutube.com` remains allowed. Add `youtu.be` separately when that short-link host must also be denied.
 10. Disable optional browser-tab sharing and disconnect the parent: cached hostname enforcement continues. No page content, path, query, fragment, cookie, DNS history or traffic payload appears in the parent, audit or endpoint logs.
-11. Reinstall the child component in place and fully restart the enrolled browser: pairing, schedule, browser policy, endpoint identity, app policy and the stable extension path remain. No new extension-path selection is required after this RC3 migration.
+11. Reinstall the RC4 child component in place once with the Child app open and once with it closed. The open app must be normally replaced and relaunched; the closed app must remain closed. Pairing, schedule, browser policy, endpoint identity, app policy and the stable extension path remain. No new extension-path selection is required after the RC3 migration.
 12. Apply empty app and website policies: the formerly restricted app and a new browser navigation work normally.
 13. Record CPU/memory over five idle minutes and report OS, hardware, app bundle ID, expected result, observed result, and only the bounded relevant audit/log lines.
 
 ## Rollback
 
-Apply empty newer app and website policies before reverting. Installing Stage 06D RC5 over Stage 06E RC3 is not a supported database downgrade because Stage 06E adds schema fields, but the new fields are additive and ignored by older code. The administrator uninstaller removes the installer-owned stable extension source but cannot remove browser-profile registrations; remove those visibly in each browser when intentionally uninstalling.
+Apply empty newer app and website policies before reverting. Installing Stage 06D RC5 over Stage 06E RC4 is not a supported database downgrade because Stage 06E adds schema fields, but the new fields are additive and ignored by older code. The administrator uninstaller removes the installer-owned stable extension source but cannot remove browser-profile registrations; remove those visibly in each browser when intentionally uninstalling.
 
 ## Automated and artifact evidence
 

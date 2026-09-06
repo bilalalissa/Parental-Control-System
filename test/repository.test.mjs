@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06e-macos-app-use-restrictions");
-  assert.equal(active[0].version, "0.6.5-rc.3");
+  assert.equal(active[0].version, "0.6.5-rc.4");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
       active[0].status,
@@ -74,6 +74,14 @@ test("Stage 04 keeps the visible helper alive and refreshes its launch registrat
   assert.match(preinstall, /EXPIRES_AT="\$\(\(ISSUED_AT \+ 600\)\)"/);
   assert.match(preinstall, /launchctl bootout "\$USER_SERVICE"/);
   assert.match(preinstall, /pkill -u "\$CONSOLE_UID" -x ParentalControlBrowserHost/);
+  assert.match(preinstall, /CHILD_PROCESS_PATTERN=/);
+  assert.match(preinstall, /pgrep -u "\$CONSOLE_UID" -f "\$CHILD_PROCESS_PATTERN"/);
+  assert.match(preinstall, /pkill -TERM -u "\$CONSOLE_UID" -f "\$CHILD_PROCESS_PATTERN"/);
+  assert.match(preinstall, /\.installer-relaunch-child\.plist/);
+  assert.match(postinstall, /marker_owner_mode/);
+  assert.match(postinstall, /launchctl asuser "\$CONSOLE_UID"/);
+  assert.match(postinstall, /open -g "\/Applications\/Parental Control Child\.app"/);
+  assert.doesNotMatch(preinstall, /pkill -KILL[^\n]*ParentalControlChild/);
   assert.doesNotMatch(preinstall, /pkill[^\n]*(Google Chrome|Microsoft Edge|Arc|Firefox|Brave)/);
   assert.match(postinstall, /endpoint-identity\.key/);
   assert.match(postinstall, /xpc-clients\.plist/);
@@ -175,8 +183,8 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
     read("agents/endpoint-macos/Sources/ParentalControlBrowserHost/main.swift"),
   ]);
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.6.5.3");
-  assert.equal(manifest.version_name, "0.6.5-rc.3");
+  assert.equal(manifest.version, "0.6.5.4");
+  assert.equal(manifest.version_name, "0.6.5-rc.4");
   assert.deepEqual(manifest.permissions.sort(), ["alarms", "declarativeNetRequest", "nativeMessaging", "storage", "tabs"]);
   for (const forbidden of ["history", "webRequest", "cookies", "downloads", "debugger"])
     assert.ok(!manifest.permissions.includes(forbidden));
@@ -193,7 +201,7 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /runtime\.onStartup/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.5-rc\.3\.zip"/);
+  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.5-rc\.4\.zip"/);
   assert.match(packager, /blocked\.html/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
@@ -371,19 +379,19 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
     read(".github/workflows/stage-03-macos.yml"),
   ]);
   for (const build of [controllerBuild, endpointBuild]) {
-    assert.match(build, /VERSION="0\.6\.5-rc\.3"/);
-    assert.match(build, /CFBundleVersion string 6503/);
+    assert.match(build, /VERSION="0\.6\.5-rc\.4"/);
+    assert.match(build, /CFBundleVersion string 6504/);
     assert.match(build, /derived-data\/stage-06e/);
   }
   assert.match(packaging, /ParentalControlSystem-\$VERSION\.pkg/);
-  assert.match(packaging, /--version 0\.6\.5\.3/);
+  assert.match(packaging, /--version 0\.6\.5\.4/);
   assert.match(packaging, /xpc-clients\.plist/);
   assert.match(endpointBuild, /file identity is authorized only for ad-hoc test builds/);
   assert.match(endpointBuild, /--options runtime/);
   assert.match(packaging, /package_browser_extension\.sh/);
   assert.match(packaging, /ParentalControlBrowserExtension\/Chromium/);
   assert.match(packaging, /blocked\.html/);
-  assert.match(distribution, /version="0\.6\.5\.3"/);
+  assert.match(distribution, /version="0\.6\.5\.4"/);
   assert.match(preinstall, /\.installer-maintenance\.plist/);
   assert.doesNotMatch(preinstall + postinstall, /delete-generic-password|rm[^\n]*configuration\.json/);
   assert.match(readiness, /session-enforcement/);
@@ -409,7 +417,7 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
   assert.match(child, /Effective time remaining/);
   assert.match(child, /Next limiting rule/);
   assert.match(helper, /Effective time remaining/);
-  assert.match(workflow, /ParentalControlSystem-0\.6\.5-rc\.3\.pkg/);
+  assert.match(workflow, /ParentalControlSystem-0\.6\.5-rc\.4\.pkg/);
   assert.doesNotMatch(workflow, /ParentalControlBrowserSharing-0\.6\.1-rc\.5/);
 });
 
