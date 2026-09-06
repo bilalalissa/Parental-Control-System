@@ -264,17 +264,30 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       !ApplicationRestrictionRule.isProtected(bundleIdentifier),
       let bundleURL = application.bundleURL
     else { return }
-    client.fetchStatus { [weak self, weak application] result in
-      guard let self, let application, case .success(let status) = result,
-        let identity = self.codeIdentity(for: bundleURL),
-        let rule = ApplicationRestrictionEvaluator.matches(
-          bundleIdentifier: bundleIdentifier, identity: identity,
-          policy: status.applicationRestrictionPolicy)
+    let candidate = ApplicationRestrictionProcessCandidate(
+      processIdentifier: application.processIdentifier, bundleIdentifier: bundleIdentifier,
+      bundleURL: bundleURL)
+    client.fetchStatus { [weak self] result in
+      guard let self, case .success(let status) = result,
+        status.applicationRestrictionPolicy?.rule(for: bundleIdentifier) != nil
       else { return }
-      DispatchQueue.main.async { [weak self, weak application] in
-        guard let self, let application, !application.isTerminated else { return }
+      DispatchQueue.main.async { [weak self] in
+        guard let self,
+          let application = NSRunningApplication(
+            processIdentifier: candidate.processIdentifier),
+          !application.isTerminated,
+          candidate.matchesLiveProcess(
+            bundleIdentifier: application.bundleIdentifier, bundleURL: application.bundleURL),
+          let liveBundleURL = application.bundleURL,
+          // Enforcement deliberately bypasses the activity-reporting cache: an app can update at
+          // the same path, so each action must validate the currently running signed bundle.
+          let identity = ApplicationCodeIdentity.validated(at: liveBundleURL),
+          let rule = ApplicationRestrictionEvaluator.matches(
+            bundleIdentifier: bundleIdentifier, identity: identity,
+            policy: status.applicationRestrictionPolicy)
+        else { return }
         let policyVersion = status.applicationRestrictionPolicy?.version ?? 0
-        let processIdentifier = application.processIdentifier
+        let processIdentifier = candidate.processIdentifier
         guard
           self.applicationRestrictionGate.begin(
             processIdentifier: processIdentifier, policyVersion: policyVersion)
@@ -289,12 +302,18 @@ final class SessionReporter: NSObject, @unchecked Sendable {
           bundleIdentifier: bundleIdentifier,
           policyVersion: policyVersion,
           outcome: .quitRequested)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self, weak application] in
-          guard let self, let application,
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+          guard let self,
             self.applicationRestrictionGate.isCurrent(
               processIdentifier: processIdentifier, policyVersion: policyVersion)
           else { return }
-          if application.isTerminated {
+          guard
+            let liveApplication = NSRunningApplication(processIdentifier: processIdentifier),
+            candidate.matchesLiveProcess(
+              bundleIdentifier: liveApplication.bundleIdentifier,
+              bundleURL: liveApplication.bundleURL),
+            !liveApplication.isTerminated
+          else {
             self.applicationRestrictionGate.processDidTerminate(processIdentifier)
             self.reportApplicationRestriction(
               bundleIdentifier: bundleIdentifier,

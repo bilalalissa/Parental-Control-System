@@ -48,6 +48,29 @@ public enum ApplicationRestrictionEvaluator {
   }
 }
 
+/// Immutable process metadata captured before an asynchronous XPC policy lookup. The visible
+/// helper must reacquire the process after that lookup and verify that the PID still names the
+/// same bundle before it may request termination. This prevents both a dropped weak reference and
+/// acting on a reused PID.
+public struct ApplicationRestrictionProcessCandidate: Equatable, Sendable {
+  public let processIdentifier: Int32
+  public let bundleIdentifier: String
+  public let bundlePath: String
+
+  public init(processIdentifier: Int32, bundleIdentifier: String, bundleURL: URL) {
+    self.processIdentifier = processIdentifier
+    self.bundleIdentifier = bundleIdentifier
+    bundlePath = bundleURL.resolvingSymlinksInPath().path
+  }
+
+  public func matchesLiveProcess(bundleIdentifier: String?, bundleURL: URL?) -> Bool {
+    guard processIdentifier > 0, bundleIdentifier == self.bundleIdentifier, let bundleURL else {
+      return false
+    }
+    return bundleURL.resolvingSymlinksInPath().path == bundlePath
+  }
+}
+
 public struct ApplicationRestrictionAttemptGate: Sendable {
   private var handledPolicyVersions: [Int32: Int64] = [:]
 

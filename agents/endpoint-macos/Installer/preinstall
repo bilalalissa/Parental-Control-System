@@ -13,6 +13,10 @@ if [[ "$TARGET_VOLUME" == "/" ]]; then
     USER_SERVICE="gui/$CONSOLE_UID/com.bilalalissa.ParentalControlAgent.user"
     /bin/launchctl bootout "$USER_SERVICE" >/dev/null 2>&1 || true
     /usr/bin/pkill -u "$CONSOLE_UID" -x ParentalControlAgentUser >/dev/null 2>&1 || true
+    # Native-messaging hosts are repository-owned, short-lived bridges. End any pre-upgrade
+    # instance so the next already-installed extension request launches the replacement binary;
+    # this does not stop or reload Chrome, Edge, Arc, Brave, or Firefox.
+    /usr/bin/pkill -u "$CONSOLE_UID" -x ParentalControlBrowserHost >/dev/null 2>&1 || true
   fi
 fi
 

@@ -580,6 +580,22 @@ struct EndpointCoreTests {
     gate.processDidTerminate(41)
     let relaunchedProcessAttempt = gate.begin(processIdentifier: 41, policyVersion: 8)
     #expect(relaunchedProcessAttempt)
+
+    let candidate = ApplicationRestrictionProcessCandidate(
+      processIdentifier: 41, bundleIdentifier: bundle,
+      bundleURL: URL(fileURLWithPath: "/Applications/Learning Game.app"))
+    #expect(
+      candidate.matchesLiveProcess(
+        bundleIdentifier: bundle,
+        bundleURL: URL(fileURLWithPath: "/Applications/Learning Game.app")))
+    #expect(
+      !candidate.matchesLiveProcess(
+        bundleIdentifier: "com.example.Impostor",
+        bundleURL: URL(fileURLWithPath: "/Applications/Learning Game.app")))
+    #expect(
+      !candidate.matchesLiveProcess(
+        bundleIdentifier: bundle,
+        bundleURL: URL(fileURLWithPath: "/Applications/Replacement.app")))
   }
 
   @Test("browser metadata is opt-in, bounded, sanitized, and host-authenticated")
