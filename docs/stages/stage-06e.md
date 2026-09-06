@@ -2,7 +2,7 @@
 
 - Version: `0.6.5-rc.4` (build `6504`)
 - Branch: `stage/06e-macos-app-use-restrictions`
-- Status: `CHANGES_REQUESTED`
+- Status: `READY_FOR_RETEST`
 - Authorized on 2026-09-05 with `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06E MACOS APP-USE RESTRICTIONS BEFORE STAGE-07` and `PROCEED: STAGE-06E`.
 - Browser-compatibility amendment authorized on 2026-09-06 with `AUTHORIZE STAGE-06E SCOPE AMENDMENT: HARDEN DOMAIN ENFORCEMENT FOR YOUTUBE, RESTORED TABS, AND SPA NAVIGATION IN ENROLLED BROWSERS; USE LOCAL HOSTNAME MATCHING ONLY, WITH NO CONTENT INSPECTION.` and `PROCEED: STAGE-06E 0.6.5-rc.3 BROWSER COMPATIBILITY FIX`.
 
@@ -67,15 +67,15 @@ Apply empty newer app and website policies before reverting. Installing Stage 06
 
 ## Automated and artifact evidence
 
-- Repository contracts: 70 passed, one Windows-only cleanup check skipped on macOS. The focused browser suite includes 11 passing cases for policy validation/readback, privacy permissions, native outage behavior, restored tabs and SPA URL changes.
+- Repository contracts: 70 passed, one Windows-only cleanup check skipped on macOS. The focused browser suite includes 11 passing cases for policy validation/readback, privacy permissions, native outage behavior, restored tabs and SPA URL changes. Installer assertions additionally require bounded normal termination, no force-kill, a root-only relaunch marker and console-user relaunch.
 - Controller/hub: 54 Swift Testing cases plus four XCTest cases passed with two workers, including policy bounds, aggregate IPC budget, migration and exact identity persistence.
 - Endpoint: 31 Swift Testing cases plus six XCTest cases passed with two workers, including identity mismatch, protected-app exclusion, rollback/persistence, XPC authorization and one-attempt-per-process/policy fallback gating.
 - Swift formatting, shell syntax and Git whitespace checks passed.
-- `ParentalControlSystem-0.6.5-rc.3.pkg` was built from commit `6cce0e3361ed`, checksum-verified, expanded-payload inspected, and its selectable choices passed `installer -showChoicesXML` validation. The payload includes the stable Chromium source and static block page.
+- `ParentalControlSystem-0.6.5-rc.4.pkg` was built from commit `eeafd66d4e3b`, checksum-verified, expanded-payload inspected, and its selectable choices passed `installer -showChoicesXML` validation. The embedded preinstall and postinstall scripts exactly match the reviewed source, the XPC client manifest is mode `0600`, and the payload includes the stable Chromium source and static block page.
 - Parent binary is `arm64`; child app and helpers are universal `x86_64 arm64`. Both apps passed deep/strict code-signature verification.
-- SHA-256: installer `ccb41444e8ef0702b0bf11694547da43c9d9fd2a78ff9d1cc2b3eddf186b496b`; Chromium ZIP `d319676bcdba73c0335ed00d5e76ba8b03ce6f367dedf0c09fe4ee6f5f5fa476`; Firefox XPI `987eca5f1fe9a6b552c84a7f827260de8400dfc51d6364439d1c8b941286bd9a`.
+- SHA-256: installer `3205eabbd709bc5e7dfb7dbd6812d7cea2f5727478df2c589b1840e35d45f9bb`; Chromium ZIP `d2026793705dfab2201d5f4790cbf5fdc215a9870bad885bafa658e99687a8d7`; Firefox XPI `0447bafd42d7df49956444c4ffd386db6989ff1386d13fed5580c2dac7f1964b`.
 - Signing status: embedded apps/helpers use hardened-runtime ad-hoc signatures with no Team ID. The product package is unsigned and not notarized. The Firefox XPI is unsigned and temporary. No Endpoint Security entitlement is present or claimed.
 
-Physical in-place upgrade, one-time stable extension-path migration, ordinary/restored/SPA YouTube enforcement, standard-user app behavior, refusal/lock fallback and idle-resource evidence remain the developer test gate.
+Physical in-place upgrade with the RC3 Child UI left open, connection recovery, one-time stable extension-path migration, ordinary/restored/SPA YouTube enforcement, standard-user app behavior, refusal/lock fallback and idle-resource evidence remain the developer test gate. Local package inspection cannot prove the console-session relaunch; the updated macOS CI job and developer hardware test provide that evidence.
 
 AWAITING DEVELOPER TEST RESULT

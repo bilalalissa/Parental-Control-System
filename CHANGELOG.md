@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.6.5-rc.4 — 2026-09-06
 
-Status: **STAGE-06E changes requested; unreleased**
+Status: **STAGE-06E ready for developer retest; unreleased**
 
 - Replaces RC3 after physical in-place installation left an already-running ad-hoc Child UI unable to reconnect to the replacement protected endpoint service.
 - The child installer now detects only the exact package-owned visible app in the console session, requests normal termination before replacing its bundle, and fails safely instead of force-killing it if it does not exit.
