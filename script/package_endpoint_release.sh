@@ -8,6 +8,8 @@ COMPONENTS="$STAGING/component-packages"
 CHILD_PAYLOAD="$STAGING/child-payload"
 CHILD_SCRIPTS="$STAGING/child-scripts"
 CONTROLLER_PAYLOAD="$STAGING/controller-payload"
+CONTROLLER_COMPONENTS="$ROOT_DIR/agents/endpoint-macos/Installer/ControllerComponents.plist"
+CHILD_COMPONENTS="$ROOT_DIR/agents/endpoint-macos/Installer/ChildComponents.plist"
 RESOURCES="$STAGING/resources"
 EXPANDED="$STAGING/expanded"
 RC_DIR="$ROOT_DIR/.artifacts/release-candidate"
@@ -119,6 +121,7 @@ chmod 755 \
 
 retry "controller pkgbuild" /usr/bin/pkgbuild \
   --root "$CONTROLLER_PAYLOAD" \
+  --component-plist "$CONTROLLER_COMPONENTS" \
   --identifier com.bilalalissa.ParentalControlController.component \
   --version 0.6.5.6 \
   --install-location / \
@@ -127,6 +130,7 @@ retry "controller pkgbuild" /usr/bin/pkgbuild \
 
 retry "child pkgbuild" /usr/bin/pkgbuild \
   --root "$CHILD_PAYLOAD" \
+  --component-plist "$CHILD_COMPONENTS" \
   --scripts "$CHILD_SCRIPTS" \
   --identifier com.bilalalissa.ParentalControlChild.component \
   --version 0.6.5.6 \

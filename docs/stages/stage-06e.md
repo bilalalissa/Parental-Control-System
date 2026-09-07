@@ -16,6 +16,8 @@ Rules remain active when optional application-name sharing is disabled and while
 
 RC6 adds a fail-closed lock-readiness check using the fixed, read-only macOS command `/usr/sbin/sysadminctl -screenLock status`. A request is issued only when macOS reports an immediate password requirement. The helper then starts the public system screen-saver app through `NSWorkspace` and reports success only after its launch/activation notification (or an authenticated session-resign boundary) is observed. A missing/delayed password requirement, launch failure or eight-second confirmation timeout is visible in the child and parent UI and is not called a successful lock. Schedule retries are limited to once per minute.
 
+The first RC6 CI run also exposed a package-location defect inherited from RC5: on a same-version reinstall, PackageKit could discover the build copy of the Safari companion and relocate the payload there instead of replacing `/Applications/Parental Control Safari.app`. RC6 now provides explicit component property lists that mark the parent, child and Safari app bundles non-relocatable. This keeps both clean installs and in-place reinstalls at their documented `/Applications` paths.
+
 ## Platform boundary and exclusions
 
 This local ad-hoc build has no Apple Endpoint Security entitlement. It cannot authorize or deny execution before launch, and a restricted app may appear briefly before the visible per-user helper requests a normal quit. If normal termination is refused, the safe fallback is session lock rather than force-kill, protecting unsaved work. A device administrator can bypass or remove this enforcement.

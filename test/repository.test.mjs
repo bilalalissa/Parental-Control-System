@@ -364,6 +364,8 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
     secureLock,
     policyRuntime,
     workflow,
+    controllerComponents,
+    childComponents,
   ] = await Promise.all([
     read("script/build_app.sh"),
     read("script/build_endpoint_app.sh"),
@@ -379,6 +381,8 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
     read("agents/endpoint-macos/Sources/EndpointCore/EndpointSecureLock.swift"),
     read("agents/endpoint-macos/Sources/EndpointCore/EndpointPolicyRuntime.swift"),
     read(".github/workflows/stage-03-macos.yml"),
+    read("agents/endpoint-macos/Installer/ControllerComponents.plist"),
+    read("agents/endpoint-macos/Installer/ChildComponents.plist"),
   ]);
   for (const build of [controllerBuild, endpointBuild]) {
     assert.match(build, /VERSION="0\.6\.5-rc\.6"/);
@@ -386,6 +390,10 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
     assert.match(build, /derived-data\/stage-06e/);
   }
   assert.match(packaging, /ParentalControlSystem-\$VERSION\.pkg/);
+  assert.match(packaging, /--component-plist "\$CONTROLLER_COMPONENTS"/);
+  assert.match(packaging, /--component-plist "\$CHILD_COMPONENTS"/);
+  assert.doesNotMatch(controllerComponents + childComponents, /<key>BundleIsRelocatable<\/key>\s*<true\/>/);
+  assert.equal((childComponents.match(/<key>BundleIsRelocatable<\/key>/g) ?? []).length, 2);
   assert.match(packaging, /--version 0\.6\.5\.6/);
   assert.match(packaging, /xpc-clients\.plist/);
   assert.match(endpointBuild, /file identity is authorized only for ad-hoc test builds/);
