@@ -428,7 +428,7 @@ final class ControllerStore {
             deviceID: deviceID, action: action, confirmed: confirmed))
         policyActionStatusMessage =
           action == .lock
-          ? "Lock request sent. Apps remain open and unsaved work is not discarded."
+          ? "Lock request accepted; waiting for the child to confirm a password-protected screen. Apps remain open and unsaved work is not discarded."
           : "\(action.rawValue.capitalized) request sent with a macOS confirmation dialog."
       } catch {
         policyActionStatusMessage = "Action was not sent: \(error)"

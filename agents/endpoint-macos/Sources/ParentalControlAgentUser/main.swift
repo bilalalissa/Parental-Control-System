@@ -31,11 +31,17 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   private var nextLimitingReason: String?
   private var currentDecision: PolicyDecisionKind?
   private var lastScheduleLockAttemptAt: Date?
+  private var secureLockReadiness: EndpointSecureLockReadiness = .unknown
+  private var secureLockConfirmation: EndpointSecureLockConfirmation = .notRequested
+  private var secureLockConfirmedAt: Date?
+  private var pendingLockRequestedAt: Date?
+  private var pendingApplicationLockFallback: (bundleIdentifier: String, policyVersion: Int64)?
   private var codeIdentityCache: [String: ApplicationCodeIdentity] = [:]
   private var applicationRestrictionGate = ApplicationRestrictionAttemptGate()
   private static let screenSaverBundleIdentifier = "com.apple.ScreenSaver.Engine"
   @MainActor func start() {
     configureStatusItem()
+    secureLockReadiness = EndpointSecureLockVerifier.current()
     let center = NSWorkspace.shared.notificationCenter
     center.addObserver(
       self, selector: #selector(active), name: NSWorkspace.sessionDidBecomeActiveNotification,
@@ -97,16 +103,42 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       self?.enforceCurrentApplicationRestrictions()
     }
   }
-  @objc private func active() {
+  @MainActor @objc private func active() {
     currentState = .active
+    pendingLockRequestedAt = nil
+    pendingApplicationLockFallback = nil
+    secureLockConfirmation = .notRequested
+    secureLockReadiness = EndpointSecureLockVerifier.current()
     report(currentState, activationBoundary: true)
   }
-  @objc private func inactive() {
-    currentState = .inactive
-    report(currentState)
+  @MainActor @objc private func inactive() {
+    if secureLockConfirmation == .pending, secureLockReadiness == .ready {
+      confirmSecureLock()
+    } else {
+      currentState = .inactive
+      report(currentState)
+    }
   }
-  @objc private func applicationsChanged(_ notification: Notification) {
+  @MainActor @objc private func applicationsChanged(_ notification: Notification) {
     reportApplications()
+    if let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+      as? NSRunningApplication,
+      application.bundleIdentifier == Self.screenSaverBundleIdentifier
+    {
+      if notification.name == NSWorkspace.didLaunchApplicationNotification
+        || notification.name == NSWorkspace.didActivateApplicationNotification
+      {
+        confirmSecureLockIfReady()
+      } else if notification.name == NSWorkspace.didTerminateApplicationNotification {
+        currentState = .active
+        pendingLockRequestedAt = nil
+        pendingApplicationLockFallback = nil
+        secureLockConfirmation = .notRequested
+        secureLockReadiness = EndpointSecureLockVerifier.current()
+        report(currentState, activationBoundary: true)
+      }
+      return
+    }
     if notification.name == NSWorkspace.didLaunchApplicationNotification,
       let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
         as? NSRunningApplication
@@ -118,9 +150,6 @@ final class SessionReporter: NSObject, @unchecked Sendable {
         as? NSRunningApplication
     else { return }
     applicationRestrictionGate.processDidTerminate(application.processIdentifier)
-    guard application.bundleIdentifier == Self.screenSaverBundleIdentifier else { return }
-    currentState = .active
-    report(currentState, activationBoundary: true)
   }
   @objc private func chatReceived() {
     // A raw LaunchAgent has no application bundle registration for UserNotifications. Calling
@@ -326,11 +355,8 @@ final class SessionReporter: NSObject, @unchecked Sendable {
             message:
               "The session will lock to protect open work. Ask a parent to change the app policy."
           )
-          self.perform(PolicyAction.lock.rawValue)
-          self.reportApplicationRestriction(
-            bundleIdentifier: bundleIdentifier,
-            policyVersion: policyVersion,
-            outcome: .sessionLocked)
+          self.requestSecureSessionLock(
+            applicationFallback: (bundleIdentifier, policyVersion))
         }
       }
     }
@@ -405,9 +431,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     case "warningOnly":
       return
     case "lock":
-      // macOS has no general public Lock Screen API. Starting the system screen saver preserves
-      // the user's password-delay setting and never terminates apps or risks unsaved work.
-      requestScreenSaverLock()
+      requestSecureSessionLock()
     case "logoff":
       sendLoginWindowEvent(AEEventID(kAELogOut))
     case "restart":
@@ -430,17 +454,95 @@ final class SessionReporter: NSObject, @unchecked Sendable {
         consoleUserPresent: DeviceSnapshotCollector.consoleUser() != nil, now: now,
         lastAttemptAt: lastScheduleLockAttemptAt)
     else { return }
-    requestScreenSaverLock(now: now)
+    requestSecureSessionLock(now: now)
   }
 
-  @MainActor private func requestScreenSaverLock(now: Date = Date()) {
+  @MainActor private func requestSecureSessionLock(
+    now: Date = Date(), applicationFallback: (bundleIdentifier: String, policyVersion: Int64)? = nil
+  ) {
     lastScheduleLockAttemptAt = now
+    guard secureLockConfirmation != .pending else { return }
+    secureLockReadiness = EndpointSecureLockVerifier.current()
+    guard secureLockReadiness == .ready else {
+      secureLockConfirmation = .notRequested
+      report(currentState)
+      showPolicyBanner(
+        title: "Secure Lock unavailable",
+        message:
+          "Set System Settings > Lock Screen > Require password after screen saver begins to Immediately, then try again."
+      )
+      if let applicationFallback {
+        reportApplicationRestriction(
+          bundleIdentifier: applicationFallback.bundleIdentifier,
+          policyVersion: applicationFallback.policyVersion,
+          outcome: .lockUnavailable)
+      }
+      return
+    }
+    pendingLockRequestedAt = now
+    pendingApplicationLockFallback = applicationFallback
+    secureLockConfirmation = .pending
+    report(currentState)
     let url = URL(fileURLWithPath: "/System/Library/CoreServices/ScreenSaverEngine.app")
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = true
     configuration.addsToRecentItems = false
     configuration.createsNewApplicationInstance = true
-    NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+    NSWorkspace.shared.openApplication(at: url, configuration: configuration) {
+      [weak self] application, error in
+      DispatchQueue.main.async {
+        guard let self, self.pendingLockRequestedAt == now else { return }
+        if error != nil || application == nil {
+          self.failSecureLock(.launchFailed)
+        } else if application?.isActive == true {
+          self.confirmSecureLockIfReady()
+        }
+      }
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+      guard let self, self.pendingLockRequestedAt == now,
+        self.secureLockConfirmation == .pending
+      else { return }
+      self.failSecureLock(.timedOut)
+    }
+  }
+
+  @MainActor private func confirmSecureLockIfReady() {
+    guard secureLockConfirmation == .pending, secureLockReadiness == .ready else { return }
+    confirmSecureLock()
+  }
+
+  @MainActor private func confirmSecureLock() {
+    pendingLockRequestedAt = nil
+    secureLockConfirmation = .confirmed
+    secureLockConfirmedAt = Date()
+    currentState = .locked
+    if let fallback = pendingApplicationLockFallback {
+      reportApplicationRestriction(
+        bundleIdentifier: fallback.bundleIdentifier,
+        policyVersion: fallback.policyVersion,
+        outcome: .sessionLocked)
+    }
+    pendingApplicationLockFallback = nil
+    report(currentState)
+  }
+
+  @MainActor private func failSecureLock(_ result: EndpointSecureLockConfirmation) {
+    pendingLockRequestedAt = nil
+    secureLockConfirmation = result
+    if let fallback = pendingApplicationLockFallback {
+      reportApplicationRestriction(
+        bundleIdentifier: fallback.bundleIdentifier,
+        policyVersion: fallback.policyVersion,
+        outcome: result == .timedOut ? .lockConfirmationTimedOut : .lockUnavailable)
+    }
+    pendingApplicationLockFallback = nil
+    report(currentState)
+    showPolicyBanner(
+      title: "Secure Lock not confirmed",
+      message:
+        "macOS did not confirm a password-protected screen within eight seconds. The request will not repeat rapidly."
+    )
   }
 
   private func sendLoginWindowEvent(_ eventID: AEEventID) {
@@ -482,7 +584,10 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     client.updateSession(
       SessionUpdate(
         state: state, consoleUser: DeviceSnapshotCollector.consoleUser(),
-        activationBoundary: activationBoundary)
+        activationBoundary: activationBoundary,
+        secureLockReadiness: secureLockReadiness,
+        secureLockConfirmation: secureLockConfirmation,
+        secureLockConfirmedAt: secureLockConfirmedAt)
     ) { _ in }
   }
   private func reportApplications() {

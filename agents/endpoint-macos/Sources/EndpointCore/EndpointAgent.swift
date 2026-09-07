@@ -115,7 +115,8 @@ public final class EndpointAgent: @unchecked Sendable {
         .string("time-request-resolution"),
         .string("signed-policy"), .string("offline-enforcement"), .string("policy-warning"),
         .string(HubLoginEnforcementCapability.session.rawValue),
-        .string("lock"), .string("logoff"), .string("restart"), .string("shutdown"),
+        .string("lock"), .string("secure-lock-readiness"), .string("logoff"),
+        .string("restart"), .string("shutdown"),
         .string("adult-override"), .string("bonus-time"),
       ]),
     ]
@@ -211,6 +212,9 @@ public final class EndpointAgent: @unchecked Sendable {
     refreshed.connectionState = .online
     refreshed.lastControllerContact = former.lastControllerContact
     refreshed.helperHealthy = former.helperHealthy
+    refreshed.secureLockReadiness = former.secureLockReadiness
+    refreshed.secureLockConfirmation = former.secureLockConfirmation
+    refreshed.secureLockConfirmedAt = former.secureLockConfirmedAt
     refreshed.activityCollectionEnabled = former.activityCollectionEnabled
     refreshed.activityRetentionDays = former.activityRetentionDays
     refreshed.applications = former.applications
@@ -247,6 +251,12 @@ public final class EndpointAgent: @unchecked Sendable {
       "bootTime": .string(ISO8601DateFormatter().string(from: refreshed.bootTime)),
       "sessionState": .string(refreshed.sessionState.rawValue),
       "consoleUser": refreshed.consoleUser.map(JSONValue.string) ?? .null,
+      "secureLockReadiness": refreshed.secureLockReadiness.map { .string($0.rawValue) } ?? .null,
+      "secureLockConfirmation": refreshed.secureLockConfirmation.map { .string($0.rawValue) }
+        ?? .null,
+      "secureLockConfirmedAt": refreshed.secureLockConfirmedAt.map {
+        .string(ISO8601DateFormatter().string(from: $0))
+      } ?? .null,
       "networks": .array(networks), "daemonHealthy": .bool(true),
       "helperHealthy": .bool(refreshed.helperHealthy),
       "policyVersion": refreshed.policyVersion.map { .integer(Int64(clamping: $0)) } ?? .null,

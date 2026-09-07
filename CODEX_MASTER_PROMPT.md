@@ -766,7 +766,9 @@ The visible per-user helper detects launches through supported workspace notific
 
 Do not claim pre-launch denial: it requires Apple's Endpoint Security entitlement and a signed system extension. Do not use mutable paths or display names as identity, arbitrary process kill, private APIs, hidden monitoring, MDM, WAN control, or later-platform work. The 2026-09-06 authorized compatibility amendment permits only hostname-based enforcement hardening for already-enrolled browsers: new navigations, restored tabs and SPA URL changes may be redirected to a bundled local block page without inspecting or transmitting paths, queries, content, requests or traffic. The later conversational `go ahead` authorizes an embedded Safari Web Extension for unsigned local developer testing under the same hostname-only boundary. It requires explicit adult enablement and per-profile website access; Developer ID/App Store distribution, managed deployment and private browsing remain excluded. Acceptance requires monotonic policy/rollback tests, identity mismatch and protected-app tests, offline/restart persistence, authenticated enforcement audit, in-place upgrade preservation, one selectable macOS test installer and physical standard-user testing.
 
-Version: `0.6.5-rc.5`.
+The 2026-09-07 authorized lock-compatibility amendment permits a fixed read-only `sysadminctl -screenLock status` readiness check and public `NSWorkspace` system-screen launch/activation observation. Lock is unavailable unless macOS reports an immediate password requirement, and it is not reported as confirmed until the system screen activates or the GUI session resigns active. Failure and timeout are visible and rate-limited. Private session APIs, `CGSession`, AppleScript, Accessibility keystrokes and all synthetic input remain prohibited.
+
+Version: `0.6.5-rc.6`.
 
 ### STAGE-07 — Windows Child Agent foundation
 

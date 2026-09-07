@@ -19,6 +19,22 @@ public enum EndpointSessionState: String, Codable, Sendable {
   case unknown
 }
 
+public enum EndpointSecureLockReadiness: String, Codable, Sendable {
+  case unknown
+  case ready
+  case passwordNotRequired = "password-not-required"
+  case passwordDelayed = "password-delayed"
+  case verificationUnavailable = "verification-unavailable"
+}
+
+public enum EndpointSecureLockConfirmation: String, Codable, Sendable {
+  case notRequested = "not-requested"
+  case pending
+  case confirmed
+  case timedOut = "timed-out"
+  case launchFailed = "launch-failed"
+}
+
 public struct EndpointAllowanceSummary: Codable, Equatable, Sendable {
   public let timezone: String
   public let scheduledWindowStartAt: Date?
@@ -83,6 +99,9 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var bootTime: Date
   public var sessionState: EndpointSessionState
   public var consoleUser: String?
+  public var secureLockReadiness: EndpointSecureLockReadiness?
+  public var secureLockConfirmation: EndpointSecureLockConfirmation?
+  public var secureLockConfirmedAt: Date?
   public var connectionState: EndpointConnectionState
   public var lastControllerContact: Date?
   public var networks: [NetworkMetadata]
@@ -119,6 +138,9 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     bootTime: Date,
     sessionState: EndpointSessionState = .unknown,
     consoleUser: String? = nil,
+    secureLockReadiness: EndpointSecureLockReadiness? = nil,
+    secureLockConfirmation: EndpointSecureLockConfirmation? = nil,
+    secureLockConfirmedAt: Date? = nil,
     connectionState: EndpointConnectionState = .unpaired,
     lastControllerContact: Date? = nil,
     networks: [NetworkMetadata] = [],
@@ -147,6 +169,9 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     self.bootTime = bootTime
     self.sessionState = sessionState
     self.consoleUser = consoleUser
+    self.secureLockReadiness = secureLockReadiness
+    self.secureLockConfirmation = secureLockConfirmation
+    self.secureLockConfirmedAt = secureLockConfirmedAt
     self.connectionState = connectionState
     self.lastControllerContact = lastControllerContact
     self.networks = networks
@@ -210,6 +235,8 @@ public enum EndpointApplicationRestrictionOutcome: String, Codable, Sendable {
   case quitRequested = "quit-requested"
   case closed
   case sessionLocked = "session-locked"
+  case lockUnavailable = "lock-unavailable"
+  case lockConfirmationTimedOut = "lock-confirmation-timed-out"
 }
 
 public struct EndpointApplicationRestrictionEvent: Codable, Equatable, Sendable {
@@ -421,15 +448,24 @@ public struct SessionUpdate: Codable, Equatable, Sendable {
   /// True when the authenticated GUI helper observed a new graphical-session boundary even if
   /// the daemon's last reported state was already active. Older helpers omit this field.
   public let activationBoundary: Bool?
+  public let secureLockReadiness: EndpointSecureLockReadiness?
+  public let secureLockConfirmation: EndpointSecureLockConfirmation?
+  public let secureLockConfirmedAt: Date?
   public let observedAt: Date
 
   public init(
     state: EndpointSessionState, consoleUser: String?, activationBoundary: Bool = false,
+    secureLockReadiness: EndpointSecureLockReadiness? = nil,
+    secureLockConfirmation: EndpointSecureLockConfirmation? = nil,
+    secureLockConfirmedAt: Date? = nil,
     observedAt: Date = Date()
   ) {
     self.state = state
     self.consoleUser = consoleUser
     self.activationBoundary = activationBoundary ? true : nil
+    self.secureLockReadiness = secureLockReadiness
+    self.secureLockConfirmation = secureLockConfirmation
+    self.secureLockConfirmedAt = secureLockConfirmedAt
     self.observedAt = observedAt
   }
 }

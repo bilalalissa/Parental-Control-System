@@ -292,6 +292,11 @@ struct ChildDashboard: View {
           row("This Mac", "\(status.deviceName) · \(status.model)")
           row("System", "\(status.operatingSystem) · \(status.architecture)")
           row("Session", status.sessionState.rawValue.capitalized)
+          row("Secure Lock readiness", Self.secureLockReadinessText(status.secureLockReadiness))
+          row(
+            "Last lock result",
+            Self.secureLockConfirmationText(
+              status.secureLockConfirmation, confirmedAt: status.secureLockConfirmedAt))
           row(
             "Applications", status.activityCollectionEnabled ? "Shared (names only)" : "Not shared")
           row("Retention", "\(status.activityRetentionDays) days on parent controller")
@@ -435,8 +440,11 @@ struct ChildDashboard: View {
               "Before sign-in",
               value: readiness.managedIdentityConfigured
                 ? "Managed identity configured" : "Not configured")
+            LabeledContent(
+              "Password-protected Lock Screen",
+              value: Self.secureLockReadinessText(status.secureLockReadiness))
             Text(
-              "This version can warn and re-lock the standard child session after it becomes active. It does not replace macOS Login Window authentication."
+              "A lock is reported only after macOS verifies an immediate password requirement and the system screen saver activates. If readiness is unavailable, set Lock Screen > Require password after screen saver begins to Immediately. It does not replace macOS Login Window authentication."
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -449,6 +457,32 @@ struct ChildDashboard: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.top, 14)
       .padding(.trailing, 6)
+    }
+  }
+
+  private static func secureLockReadinessText(
+    _ readiness: EndpointSecureLockReadiness?
+  ) -> String {
+    switch readiness ?? .unknown {
+    case .ready: "Ready — password required immediately"
+    case .passwordNotRequired: "Not ready — password requirement is off"
+    case .passwordDelayed: "Not ready — password requirement is delayed"
+    case .verificationUnavailable: "Unavailable — could not verify macOS setting"
+    case .unknown: "Checking"
+    }
+  }
+
+  private static func secureLockConfirmationText(
+    _ confirmation: EndpointSecureLockConfirmation?, confirmedAt: Date?
+  ) -> String {
+    switch confirmation ?? .notRequested {
+    case .confirmed:
+      return confirmedAt.map { "Confirmed · \($0.formatted(date: .omitted, time: .standard))" }
+        ?? "Confirmed"
+    case .pending: return "Waiting for macOS confirmation"
+    case .timedOut: return "Not confirmed — timed out"
+    case .launchFailed: return "Not confirmed — system screen failed to start"
+    case .notRequested: return "No recent request"
     }
   }
 

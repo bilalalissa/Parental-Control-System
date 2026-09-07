@@ -1,11 +1,12 @@
 # STAGE-06E — macOS application-use restrictions
 
-- Version: `0.6.5-rc.5` (build `6505`)
+- Version: `0.6.5-rc.6` (build `6506`)
 - Branch: `stage/06e-macos-app-use-restrictions`
 - Status: `READY_FOR_RETEST`
 - Authorized on 2026-09-05 with `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06E MACOS APP-USE RESTRICTIONS BEFORE STAGE-07` and `PROCEED: STAGE-06E`.
 - Browser-compatibility amendment authorized on 2026-09-06 with `AUTHORIZE STAGE-06E SCOPE AMENDMENT: HARDEN DOMAIN ENFORCEMENT FOR YOUTUBE, RESTORED TABS, AND SPA NAVIGATION IN ENROLLED BROWSERS; USE LOCAL HOSTNAME MATCHING ONLY, WITH NO CONTENT INSPECTION.` and `PROCEED: STAGE-06E 0.6.5-rc.3 BROWSER COMPATIBILITY FIX`.
 - Safari local-test amendment authorized conversationally on 2026-09-06 after the developer asked whether a Safari extension was available and then instructed `go ahead`.
+- Secure-lock compatibility amendment authorized on 2026-09-07 with `AUTHORIZE STAGE-06E SCOPE AMENDMENT: ADD SECURE-LOCK READINESS VERIFICATION AND CONFIRMED PASSWORD-PROTECTED SESSION LOCK; DO NOT USE PRIVATE APIS OR SYNTHETIC INPUT.` and `PROCEED: STAGE-06E 0.6.5-rc.6 LOCK-COMPATIBILITY FIX`.
 
 ## Objective and included scope
 
@@ -13,11 +14,13 @@ Allow a parent to select recently observed, signed third-party macOS application
 
 Rules remain active when optional application-name sharing is disabled and while the parent is offline. A newer empty policy removes all app-use rules. System, Apple, login/recovery, Finder/Dock, and parental-control components are unconditionally excluded. The child account must be a standard non-administrator and an adult recovery administrator must remain available.
 
+RC6 adds a fail-closed lock-readiness check using the fixed, read-only macOS command `/usr/sbin/sysadminctl -screenLock status`. A request is issued only when macOS reports an immediate password requirement. The helper then starts the public system screen-saver app through `NSWorkspace` and reports success only after its launch/activation notification (or an authenticated session-resign boundary) is observed. A missing/delayed password requirement, launch failure or eight-second confirmation timeout is visible in the child and parent UI and is not called a successful lock. Schedule retries are limited to once per minute.
+
 ## Platform boundary and exclusions
 
 This local ad-hoc build has no Apple Endpoint Security entitlement. It cannot authorize or deny execution before launch, and a restricted app may appear briefly before the visible per-user helper requests a normal quit. If normal termination is refused, the safe fallback is session lock rather than force-kill, protecting unsaved work. A device administrator can bypass or remove this enforcement.
 
-Excluded: Endpoint Security/system extensions; kernel-level pre-launch denial; force termination; command-line/path-only rules; Apple/system-app restriction; administrator resistance; hidden monitoring; screen/keystroke/content collection; WAN pause; private/guest browser coverage; request or traffic inspection; managed extension deployment; MDM; Windows/iPad work; Stage 07. Browser enforcement remains limited to local HTTP(S) hostname matching in explicitly enrolled profiles. Safari is supported only as an adult-enabled unsigned local developer test; production signing/publication is not claimed.
+Excluded: Endpoint Security/system extensions; kernel-level pre-launch denial; force termination; command-line/path-only rules; Apple/system-app restriction; administrator resistance; hidden monitoring; screen/keystroke/content collection; WAN pause; private/guest browser coverage; request or traffic inspection; managed extension deployment; MDM; Windows/iPad work; Stage 07; private Lock Screen APIs, `CGSession`, AppleScript, accessibility keystrokes, or any other synthetic input. Browser enforcement remains limited to local HTTP(S) hostname matching in explicitly enrolled profiles. Safari is supported only as an adult-enabled unsigned local developer test; production signing/publication is not claimed.
 
 ## RC1/RC2 feedback and RC3 correction
 
@@ -46,6 +49,7 @@ The Safari candidate is ad-hoc signed. Its sandbox has one temporary global mach
 7. Controller arm64 and child universal binaries build into one selectable unsigned/ad-hoc developer package with SHA-256 verification. Physical standard-user testing remains required.
 8. Enrolled browser profiles enforce exact and subdomain hostname rules during ordinary navigation, restored-tab startup and SPA URL changes, show only a local static block page, reject lookalike domains, and continue with optional tab sharing or the parent connection disabled.
 9. An explicitly enabled Safari test profile reports its current policy version and enforces the same hostname-only behavior. An unenabled profile remains `Setup required`; no universal/private coverage is claimed.
+10. The child and parent display secure-lock readiness. Lock is available only when macOS reports that a password is required immediately, and success is reported only after a bounded system-screen activation confirmation. Failure does not produce a false success receipt or a rapid lock loop.
 
 ## Resource and cleanup limits
 
@@ -53,7 +57,7 @@ Use no more than two build workers, one checkout, one Stage-06E derived-data tre
 
 ## Manual developer test checklist
 
-1. Quit Safari completely. Leave the RC4 Child app open, then install the Child Endpoint from `ParentalControlSystem-0.6.5-rc.5.pkg` in place without uninstalling, removing browser extensions or unpairing. Confirm the old Child window closes, RC5 reopens, the same child returns Online, and the existing endpoint identity, pairing, app policy and website policy remain.
+1. Quit Safari completely. Leave the RC5 Child app open, then install the Child Endpoint from `ParentalControlSystem-0.6.5-rc.6.pkg` in place without uninstalling, removing browser extensions or unpairing. Confirm the old Child window closes, RC6 reopens, the same child returns Online, and the existing endpoint identity, pairing, app policy and website policy remain.
 2. Use a standard child account and retain a separate adult administrator. Open one signed third-party test app once so its exact identity appears in Devices > Application-use restrictions.
 3. Select that app and apply the policy. Confirm the audit reports queued/delivered policy metadata without paths or content.
 4. Leave the selected app open while applying the policy. It must show the visible restriction banner and receive a normal quit request promptly (the bounded reconciliation scan is at most 15 seconds). Re-launch it and confirm launch notification enforcement also works. Confirm a `quit-requested` and then `closed` audit event.
@@ -65,9 +69,10 @@ Use no more than two build workers, one checkout, one Stage-06E derived-data tre
 10. Disable optional browser-tab sharing and disconnect the parent: cached hostname enforcement continues. No page content, path, query, fragment, cookie, DNS history or traffic payload appears in the parent, audit or endpoint logs.
 11. Open `/Applications/Parental Control Safari.app`. In Safari, expose the Develop menu if needed, choose **Develop > Allow Unsigned Extensions**, then enable **Parental Control Safari Extension** in Safari Settings > Extensions. For every tested Safari profile, enable it and grant access on every website. This is an adult setup step; the unsigned permission may need to be enabled again after Safari relaunch.
 12. With `youtube.com` applied, confirm the Safari profile changes from `Setup required` to `Policy applied`. Repeat fresh navigation, an already-open/SPA navigation and restored-tab tests. Confirm `notyoutube.com` remains allowed. Disable the extension in that profile and confirm status no longer claims current protection.
-13. Reinstall RC5 in place once with the Child app open and once with it closed, always with Safari quit. The open Child app must be normally replaced and relaunched; the closed Child app must remain closed. Pairing, schedule, browser policy, endpoint identity, app policy, Chromium registration and Safari extension enablement remain. Attempt installation with Safari open and confirm it stops with a readable quit-Safari instruction.
+13. Reinstall RC6 in place once with the Child app open and once with it closed, always with Safari quit. The open Child app must be normally replaced and relaunched; the closed Child app must remain closed. Pairing, schedule, browser policy, endpoint identity, app policy, Chromium registration and Safari extension enablement remain. Attempt installation with Safari open and confirm it stops with a readable quit-Safari instruction.
 14. Apply empty app and website policies: the formerly restricted app and a new browser navigation work normally.
 15. Record CPU/memory over five idle minutes and report OS, hardware, app bundle ID, expected result, observed result, and only the bounded relevant audit/log lines.
+16. On each tested Intel and Apple-silicon child Mac, open System Settings > Lock Screen and set **Require password after screen saver begins or display is turned off** to **Immediately**. Restart the child helper or sign out/in, then confirm both apps show `Secure Lock ready`. Send one immediate Lock Screen action and confirm the normal desktop is no longer usable without the account password, the child status later shows `Confirmed`, and the parent shows the confirmed time. Repeat with a blocked schedule. Sign back in and verify there is no second attempt for at least 60 seconds. Temporarily choose a delayed password setting, refresh/restart the helper, and confirm Lock Screen is disabled with an honest readiness explanation; restore **Immediately** afterward.
 
 ## Rollback
 

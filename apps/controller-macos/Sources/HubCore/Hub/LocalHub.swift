@@ -715,6 +715,43 @@ public final class LocalHub: @unchecked Sendable {
       {
         try database.saveNetworkInterfaces([], deviceID: device.id)
       }
+      if case .object(let changed) = envelope.payload["changed"],
+        changed["secureLockReadiness"] != nil
+          || changed["secureLockConfirmation"] != nil
+          || changed["secureLockConfirmedAt"] != nil
+      {
+        let current = try database.device(id: device.id)
+        var readiness = current?.secureLockReadiness
+        var confirmation = current?.secureLockConfirmation
+        var confirmedAt = current?.secureLockConfirmedAt
+        if let value = changed["secureLockReadiness"] {
+          readiness = value.stringValue
+          if let readiness,
+            ![
+              "unknown", "ready", "password-not-required", "password-delayed",
+              "verification-unavailable",
+            ].contains(readiness)
+          {
+            throw LocalHubError.unexpectedMessage
+          }
+        }
+        if let value = changed["secureLockConfirmation"] {
+          confirmation = value.stringValue
+          if let confirmation,
+            !["not-requested", "pending", "confirmed", "timed-out", "launch-failed"]
+              .contains(confirmation)
+          {
+            throw LocalHubError.unexpectedMessage
+          }
+        }
+        if let value = changed["secureLockConfirmedAt"] {
+          confirmedAt = value.stringValue.flatMap { ISO8601DateFormatter().date(from: $0) }
+          if value != .null, confirmedAt == nil { throw LocalHubError.unexpectedMessage }
+        }
+        try database.saveSecureLockStatus(
+          readiness: readiness, confirmation: confirmation, confirmedAt: confirmedAt,
+          deviceID: device.id)
+      }
       try database.updateSeen(
         deviceID: device.id, sequence: envelope.sequence, snapshotVersion: version)
       try database.appendAudit(
@@ -755,7 +792,10 @@ public final class LocalHub: @unchecked Sendable {
         let policyVersion = envelope.payload["policyVersion"]?.integerValue,
         policyVersion > 0,
         let outcome = envelope.payload["outcome"]?.stringValue,
-        ["quit-requested", "closed", "session-locked"].contains(outcome)
+        [
+          "quit-requested", "closed", "session-locked", "lock-unavailable",
+          "lock-confirmation-timed-out",
+        ].contains(outcome)
       else { throw LocalHubError.unexpectedMessage }
       try database.appendAudit(
         HubAuditRecord(

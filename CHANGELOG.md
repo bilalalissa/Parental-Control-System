@@ -2,9 +2,19 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
-## 0.6.5-rc.5 — 2026-09-06
+## 0.6.5-rc.6 — 2026-09-07
 
 Status: **STAGE-06E ready for developer retest; unreleased**
+
+- Verifies the effective macOS screen-lock delay with one fixed read-only `sysadminctl` status command and enables Lock only when the password requirement is immediate.
+- Confirms a lock only after the system screen-saver app activates or the authenticated GUI session resigns active; launch failures and eight-second timeouts remain visible failures.
+- Reports readiness and the last confirmed result in both apps, persists bounded status in the local hub, and disables the parent Lock button when the child is not ready.
+- Removes false `session-locked` app-policy audit results and limits failed schedule relock attempts to once per minute.
+- Uses no private APIs, `CGSession`, AppleScript, Accessibility keystrokes, synthetic input, or Internet-pause behavior.
+
+## 0.6.5-rc.5 — 2026-09-06
+
+Status: **STAGE-06E superseded by RC6**
 
 - Adds an ad-hoc local-test Safari Web Extension in a visible companion app embedded in the child installer.
 - Uses Safari declarative hostname rules and the shared restored-tab/SPA hostname reconciliation without content or traffic inspection.

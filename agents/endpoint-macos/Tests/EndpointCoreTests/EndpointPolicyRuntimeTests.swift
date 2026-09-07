@@ -366,6 +366,12 @@ struct EndpointPolicyRuntimeTests {
       EndpointScheduleRelockGate.shouldRelock(
         status: status, sessionIsActive: true, screenSaverIsForeground: false,
         consoleUserPresent: true, now: now, lastAttemptAt: nil))
+    #expect(
+      !EndpointScheduleRelockGate.shouldRelock(
+        status: status, sessionIsActive: true, screenSaverIsForeground: false,
+        consoleUserPresent: true, now: now,
+        lastAttemptAt: now.addingTimeInterval(
+          -(EndpointScheduleRelockGate.minimumRetryInterval - 1))))
 
     status.policyNextAllowanceAt = now
     #expect(

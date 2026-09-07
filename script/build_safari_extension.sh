@@ -50,7 +50,7 @@ cp "$RENDERED" "$APP_SOURCE/Resources/Icon.png"
 xcodebuild -project "$PROJECT" -scheme "Parental Control Safari" \
   -configuration Release -derivedDataPath "$DERIVED_DATA" \
   -jobs 2 CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= \
-  MARKETING_VERSION=0.6.5-rc.5 CURRENT_PROJECT_VERSION=6505 \
+  MARKETING_VERSION=0.6.5-rc.6 CURRENT_PROJECT_VERSION=6506 \
   MACOSX_DEPLOYMENT_TARGET=14.0 ONLY_ACTIVE_ARCH=NO ARCHS="arm64 x86_64" build >/dev/null
 
 APPEX="$BUILT_APP/Contents/PlugIns/Parental Control Safari Extension.appex"

@@ -8,8 +8,8 @@ STAGING="$ROOT_DIR/.artifacts/package-staging/stage-06-extension"
 PACKAGE_ROOT="$STAGING/ParentalControlBrowserSharing"
 RENDER_ROOT="$STAGING/icon-render"
 RC_DIR="$ROOT_DIR/.artifacts/release-candidate"
-ZIP="$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.5.zip"
-FIREFOX="$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.5.xpi"
+ZIP="$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.6.zip"
+FIREFOX="$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.6.xpi"
 CHECKSUM="$ZIP.sha256"
 PACKAGE_LIST="$STAGING/package-files.txt"
 
@@ -55,6 +55,10 @@ rm -f -- "$FIREFOX"
 /usr/bin/unzip -t "$FIREFOX" >/dev/null
 /usr/bin/shasum -a 256 "$FIREFOX" > "$FIREFOX.sha256"
 rm -f -- \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.5.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.5.zip.sha256" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.5.xpi" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.5.xpi.sha256" \
   "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.4.zip" \
   "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.4.zip.sha256" \
   "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.4.xpi" \

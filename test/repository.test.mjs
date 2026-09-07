@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06e-macos-app-use-restrictions");
-  assert.equal(active[0].version, "0.6.5-rc.5");
+  assert.equal(active[0].version, "0.6.5-rc.6");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
       active[0].status,
@@ -183,8 +183,8 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
     read("agents/endpoint-macos/Sources/ParentalControlBrowserHost/main.swift"),
   ]);
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.6.5.5");
-  assert.equal(manifest.version_name, "0.6.5-rc.5");
+  assert.equal(manifest.version, "0.6.5.6");
+  assert.equal(manifest.version_name, "0.6.5-rc.6");
   assert.deepEqual(manifest.permissions.sort(), ["alarms", "declarativeNetRequest", "nativeMessaging", "storage", "tabs"]);
   for (const forbidden of ["history", "webRequest", "cookies", "downloads", "debugger"])
     assert.ok(!manifest.permissions.includes(forbidden));
@@ -201,7 +201,7 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /runtime\.onStartup/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.5-rc\.5\.zip"/);
+  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.5-rc\.6\.zip"/);
   assert.match(packager, /blocked\.html/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
@@ -361,6 +361,7 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
     devices,
     child,
     helper,
+    secureLock,
     policyRuntime,
     workflow,
   ] = await Promise.all([
@@ -375,16 +376,17 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
     read("apps/controller-macos/Sources/ParentalControlController/Views/DevicesView.swift"),
     read("agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift"),
     read("agents/endpoint-macos/Sources/ParentalControlAgentUser/main.swift"),
+    read("agents/endpoint-macos/Sources/EndpointCore/EndpointSecureLock.swift"),
     read("agents/endpoint-macos/Sources/EndpointCore/EndpointPolicyRuntime.swift"),
     read(".github/workflows/stage-03-macos.yml"),
   ]);
   for (const build of [controllerBuild, endpointBuild]) {
-    assert.match(build, /VERSION="0\.6\.5-rc\.5"/);
-    assert.match(build, /CFBundleVersion string 6505/);
+    assert.match(build, /VERSION="0\.6\.5-rc\.6"/);
+    assert.match(build, /CFBundleVersion string 6506/);
     assert.match(build, /derived-data\/stage-06e/);
   }
   assert.match(packaging, /ParentalControlSystem-\$VERSION\.pkg/);
-  assert.match(packaging, /--version 0\.6\.5\.5/);
+  assert.match(packaging, /--version 0\.6\.5\.6/);
   assert.match(packaging, /xpc-clients\.plist/);
   assert.match(endpointBuild, /file identity is authorized only for ad-hoc test builds/);
   assert.match(endpointBuild, /--options runtime/);
@@ -393,7 +395,7 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
   assert.match(packaging, /Parental Control Safari\.app/);
   assert.match(packaging, /ParentalControlBrowserExtension\/Chromium/);
   assert.match(packaging, /blocked\.html/);
-  assert.match(distribution, /version="0\.6\.5\.5"/);
+  assert.match(distribution, /version="0\.6\.5\.6"/);
   assert.match(preinstall, /Quit Safari completely/);
   assert.match(preinstall, /\.installer-maintenance\.plist/);
   assert.doesNotMatch(preinstall + postinstall, /delete-generic-password|rm[^\n]*configuration\.json/);
@@ -408,6 +410,12 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
   assert.match(helper, /NSRunningApplication\(\s*processIdentifier: candidate\.processIdentifier\)/);
   assert.doesNotMatch(helper, /fetchStatus \{ \[weak self, weak application\]/);
   assert.match(helper, /createsNewApplicationInstance = true/);
+  assert.match(secureLock, /\/usr\/sbin\/sysadminctl/);
+  assert.match(secureLock, /"-screenLock", "status"/);
+  assert.match(helper, /secureLockConfirmation = \.confirmed/);
+  assert.match(helper, /secureLockReadiness == \.ready/);
+  assert.doesNotMatch(helper + secureLock, /CGSession|osascript|CGEvent|AXUIElement/);
+  assert.match(devices, /device\.secureLockReadiness == "ready"/);
   assert.match(helper, /enforceBlockedScheduleIfNeeded/);
   assert.match(helper, /EndpointScheduleRelockGate\.shouldRelock/);
   assert.match(policyRuntime, /maximumDecisionAge/);
@@ -420,7 +428,7 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
   assert.match(child, /Effective time remaining/);
   assert.match(child, /Next limiting rule/);
   assert.match(helper, /Effective time remaining/);
-  assert.match(workflow, /ParentalControlSystem-0\.6\.5-rc\.5\.pkg/);
+  assert.match(workflow, /ParentalControlSystem-0\.6\.5-rc\.6\.pkg/);
   assert.doesNotMatch(workflow, /ParentalControlBrowserSharing-0\.6\.1-rc\.5/);
 });
 

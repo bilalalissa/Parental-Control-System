@@ -344,14 +344,19 @@ private struct PairedDeviceDetailView: View {
       VStack(alignment: .leading, spacing: 10) {
         Text("Immediate actions").font(ControlTheme.sectionTitle)
         Text(
-          "Commands are signed, expire after two minutes, are capability-checked, and generate receipts and audit records. Lock is the safe default."
+          "Commands are signed, expire after two minutes, are capability-checked, and generate receipts and audit records. Lock is enabled only after the child verifies that macOS requires the password immediately."
         )
         .font(.caption).foregroundStyle(.secondary)
+        Label(secureLockStatusText, systemImage: secureLockReady ? "lock.fill" : "lock.slash")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(secureLockReady ? ControlTheme.success : ControlTheme.accentSoft)
         HStack {
           Button("Lock Screen") {
             store.sendImmediateAction(deviceID: device.id, action: .lock, confirmed: true)
           }
-          .disabled(device.state(now: now) != .online || !device.capabilities.contains("lock"))
+          .disabled(
+            device.state(now: now) != .online || !device.capabilities.contains("lock")
+              || !secureLockReady)
           Menu("More Actions") {
             Button("Log Out…") { pendingHighImpactAction = .logoff }
               .disabled(
@@ -373,6 +378,37 @@ private struct PairedDeviceDetailView: View {
           Text(status).font(.caption).foregroundStyle(.secondary)
         }
       }
+    }
+  }
+
+  private var secureLockReady: Bool {
+    device.secureLockReadiness == "ready"
+  }
+
+  private var secureLockStatusText: String {
+    switch device.secureLockReadiness {
+    case "ready":
+      if device.secureLockConfirmation == "confirmed", let date = device.secureLockConfirmedAt {
+        return
+          "Secure Lock ready · last confirmed \(date.formatted(date: .omitted, time: .standard))"
+      }
+      if device.secureLockConfirmation == "pending" {
+        return "Secure Lock ready · waiting for child confirmation"
+      }
+      if device.secureLockConfirmation == "timed-out"
+        || device.secureLockConfirmation == "launch-failed"
+      {
+        return "Secure Lock ready · latest request was not confirmed"
+      }
+      return "Secure Lock ready · password required immediately"
+    case "password-not-required":
+      return "Secure Lock unavailable · password requirement is off on the child Mac"
+    case "password-delayed":
+      return "Secure Lock unavailable · password requirement is delayed on the child Mac"
+    case "verification-unavailable":
+      return "Secure Lock unavailable · child could not verify the macOS setting"
+    default:
+      return "Secure Lock readiness has not been reported by the child"
     }
   }
 

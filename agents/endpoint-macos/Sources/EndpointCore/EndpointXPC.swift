@@ -166,6 +166,9 @@ public final class EndpointStatusRepository: @unchecked Sendable {
       && (value.sessionState != .active || update.activationBoundary == true)
     value.sessionState = update.state
     value.consoleUser = update.consoleUser.map { String($0.prefix(128)) }
+    value.secureLockReadiness = update.secureLockReadiness
+    value.secureLockConfirmation = update.secureLockConfirmation
+    value.secureLockConfirmedAt = update.secureLockConfirmedAt
     value.helperHealthy = true
     value.collectedAt = Date()
     helperLastSeen = Date()

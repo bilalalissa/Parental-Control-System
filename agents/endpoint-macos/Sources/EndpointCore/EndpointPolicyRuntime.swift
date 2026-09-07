@@ -106,7 +106,7 @@ public enum EndpointPolicyEvent: Codable, Equatable, Sendable {
 /// evaluation whose projected allowance is still in the future may relock the active session.
 public enum EndpointScheduleRelockGate {
   public static let maximumDecisionAge: TimeInterval = 30
-  public static let minimumRetryInterval: TimeInterval = 10
+  public static let minimumRetryInterval: TimeInterval = 60
 
   public static func shouldRelock(
     status: EndpointStatus, sessionIsActive: Bool, screenSaverIsForeground: Bool,
