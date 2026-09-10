@@ -768,7 +768,7 @@ Do not claim pre-launch denial: it requires Apple's Endpoint Security entitlemen
 
 The 2026-09-07 authorized lock-compatibility amendment permits a fixed read-only `sysadminctl -screenLock status` readiness check and public `NSWorkspace` system-screen launch/activation observation. Lock is unavailable unless macOS reports an immediate password requirement, and it is not reported as confirmed until the system screen activates or the GUI session resigns active. Failure and timeout are visible and rate-limited. Private session APIs, `CGSession`, AppleScript, Accessibility keystrokes and all synthetic input remain prohibited.
 
-Version: `0.6.5-rc.6`.
+Version: `0.6.5-rc.7`.
 
 ### STAGE-07 — Windows Child Agent foundation
 

@@ -43,17 +43,20 @@ public struct ApplicationRestrictionRule: Codable, Equatable, Hashable, Identifi
   }
 
   public func validate() throws {
-    let allowed = CharacterSet(
+    let bundleIdentifierCharacters = CharacterSet(
       charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-")
+    let signingIdentifierCharacters = CharacterSet(
+      charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
     guard !bundleIdentifier.isEmpty, bundleIdentifier.utf8.count <= 200,
       bundleIdentifier.contains("."),
-      bundleIdentifier.unicodeScalars.allSatisfy(allowed.contains),
-      signingIdentifier == bundleIdentifier
+      bundleIdentifier.unicodeScalars.allSatisfy(bundleIdentifierCharacters.contains)
     else { throw ApplicationRestrictionPolicyError.invalidBundleIdentifier }
     guard !Self.isProtected(bundleIdentifier) else {
       throw ApplicationRestrictionPolicyError.protectedApplication
     }
-    guard !teamIdentifier.isEmpty, teamIdentifier.utf8.count <= 64,
+    guard !signingIdentifier.isEmpty, signingIdentifier.utf8.count <= 200,
+      signingIdentifier.unicodeScalars.allSatisfy(signingIdentifierCharacters.contains),
+      !teamIdentifier.isEmpty, teamIdentifier.utf8.count <= 64,
       teamIdentifier.utf8.allSatisfy({ byte in
         (48...57).contains(byte) || (65...90).contains(byte) || (97...122).contains(byte)
       })

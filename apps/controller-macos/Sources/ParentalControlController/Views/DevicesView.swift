@@ -230,6 +230,14 @@ private struct PairedDeviceDetailView: View {
       }
       .font(.caption)
       .foregroundStyle(.secondary)
+      if device.state(now: now) == .online, device.helperHealthy == false {
+        Label(
+          "Protection gap: the child enforcement helper is not reporting. Scheduled locks and application restrictions may not run until an adult repairs the child installation.",
+          systemImage: "exclamationmark.shield.fill"
+        )
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(ControlTheme.accentSoft)
+      }
     }
   }
 

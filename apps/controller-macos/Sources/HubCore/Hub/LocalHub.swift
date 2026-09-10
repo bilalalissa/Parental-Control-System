@@ -752,6 +752,11 @@ public final class LocalHub: @unchecked Sendable {
           readiness: readiness, confirmation: confirmation, confirmedAt: confirmedAt,
           deviceID: device.id)
       }
+      if case .object(let changed) = envelope.payload["changed"],
+        let helperHealthy = changed["helperHealthy"]?.boolValue
+      {
+        try database.saveHelperHealth(helperHealthy, deviceID: device.id)
+      }
       try database.updateSeen(
         deviceID: device.id, sequence: envelope.sequence, snapshotVersion: version)
       try database.appendAudit(

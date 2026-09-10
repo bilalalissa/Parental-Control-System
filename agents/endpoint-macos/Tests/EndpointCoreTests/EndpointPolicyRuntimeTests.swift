@@ -237,14 +237,20 @@ struct EndpointPolicyRuntimeTests {
     try runtime.install(
       identity.sign(policy: policy(version: 1)), controllerPublicKey: identity.publicKeyData)
     let start = Date(timeIntervalSince1970: 1_800_000_000)
-    _ = runtime.tick(now: start, uptime: 100, sessionActive: true)
+    _ = runtime.tick(now: start, uptime: 100, activeUptime: 100, sessionActive: true)
     let wake = runtime.tick(
-      now: start.addingTimeInterval(3_600), uptime: 3_700, sessionActive: false)
+      now: start.addingTimeInterval(3_600), uptime: 3_700, activeUptime: 100,
+      sessionActive: false)
     #expect(!wake.contains(.clockChangeDetected))
     #expect(runtime.snapshot().1.clockTrusted)
     #expect(runtime.snapshot().1.activeUseSeconds == 0)
     _ = runtime.tick(
-      now: start.addingTimeInterval(3_615), uptime: 3_715, sessionActive: true)
+      now: start.addingTimeInterval(3_615), uptime: 3_715, activeUptime: 115,
+      sessionActive: true)
+    #expect(runtime.snapshot().1.activeUseSeconds == 0)
+    _ = runtime.tick(
+      now: start.addingTimeInterval(3_630), uptime: 3_730, activeUptime: 130,
+      sessionActive: true)
     #expect(runtime.snapshot().1.activeUseSeconds == 15)
 
     let restored = EndpointPolicyRuntime(
@@ -254,6 +260,27 @@ struct EndpointPolicyRuntimeTests {
     #expect(!reboot.contains(.clockChangeDetected))
     #expect(restored.snapshot().0?.version == 1)
     #expect(restored.snapshot().1.clockTrusted)
+  }
+
+  @Test("authenticated session boundaries exclude awake lock-screen time from active use")
+  func sessionActivityBoundaries() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.install(
+      identity.sign(policy: policy(version: 1)), controllerPublicKey: identity.publicKeyData)
+    let start = Date(timeIntervalSince1970: 1_800_000_000)
+    _ = runtime.tick(now: start, uptime: 100, activeUptime: 100, sessionActive: true)
+    runtime.recordSessionActivity(
+      false, now: start.addingTimeInterval(5), activeUptime: 105)
+    runtime.recordSessionActivity(
+      true, now: start.addingTimeInterval(605), activeUptime: 705)
+    #expect(runtime.snapshot().1.activeUseSeconds == 5)
+    _ = runtime.tick(
+      now: start.addingTimeInterval(620), uptime: 720, activeUptime: 720,
+      sessionActive: true)
+    #expect(runtime.snapshot().1.activeUseSeconds == 20)
   }
 
   @Test("projected restriction countdown follows schedule and pauses quota while inactive")
@@ -409,6 +436,29 @@ struct EndpointPolicyRuntimeTests {
     #expect(
       runtime.projectedAllowanceDate(now: now)
         == ISO8601DateFormatter().date(from: "2027-01-04T08:00:00Z"))
+  }
+
+  @Test("projected restriction aligns to the exact scheduled minute")
+  func projectedRestrictionUsesMinuteBoundary() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let now = try #require(
+      ISO8601DateFormatter().date(from: "2027-01-04T19:59:45Z"))
+    let policy = ParentalControlPolicy(
+      version: 1, deviceID: "child-policy-test", timezone: "UTC",
+      effectiveAt: now.addingTimeInterval(-3_600),
+      expiresAt: now.addingTimeInterval(86_400), defaultAction: .lock,
+      weeklyAllowed: [PolicyWeeklyWindow(day: .monday, start: "08:00", end: "20:00")],
+      dailyQuotaMinutes: 1_440, childExplanation: "Synthetic exact boundary",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.install(identity.sign(policy: policy), controllerPublicKey: identity.publicKeyData)
+    _ = runtime.tick(now: now, uptime: 100, activeUptime: 100, sessionActive: true)
+
+    #expect(
+      runtime.projectedRestrictionDate(now: now, sessionActive: true)
+        == ISO8601DateFormatter().date(from: "2027-01-04T20:00:00Z"))
   }
 
   private func policy(version: UInt64) -> ParentalControlPolicy {

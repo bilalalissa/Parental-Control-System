@@ -1,12 +1,13 @@
 # STAGE-06E — macOS application-use restrictions
 
-- Version: `0.6.5-rc.6` (build `6506`)
+- Version: `0.6.5-rc.7` (build `6507`)
 - Branch: `stage/06e-macos-app-use-restrictions`
 - Status: `READY_FOR_RETEST`
 - Authorized on 2026-09-05 with `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06E MACOS APP-USE RESTRICTIONS BEFORE STAGE-07` and `PROCEED: STAGE-06E`.
 - Browser-compatibility amendment authorized on 2026-09-06 with `AUTHORIZE STAGE-06E SCOPE AMENDMENT: HARDEN DOMAIN ENFORCEMENT FOR YOUTUBE, RESTORED TABS, AND SPA NAVIGATION IN ENROLLED BROWSERS; USE LOCAL HOSTNAME MATCHING ONLY, WITH NO CONTENT INSPECTION.` and `PROCEED: STAGE-06E 0.6.5-rc.3 BROWSER COMPATIBILITY FIX`.
 - Safari local-test amendment authorized conversationally on 2026-09-06 after the developer asked whether a Safari extension was available and then instructed `go ahead`.
 - Secure-lock compatibility amendment authorized on 2026-09-07 with `AUTHORIZE STAGE-06E SCOPE AMENDMENT: ADD SECURE-LOCK READINESS VERIFICATION AND CONFIRMED PASSWORD-PROTECTED SESSION LOCK; DO NOT USE PRIVATE APIS OR SYNTHETIC INPUT.` and `PROCEED: STAGE-06E 0.6.5-rc.6 LOCK-COMPATIBILITY FIX`.
+- RC7 responds on the same Stage-06E branch and pull request to developer reports on 2026-09-10 of inaccurate schedule timers/relocking, removable browser-extension coverage, and unavailable Steam signing identity.
 
 ## Objective and included scope
 
@@ -16,13 +17,17 @@ Rules remain active when optional application-name sharing is disabled and while
 
 RC6 adds a fail-closed lock-readiness check using the fixed, read-only macOS command `/usr/sbin/sysadminctl -screenLock status`. A request is issued only when macOS reports an immediate password requirement. The helper then starts the public system screen-saver app through `NSWorkspace` and reports success only after its launch/activation notification (or an authenticated session-resign boundary) is observed. A missing/delayed password requirement, launch failure or eight-second confirmation timeout is visible in the child and parent UI and is not called a successful lock. Schedule retries are limited to once per minute.
 
+RC7 removes minute-stepped schedule projections and calculates the exact civil-time boundary, including overnight windows and daylight-saving transitions. Active-use accounting now uses a sleep-pausing monotonic clock while the independent continuous clock remains responsible for wall-clock tamper detection. Authenticated session-resign and session-active boundaries exclude awake Lock Screen time, wake remains inactive until macOS confirms an unlocked GUI session, and activation immediately publishes a fresh policy decision before any possible relock.
+
+RC7 also treats bundle identifier, code-signing identifier and Team ID as three independent exact identity fields. The visible helper requires validation of the live signed process and confirms that its code path belongs to the observed bundle before matching and enforcement. This supports signed self-updating launchers such as Steam without trusting a mutable name or path. A newer/empty policy is rechecked before the delayed lock fallback, and a changed signing identity is unselected until the parent explicitly reviews it. If any configured browser profile stops acknowledging policy, the parent and child show a prominent protection-gap warning. The authenticated per-user helper health bit is now persisted and shown to the parent so a stopped helper cannot leave the root endpoint looking normally protected.
+
 The first RC6 CI run also exposed a package-location defect inherited from RC5: on a same-version reinstall, PackageKit could discover the build copy of the Safari companion and relocate the payload there instead of replacing `/Applications/Parental Control Safari.app`. RC6 now provides explicit component property lists that mark the parent, child and Safari app bundles non-relocatable. This keeps both clean installs and in-place reinstalls at their documented `/Applications` paths.
 
 ## Platform boundary and exclusions
 
 This local ad-hoc build has no Apple Endpoint Security entitlement. It cannot authorize or deny execution before launch, and a restricted app may appear briefly before the visible per-user helper requests a normal quit. If normal termination is refused, the safe fallback is session lock rather than force-kill, protecting unsaved work. A device administrator can bypass or remove this enforcement.
 
-Excluded: Endpoint Security/system extensions; kernel-level pre-launch denial; force termination; command-line/path-only rules; Apple/system-app restriction; administrator resistance; hidden monitoring; screen/keystroke/content collection; WAN pause; private/guest browser coverage; request or traffic inspection; managed extension deployment; MDM; Windows/iPad work; Stage 07; private Lock Screen APIs, `CGSession`, AppleScript, accessibility keystrokes, or any other synthetic input. Browser enforcement remains limited to local HTTP(S) hostname matching in explicitly enrolled profiles. Safari is supported only as an adult-enabled unsigned local developer test; production signing/publication is not claimed.
+Excluded: Endpoint Security/system extensions; kernel-level pre-launch denial; force termination; command-line/path-only rules; Apple/system-app restriction, including Terminal and System Settings; administrator resistance; hidden monitoring; screen/keystroke/content collection; WAN pause; private/guest browser coverage; request or traffic inspection; managed extension deployment; MDM; Windows/iPad work; Stage 07; private Lock Screen APIs, `CGSession`, AppleScript, accessibility keystrokes, or any other synthetic input. Browser enforcement remains limited to local HTTP(S) hostname matching in explicitly enrolled profiles. An unmanaged manually loaded extension remains removable by its profile user; RC7 detects the missing acknowledgement but does not claim prevention. Safari is supported only as an adult-enabled unsigned local developer test; production signing/publication is not claimed.
 
 ## RC1/RC2 feedback and RC3 correction
 
@@ -52,6 +57,9 @@ The Safari candidate is ad-hoc signed. Its sandbox has one temporary global mach
 8. Enrolled browser profiles enforce exact and subdomain hostname rules during ordinary navigation, restored-tab startup and SPA URL changes, show only a local static block page, reject lookalike domains, and continue with optional tab sharing or the parent connection disabled.
 9. An explicitly enabled Safari test profile reports its current policy version and enforces the same hostname-only behavior. An unenabled profile remains `Setup required`; no universal/private coverage is claimed.
 10. The child and parent display secure-lock readiness. Lock is available only when macOS reports that a password is required immediately, and success is reported only after a bounded system-screen activation confirmation. Failure does not produce a false success receipt or a rapid lock loop.
+11. Schedule projections align to the exact configured minute on Intel and Apple silicon. Sleep and authenticated inactive-session time do not consume active-use quota, and a transition into an allowed window publishes `Allowed` without a stale relock.
+12. Signed third-party rules preserve independent exact bundle, signing and Team identities. A live process must match all three before enforcement. Configured browser profiles that stop reporting produce a prominent protection-gap warning without claiming managed tamper resistance.
+13. The parent distinguishes an online root endpoint from a healthy per-user enforcement helper and displays a protection gap when the helper heartbeat expires. A newer empty or changed app policy cancels a pending old-policy lock fallback.
 
 ## Resource and cleanup limits
 
@@ -59,7 +67,7 @@ Use no more than two build workers, one checkout, one Stage-06E derived-data tre
 
 ## Manual developer test checklist
 
-1. Quit Safari completely. Leave the RC5 Child app open, then install the Child Endpoint from `ParentalControlSystem-0.6.5-rc.6.pkg` in place without uninstalling, removing browser extensions or unpairing. Confirm the old Child window closes, RC6 reopens, the same child returns Online, and the existing endpoint identity, pairing, app policy and website policy remain.
+1. Quit Safari completely. Leave the RC6 Child app open, then install the Child Endpoint from `ParentalControlSystem-0.6.5-rc.7.pkg` in place without uninstalling, removing browser extensions or unpairing. Confirm the old Child window closes, RC7 reopens, the same child returns Online, and the existing endpoint identity, pairing, app policy and website policy remain.
 2. Use a standard child account and retain a separate adult administrator. Open one signed third-party test app once so its exact identity appears in Devices > Application-use restrictions.
 3. Select that app and apply the policy. Confirm the audit reports queued/delivered policy metadata without paths or content.
 4. Leave the selected app open while applying the policy. It must show the visible restriction banner and receive a normal quit request promptly (the bounded reconciliation scan is at most 15 seconds). Re-launch it and confirm launch notification enforcement also works. Confirm a `quit-requested` and then `closed` audit event.
@@ -75,10 +83,14 @@ Use no more than two build workers, one checkout, one Stage-06E derived-data tre
 14. Apply empty app and website policies: the formerly restricted app and a new browser navigation work normally.
 15. Record CPU/memory over five idle minutes and report OS, hardware, app bundle ID, expected result, observed result, and only the bounded relevant audit/log lines.
 16. On each tested Intel and Apple-silicon child Mac, open System Settings > Lock Screen and set **Require password after screen saver begins or display is turned off** to **Immediately**. Restart the child helper or sign out/in, then confirm both apps show `Secure Lock ready`. Send one immediate Lock Screen action and confirm the normal desktop is no longer usable without the account password, the child status later shows `Confirmed`, and the parent shows the confirmed time. Repeat with a blocked schedule. Sign back in and verify there is no second attempt for at least 60 seconds. Temporarily choose a delayed password setting, refresh/restart the helper, and confirm Lock Screen is disabled with an honest readiness explanation; restore **Immediately** afterward.
+17. On both Intel and Apple-silicon children, configure an allowed window starting and ending on the next few exact minutes. Begin with an arbitrary current seconds value, keep the session active, and confirm the countdown reaches each configured `:00` boundary rather than preserving the old seconds offset. At the allowed boundary, confirm the child changes to `Allowed` immediately and does not relock. Sleep through part of an allowed window, wake to the Lock Screen, wait there, then sign in; sleeping and locked time must not consume active-use quota.
+18. Launch Steam once. Confirm Devices > Application-use restrictions shows its nonempty signing identifier and Team ID even when the signing identifier differs from `com.valvesoftware.steam`. Select Steam, apply the policy, then repeat ordinary launch, refused-quit/one-lock fallback, empty-policy recovery and in-place-update checks. Record the exact observed bundle/signing/Team triple, but do not publish family/device data.
+19. With a nonempty website policy, disable or remove the test extension from one enrolled browser profile. Within the bounded reporting timeout, confirm both parent and child show the protection-gap warning and no UI claims `Policy applied` for that profile. Restore/reload the extension and confirm acknowledgement returns. This validates detection only; preventing removal requires a separately approved managed-browser/MDM deployment.
+20. With an app rule active, have an adult temporarily stop or suspend only the installed per-user helper while leaving the root daemon running. Within the helper freshness timeout, confirm the controller keeps the device Online but displays the enforcement-helper protection gap. Restore the helper and confirm health recovers. Also let a restricted test app refuse its quit request, deliver a newer empty policy inside the five-second fallback window, and confirm the old policy does not lock the session.
 
 ## Rollback
 
-Apply empty newer app and website policies before reverting. Installing Stage 06D RC5 over Stage 06E RC6 is not a supported database downgrade because Stage 06E adds schema fields, but the new fields are additive and ignored by older code. The administrator uninstaller removes the installer-owned stable extension source and Safari companion but cannot remove browser-profile registrations; remove or disable those visibly in each browser when intentionally uninstalling.
+Apply empty newer app and website policies before reverting. Installing Stage 06D RC5 over Stage 06E RC7 is not a supported database downgrade because Stage 06E adds schema fields, but the new fields are additive and ignored by older code. The administrator uninstaller removes the installer-owned stable extension source and Safari companion but cannot remove browser-profile registrations; remove or disable those visibly in each browser when intentionally uninstalling.
 
 ## Automated and artifact evidence
 

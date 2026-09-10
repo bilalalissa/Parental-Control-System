@@ -38,6 +38,14 @@ struct BrowserWebsitePolicyView: View {
         .font(.caption)
         Text("Profile status is a bounded recent snapshot, not a complete browser inventory.")
           .font(.caption).foregroundStyle(.secondary)
+        if hasProtectionGap {
+          Label(
+            "Protection gap: one or more installed browser profiles are not reporting the current website policy. The extension may be disabled, removed, stopped, or not enrolled.",
+            systemImage: "exclamationmark.shield.fill"
+          )
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(ControlTheme.accentSoft)
+        }
         ForEach(configuration.protectionReports ?? []) { report in
           HStack(alignment: .top) {
             VStack(alignment: .leading) {
@@ -75,6 +83,17 @@ struct BrowserWebsitePolicyView: View {
           domains: domains.split(whereSeparator: \.isNewline).map(String.init))
       }
       Button("Cancel", role: .cancel) {}
+    }
+  }
+
+  private var hasProtectionGap: Bool {
+    guard configuration.websitePolicy?.domains.isEmpty == false else { return false }
+    let reports = configuration.protectionReports ?? []
+    guard !reports.isEmpty else { return true }
+    return reports.contains {
+      $0.label(
+        expectedVersion: configuration.websitePolicy?.version, now: now,
+        online: device.state(now: now) == .online) != "Policy applied"
     }
   }
 }

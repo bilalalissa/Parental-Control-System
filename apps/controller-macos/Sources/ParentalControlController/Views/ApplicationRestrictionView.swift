@@ -46,9 +46,9 @@ struct ApplicationRestrictionView: View {
             LazyVStack(alignment: .leading, spacing: 8) {
               ForEach(uniqueApplications) { application in
                 let protected = ApplicationRestrictionRule.isProtected(application.bundleIdentifier)
-                let identityAvailable =
-                  application.signingIdentifier == application.bundleIdentifier
-                  && application.teamIdentifier?.isEmpty == false
+                let candidateRule = candidateRule(for: application)
+                let identityAvailable = candidateRule != nil
+                let identityChanged = identityChanged(for: application)
                 Toggle(
                   isOn: Binding(
                     get: { selectedBundleIdentifiers.contains(application.bundleIdentifier) },
@@ -71,6 +71,9 @@ struct ApplicationRestrictionView: View {
                     } else if !identityAvailable {
                       Text("Signing identity unavailable").font(.caption).foregroundStyle(
                         .secondary)
+                    } else if identityChanged {
+                      Text("Identity changed — review required").font(.caption).foregroundStyle(
+                        ControlTheme.accentSoft)
                     }
                   }
                 }
@@ -111,14 +114,10 @@ struct ApplicationRestrictionView: View {
         store.applyApplicationRestrictionPolicy(
           configuration: configuration,
           rules: uniqueApplications.compactMap { application in
-            guard selectedBundleIdentifiers.contains(application.bundleIdentifier),
-              let signingIdentifier = application.signingIdentifier,
-              let teamIdentifier = application.teamIdentifier
-            else { return nil }
-            return try? ApplicationRestrictionRule(
-              bundleIdentifier: application.bundleIdentifier,
-              signingIdentifier: signingIdentifier, teamIdentifier: teamIdentifier,
-              applicationName: application.applicationName)
+            guard selectedBundleIdentifiers.contains(application.bundleIdentifier) else {
+              return nil
+            }
+            return candidateRule(for: application)
           })
       }
       Button("Cancel", role: .cancel) {}
@@ -131,6 +130,30 @@ struct ApplicationRestrictionView: View {
 
   private func synchronizeSelection() {
     selectedBundleIdentifiers = Set(
-      configuration.restrictionPolicy?.rules.map(\.bundleIdentifier) ?? [])
+      uniqueApplications.compactMap { application in
+        guard
+          let existing = configuration.restrictionPolicy?.rule(for: application.bundleIdentifier),
+          existing.signingIdentifier == application.signingIdentifier,
+          existing.teamIdentifier == application.teamIdentifier
+        else { return nil }
+        return application.bundleIdentifier
+      })
+  }
+
+  private func candidateRule(for application: HubAppActivity) -> ApplicationRestrictionRule? {
+    guard let signingIdentifier = application.signingIdentifier,
+      let teamIdentifier = application.teamIdentifier
+    else { return nil }
+    return try? ApplicationRestrictionRule(
+      bundleIdentifier: application.bundleIdentifier,
+      signingIdentifier: signingIdentifier, teamIdentifier: teamIdentifier,
+      applicationName: application.applicationName)
+  }
+
+  private func identityChanged(for application: HubAppActivity) -> Bool {
+    guard let existing = configuration.restrictionPolicy?.rule(for: application.bundleIdentifier)
+    else { return false }
+    return existing.signingIdentifier != application.signingIdentifier
+      || existing.teamIdentifier != application.teamIdentifier
   }
 }

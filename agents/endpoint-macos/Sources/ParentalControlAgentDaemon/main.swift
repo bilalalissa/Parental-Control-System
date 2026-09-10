@@ -217,7 +217,8 @@ private final class EndpointPolicyScheduler: @unchecked Sendable {
     let current = repository.status()
     let now = Date()
     let sessionActive = current.sessionState == .active
-    let events = runtime.tick(now: now, sessionActive: sessionActive)
+    let events = runtime.tick(
+      now: now, activeUptime: EndpointActiveUseClock.uptime(), sessionActive: sessionActive)
     let snapshot = runtime.snapshot()
     let nextRestriction = runtime.projectedRestrictionDate(
       now: now, sessionActive: sessionActive)

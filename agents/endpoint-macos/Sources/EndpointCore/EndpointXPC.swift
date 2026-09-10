@@ -507,9 +507,36 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
         return
       }
       let becameActive = repository.applySession(update)
-      if becameActive, let policyRuntime {
-        policyRuntime.rearmRestrictionForActiveSession(now: update.observedAt)
-        let events = policyRuntime.tick(now: update.observedAt, sessionActive: true)
+      if let policyRuntime {
+        let now = Date()
+        let activeUptime = EndpointActiveUseClock.uptime()
+        policyRuntime.recordSessionActivity(
+          update.state == .active, now: now, activeUptime: activeUptime)
+        guard becameActive else {
+          reply(true, nil)
+          return
+        }
+        policyRuntime.rearmRestrictionForActiveSession(now: now)
+        let events = policyRuntime.tick(
+          now: now, activeUptime: activeUptime, sessionActive: true)
+        let snapshot = policyRuntime.snapshot(now: now)
+        let nextRestriction = policyRuntime.projectedRestrictionDate(
+          now: now, sessionActive: true)
+        let nextAllowance = policyRuntime.projectedAllowanceDate(now: now)
+        let allowanceSummary = policyRuntime.allowanceSummary(
+          now: now, sessionActive: true, nextRestrictionAt: nextRestriction)
+        repository.update {
+          $0.policyVersion = snapshot.0?.version
+          $0.policyDecision = snapshot.2?.decision
+          $0.policyAction = snapshot.2?.action
+          $0.policyReason = snapshot.2?.reason
+          $0.policyLastEvaluatedAt = now
+          $0.policyNextRestrictionAt = nextRestriction
+          $0.policyNextAllowanceAt = nextAllowance
+          $0.policyAllowanceSummary = allowanceSummary
+          $0.policyClockTrusted = snapshot.1.clockTrusted
+          $0.adultOverrideUntil = snapshot.1.adultOverrideUntil
+        }
         if !events.isEmpty { EndpointPolicyWake.post() }
       }
       reply(true, nil)

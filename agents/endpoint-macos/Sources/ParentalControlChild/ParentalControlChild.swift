@@ -312,6 +312,14 @@ struct ChildDashboard: View {
             status.applicationRestrictionPolicy.map {
               "\($0.rules.count) apps · policy \($0.version)"
             } ?? "No application policy")
+          if Self.hasBrowserProtectionGap(status) {
+            Label(
+              "Website protection needs adult attention: an installed browser profile is not reporting the current policy. Its extension may be disabled, removed, stopped, or not enrolled.",
+              systemImage: "exclamationmark.shield.fill"
+            )
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(ControlTheme.accentSoft)
+          }
           Text(
             "Website rules apply only in enrolled browser profiles, independently of tab sharing. Other profiles and private browsing are not covered; Safari requires its visible companion extension and per-profile website access. This is not a device-wide Internet pause."
           )
@@ -657,6 +665,15 @@ struct ChildDashboard: View {
     formatter.timeZone = TimeZone(identifier: timezone) ?? .autoupdatingCurrent
     formatter.setLocalizedDateFormatFromTemplate("EEE h:mm a")
     return formatter.string(from: date)
+  }
+
+  static func hasBrowserProtectionGap(_ status: EndpointStatus, now: Date = Date()) -> Bool {
+    guard let policy = status.websitePolicy, !policy.domains.isEmpty else { return false }
+    let reports = BrowserCoverageInventory.reports(status.browserProtectionReports ?? [], now: now)
+    guard !reports.isEmpty else { return true }
+    return reports.contains {
+      $0.label(expectedVersion: policy.version, now: now, online: true) != "Policy applied"
+    }
   }
 }
 

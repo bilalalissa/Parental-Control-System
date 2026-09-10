@@ -229,8 +229,11 @@ public final class HubDatabase: @unchecked Sendable {
     try? execute("ALTER TABLE paired_devices ADD COLUMN secure_lock_readiness TEXT;")
     try? execute("ALTER TABLE paired_devices ADD COLUMN secure_lock_confirmation TEXT;")
     try? execute("ALTER TABLE paired_devices ADD COLUMN secure_lock_confirmed_at REAL;")
+    try? execute(
+      "ALTER TABLE paired_devices ADD COLUMN helper_healthy INTEGER CHECK(helper_healthy IN (0, 1));"
+    )
     try execute(
-      "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(9, strftime('%s','now'));"
+      "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(10, strftime('%s','now'));"
     )
   }
 
@@ -243,8 +246,8 @@ public final class HubDatabase: @unchecked Sendable {
           id, name, platform, key_id, public_key, capabilities_json,
           paired_at, last_seen, last_sequence, snapshot_version, revoked,
           network_interfaces_json, secure_lock_readiness, secure_lock_confirmation,
-          secure_lock_confirmed_at
-      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          secure_lock_confirmed_at, helper_healthy
+      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
           name=excluded.name,
           platform=excluded.platform,
@@ -262,7 +265,8 @@ public final class HubDatabase: @unchecked Sendable {
           END,
           secure_lock_readiness=COALESCE(excluded.secure_lock_readiness, paired_devices.secure_lock_readiness),
           secure_lock_confirmation=COALESCE(excluded.secure_lock_confirmation, paired_devices.secure_lock_confirmation),
-          secure_lock_confirmed_at=COALESCE(excluded.secure_lock_confirmed_at, paired_devices.secure_lock_confirmed_at);
+          secure_lock_confirmed_at=COALESCE(excluded.secure_lock_confirmed_at, paired_devices.secure_lock_confirmed_at),
+          helper_healthy=COALESCE(excluded.helper_healthy, paired_devices.helper_healthy);
       """,
       [
         .text(device.id), .text(device.name), .text(device.platform), .text(device.keyID),
@@ -278,6 +282,7 @@ public final class HubDatabase: @unchecked Sendable {
         device.secureLockConfirmedAt.map {
           .integer(Int64($0.timeIntervalSince1970))
         } ?? .null,
+        device.helperHealthy.map { .integer($0 ? 1 : 0) } ?? .null,
       ])
   }
 
@@ -294,7 +299,7 @@ public final class HubDatabase: @unchecked Sendable {
       SELECT id, name, platform, key_id, public_key, capabilities_json,
              paired_at, last_seen, last_sequence, snapshot_version, revoked,
              network_interfaces_json, secure_lock_readiness, secure_lock_confirmation,
-             secure_lock_confirmed_at
+             secure_lock_confirmed_at, helper_healthy
       FROM paired_devices
       \(includeRevoked ? "" : "WHERE revoked = 0")
       ORDER BY name;
@@ -326,6 +331,8 @@ public final class HubDatabase: @unchecked Sendable {
           snapshotVersion: UInt64(max(0, sqlite3_column_int64(statement, 9))),
           isRevoked: sqlite3_column_int(statement, 10) == 1,
           networkInterfaces: networkInterfaces,
+          helperHealthy: sqlite3_column_type(statement, 15) == SQLITE_NULL
+            ? nil : sqlite3_column_int(statement, 15) == 1,
           secureLockReadiness: nullableText(statement, 12),
           secureLockConfirmation: nullableText(statement, 13),
           secureLockConfirmedAt: sqlite3_column_type(statement, 14) == SQLITE_NULL
@@ -404,6 +411,12 @@ public final class HubDatabase: @unchecked Sendable {
         confirmedAt.map { .integer(Int64($0.timeIntervalSince1970)) } ?? .null,
         .text(deviceID),
       ])
+  }
+
+  public func saveHelperHealth(_ healthy: Bool, deviceID: String) throws {
+    try run(
+      "UPDATE paired_devices SET helper_healthy = ? WHERE id = ? AND revoked = 0;",
+      [.integer(healthy ? 1 : 0), .text(deviceID)])
   }
 
   public func revoke(deviceID: String) throws {

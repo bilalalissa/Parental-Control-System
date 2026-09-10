@@ -519,20 +519,41 @@ struct EndpointCoreTests {
   @Test("app-use restrictions match exact validated identities and survive collection changes")
   func appUseRestrictionIdentity() throws {
     let bundle = "com.example.LearningGame"
+    let signingIdentifier = "com.example.LearningGame.launcher"
     let rule = try ApplicationRestrictionRule(
-      bundleIdentifier: bundle, signingIdentifier: bundle, teamIdentifier: "TEAM123456",
+      bundleIdentifier: bundle, signingIdentifier: signingIdentifier, teamIdentifier: "TEAM123456",
       applicationName: "Learning Game")
     let policy = try ApplicationRestrictionPolicy(version: 7, rules: [rule])
     #expect(
       ApplicationRestrictionEvaluator.matches(
         bundleIdentifier: bundle,
         identity: ApplicationCodeIdentity(
-          signingIdentifier: bundle, teamIdentifier: "TEAM123456"), policy: policy) == rule)
+          signingIdentifier: signingIdentifier, teamIdentifier: "TEAM123456"), policy: policy)
+        == rule)
     #expect(
       ApplicationRestrictionEvaluator.matches(
         bundleIdentifier: bundle,
         identity: ApplicationCodeIdentity(
-          signingIdentifier: bundle, teamIdentifier: "OTHERTEAM"), policy: policy) == nil)
+          signingIdentifier: signingIdentifier, teamIdentifier: "OTHERTEAM"), policy: policy) == nil
+    )
+    #expect(
+      ApplicationRestrictionEvaluator.matches(
+        bundleIdentifier: bundle,
+        identity: ApplicationCodeIdentity(
+          signingIdentifier: bundle, teamIdentifier: "TEAM123456"), policy: policy) == nil)
+    #expect(
+      ApplicationRestrictionEvaluator.matches(
+        bundleIdentifier: bundle,
+        identity: ApplicationCodeIdentity(
+          signingIdentifier: signingIdentifier, teamIdentifier: "TEAM123456"),
+        policy: policy, expectedPolicyVersion: 8) == nil)
+    let clearedPolicy = try ApplicationRestrictionPolicy(version: 8, rules: [])
+    #expect(
+      ApplicationRestrictionEvaluator.matches(
+        bundleIdentifier: bundle,
+        identity: ApplicationCodeIdentity(
+          signingIdentifier: signingIdentifier, teamIdentifier: "TEAM123456"),
+        policy: clearedPolicy, expectedPolicyVersion: 7) == nil)
     #expect(
       ApplicationRestrictionEvaluator.matches(
         bundleIdentifier: "com.apple.Safari",

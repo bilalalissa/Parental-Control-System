@@ -19,6 +19,47 @@ public struct ApplicationCodeIdentity: Codable, Equatable, Sendable {
       SecStaticCodeCheckValidity(staticCode, SecCSFlags(rawValue: kSecCSStrictValidate), nil)
         == errSecSuccess
     else { return nil }
+    return identity(from: staticCode)
+  }
+
+  /// Validates the code object that is actually running. Self-updating launchers may have a
+  /// signing identifier that differs from their bundle identifier, and validating the live code
+  /// avoids treating a mutable display name or path as identity.
+  public static func validated(
+    processIdentifier: pid_t, at bundleURL: URL
+  ) -> ApplicationCodeIdentity? {
+    guard processIdentifier > 0 else { return nil }
+    let attributes = [kSecGuestAttributePid as String: NSNumber(value: processIdentifier)]
+    var code: SecCode?
+    guard
+      SecCodeCopyGuestWithAttributes(nil, attributes as CFDictionary, SecCSFlags(), &code)
+        == errSecSuccess,
+      let code,
+      SecCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSStrictValidate), nil) == errSecSuccess,
+      let staticCode = staticCode(for: code),
+      let runningURL = codePath(staticCode)
+    else { return nil }
+    let runningPath = runningURL.resolvingSymlinksInPath().path
+    let bundlePath = bundleURL.resolvingSymlinksInPath().path
+    guard runningPath == bundlePath || runningPath.hasPrefix(bundlePath + "/") else { return nil }
+    return identity(from: staticCode)
+  }
+
+  private static func staticCode(for code: SecCode) -> SecStaticCode? {
+    var staticCode: SecStaticCode?
+    guard SecCodeCopyStaticCode(code, SecCSFlags(), &staticCode) == errSecSuccess else {
+      return nil
+    }
+    return staticCode
+  }
+
+  private static func codePath(_ code: SecStaticCode) -> URL? {
+    var path: CFURL?
+    guard SecCodeCopyPath(code, SecCSFlags(), &path) == errSecSuccess else { return nil }
+    return path as URL?
+  }
+
+  private static func identity(from staticCode: SecStaticCode) -> ApplicationCodeIdentity? {
     var rawInformation: CFDictionary?
     guard
       SecCodeCopySigningInformation(
@@ -37,10 +78,12 @@ public struct ApplicationCodeIdentity: Codable, Equatable, Sendable {
 public enum ApplicationRestrictionEvaluator {
   public static func matches(
     bundleIdentifier: String, identity: ApplicationCodeIdentity?,
-    policy: ApplicationRestrictionPolicy?
+    policy: ApplicationRestrictionPolicy?, expectedPolicyVersion: Int64? = nil
   ) -> ApplicationRestrictionRule? {
     guard !ApplicationRestrictionRule.isProtected(bundleIdentifier),
-      let identity, let rule = policy?.rule(for: bundleIdentifier),
+      let identity, let policy,
+      expectedPolicyVersion.map({ $0 == policy.version }) ?? true,
+      let rule = policy.rule(for: bundleIdentifier),
       identity.signingIdentifier == rule.signingIdentifier,
       identity.teamIdentifier == rule.teamIdentifier
     else { return nil }

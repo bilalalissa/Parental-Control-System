@@ -57,6 +57,7 @@ struct PairingAndPersistenceTests {
       try database.saveSecureLockStatus(
         readiness: "ready", confirmation: "confirmed",
         confirmedAt: pairedAt.addingTimeInterval(2), deviceID: "mock-one")
+      try database.saveHelperHealth(false, deviceID: "mock-one")
     }
     let reopened = try HubDatabase(path: fixture.path)
     let persistedDevice = try reopened.device(id: "mock-one")
@@ -68,6 +69,7 @@ struct PairingAndPersistenceTests {
     #expect(device.secureLockReadiness == "ready")
     #expect(device.secureLockConfirmation == "confirmed")
     #expect(device.secureLockConfirmedAt == pairedAt.addingTimeInterval(2))
+    #expect(device.helperHealthy == false)
     #expect(device.state(now: pairedAt.addingTimeInterval(80)) == .offline)
     #expect(device.state(now: pairedAt.addingTimeInterval(-10)) == .offline)
   }

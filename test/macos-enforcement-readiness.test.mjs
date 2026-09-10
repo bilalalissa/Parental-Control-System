@@ -16,6 +16,16 @@ const [host, network, execution, checker, stage, appStage, decision, tracker] = 
   read("../docs/adr/0004-macos-enforcement-extension-readiness.md"),
   read("../docs/stages/stage-status.json"),
 ]);
+const [policyRuntime, sessionHelper, appIdentity, appRule, childUI, parentBrowserUI, localHub, devicesUI] = await Promise.all([
+  read("../agents/endpoint-macos/Sources/EndpointCore/EndpointPolicyRuntime.swift"),
+  read("../agents/endpoint-macos/Sources/ParentalControlAgentUser/main.swift"),
+  read("../agents/endpoint-macos/Sources/EndpointCore/ApplicationCodeIdentity.swift"),
+  read("../apps/controller-macos/Sources/HubCore/Models/ApplicationRestrictionPolicy.swift"),
+  read("../agents/endpoint-macos/Sources/ParentalControlChild/ParentalControlChild.swift"),
+  read("../apps/controller-macos/Sources/ParentalControlController/Views/BrowserWebsitePolicyView.swift"),
+  read("../apps/controller-macos/Sources/HubCore/Hub/LocalHub.swift"),
+  read("../apps/controller-macos/Sources/ParentalControlController/Views/DevicesView.swift"),
+]);
 
 test("Stage 06D entitlement templates request only their supported boundaries", () => {
   assert.match(host, /com\.apple\.developer\.system-extension\.install[\s\S]*<true\/>/);
@@ -60,7 +70,7 @@ test("Stage 06E follows the approved browser stage without claiming system exten
   const state = JSON.parse(tracker);
   const active = state.stages.find((candidate) => candidate.id === state.activeStage);
   assert.equal(active.id, "STAGE-06E");
-  assert.equal(active.version, "0.6.5-rc.6");
+  assert.equal(active.version, "0.6.5-rc.7");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
       active.status,
@@ -90,4 +100,22 @@ test("Stage 06D contract is content-minimal, bounded, and recoverable", () => {
   assert.match(decision, /time traffic/);
   assert.match(decision, /fails open/i);
   assert.match(decision, /no URLs, paths, queries, DNS history, packets, payloads, browsing history/i);
+});
+
+test("Stage 06E RC7 keeps schedule, live identity, and browser gaps explicit", () => {
+  assert.match(policyRuntime, /mach_absolute_time\(\)/);
+  assert.match(policyRuntime, /mach_continuous_time\(\)/);
+  assert.match(policyRuntime, /weeklyAllowedIntervals/);
+  assert.match(policyRuntime, /recordSessionActivity/);
+  assert.match(sessionHelper, /Waking the machine does not prove that the GUI session is unlocked/);
+  assert.match(sessionHelper, /ApplicationCodeIdentity\.validated\(\s*processIdentifier:/);
+  assert.match(appIdentity, /SecCodeCopyGuestWithAttributes/);
+  assert.match(appIdentity, /runningPath\.hasPrefix\(bundlePath \+ "\/"\)/);
+  assert.doesNotMatch(appRule, /signingIdentifier == bundleIdentifier/);
+  assert.match(childUI, /Website protection needs adult attention/);
+  assert.match(parentBrowserUI, /Protection gap/);
+  assert.match(localHub, /saveHelperHealth/);
+  assert.match(devicesUI, /child enforcement helper is not reporting/);
+  assert.match(appStage, /unmanaged manually loaded extension remains removable/i);
+  assert.match(appStage, /including Terminal and System Settings/i);
 });

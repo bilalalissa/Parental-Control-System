@@ -13,16 +13,21 @@ struct ApplicationRestrictionPolicyTests {
       applicationName: "Learning Game")
   }
 
-  @Test("rules require an exact signed non-system identity")
+  @Test("rules preserve independent exact bundle, signing, and Team identities")
   func identityValidation() throws {
     #expect(throws: ApplicationRestrictionPolicyError.self) {
       try ApplicationRestrictionRule(
         bundleIdentifier: "com.apple.Safari", signingIdentifier: "com.apple.Safari",
         teamIdentifier: "APPLE", applicationName: "Safari")
     }
+    let launcher = try ApplicationRestrictionRule(
+      bundleIdentifier: "com.valvesoftware.steam",
+      signingIdentifier: "steam_osx", teamIdentifier: "VALVETEAM1",
+      applicationName: "Steam")
+    #expect(launcher.signingIdentifier == "steam_osx")
     #expect(throws: ApplicationRestrictionPolicyError.self) {
       try ApplicationRestrictionRule(
-        bundleIdentifier: "com.example.Game", signingIdentifier: "com.example.Other",
+        bundleIdentifier: "com.example.Game", signingIdentifier: "invalid signing identity",
         teamIdentifier: "TEAM123456", applicationName: "Game")
     }
     #expect(throws: ApplicationRestrictionPolicyError.self) {

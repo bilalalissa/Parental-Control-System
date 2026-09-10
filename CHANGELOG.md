@@ -2,9 +2,20 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
-## 0.6.5-rc.6 — 2026-09-07
+## 0.6.5-rc.7 — 2026-09-10
 
 Status: **STAGE-06E ready for developer retest; unreleased**
+
+- Projects schedule transitions at exact civil-time boundaries, refreshes the published decision immediately after an authenticated unlock, and keeps wake inactive until macOS reports that the GUI session actually became active.
+- Separates the sleep-pausing active-use clock from the continuous clock used for wall-clock tamper detection, so sleeping and awake Lock Screen time are not charged to the child's quota.
+- Accepts distinct exact bundle, signing and Team identities and validates the live signed process before enforcement, covering signed self-updating launchers such as Steam without trusting names or paths.
+- Shows a prominent protection-gap warning in both apps when a configured browser profile stops reporting, including after a removable unmanaged extension is disabled or removed.
+- Persists the authenticated per-user enforcement-helper health bit and warns the parent when the root endpoint remains online but schedule/app enforcement is unavailable.
+- Preserves the honest platform boundary: this unmanaged build cannot make an extension non-removable, restrict Apple system apps or System Settings panes, or resist an administrator using Terminal.
+
+## 0.6.5-rc.6 — 2026-09-07
+
+Status: **STAGE-06E superseded by RC7**
 
 - Verifies the effective macOS screen-lock delay with one fixed read-only `sysadminctl` status command and enables Lock only when the password requirement is immediate.
 - Confirms a lock only after the system screen-saver app activates or the authenticated GUI session resigns active; launch failures and eight-second timeouts remain visible failures.

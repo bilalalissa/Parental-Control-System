@@ -36,23 +36,31 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   private var secureLockConfirmedAt: Date?
   private var pendingLockRequestedAt: Date?
   private var pendingApplicationLockFallback: (bundleIdentifier: String, policyVersion: Int64)?
-  private var codeIdentityCache: [String: ApplicationCodeIdentity] = [:]
+  private var codeIdentityCache: [pid_t: ApplicationCodeIdentity] = [:]
   private var applicationRestrictionGate = ApplicationRestrictionAttemptGate()
   private static let screenSaverBundleIdentifier = "com.apple.ScreenSaver.Engine"
   @MainActor func start() {
     configureStatusItem()
     secureLockReadiness = EndpointSecureLockVerifier.current()
+    currentState =
+      DeviceSnapshotCollector.consoleUser() != nil
+        && NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+          != Self.screenSaverBundleIdentifier
+      ? .active : .inactive
     let center = NSWorkspace.shared.notificationCenter
     center.addObserver(
-      self, selector: #selector(active), name: NSWorkspace.sessionDidBecomeActiveNotification,
+      self, selector: #selector(sessionBecameActive),
+      name: NSWorkspace.sessionDidBecomeActiveNotification,
       object: nil)
     center.addObserver(
-      self, selector: #selector(inactive), name: NSWorkspace.sessionDidResignActiveNotification,
+      self, selector: #selector(sessionResignedActive),
+      name: NSWorkspace.sessionDidResignActiveNotification,
       object: nil)
     center.addObserver(
-      self, selector: #selector(inactive), name: NSWorkspace.willSleepNotification, object: nil)
+      self, selector: #selector(systemWillSleep), name: NSWorkspace.willSleepNotification,
+      object: nil)
     center.addObserver(
-      self, selector: #selector(active), name: NSWorkspace.didWakeNotification, object: nil)
+      self, selector: #selector(systemDidWake), name: NSWorkspace.didWakeNotification, object: nil)
     center.addObserver(
       self, selector: #selector(applicationsChanged(_:)),
       name: NSWorkspace.didLaunchApplicationNotification, object: nil)
@@ -72,7 +80,11 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       EndpointPolicyWake.name as CFString,
       nil,
       .deliverImmediately)
-    report(.active, activationBoundary: true)
+    if currentState == .active {
+      report(.active, activationBoundary: true)
+    } else {
+      report(.inactive)
+    }
     reportApplications()
     primeMessages()
     claimPolicyEvents()
@@ -103,7 +115,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       self?.enforceCurrentApplicationRestrictions()
     }
   }
-  @MainActor @objc private func active() {
+  @MainActor @objc private func sessionBecameActive() {
     currentState = .active
     pendingLockRequestedAt = nil
     pendingApplicationLockFallback = nil
@@ -111,13 +123,28 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     secureLockReadiness = EndpointSecureLockVerifier.current()
     report(currentState, activationBoundary: true)
   }
-  @MainActor @objc private func inactive() {
+  @MainActor @objc private func sessionResignedActive() {
     if secureLockConfirmation == .pending, secureLockReadiness == .ready {
       confirmSecureLock()
     } else {
       currentState = .inactive
       report(currentState)
     }
+  }
+  @MainActor @objc private func systemWillSleep() {
+    currentState = .inactive
+    pendingLockRequestedAt = nil
+    pendingApplicationLockFallback = nil
+    secureLockConfirmation = .notRequested
+    report(currentState)
+  }
+  @MainActor @objc private func systemDidWake() {
+    // Waking the machine does not prove that the GUI session is unlocked. Remain inactive until
+    // NSWorkspace emits the separate sessionDidBecomeActive notification.
+    currentState = .inactive
+    secureLockReadiness = EndpointSecureLockVerifier.current()
+    report(currentState)
+    refreshPolicyCountdown()
   }
   @MainActor @objc private func applicationsChanged(_ notification: Notification) {
     reportApplications()
@@ -130,12 +157,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       {
         confirmSecureLockIfReady()
       } else if notification.name == NSWorkspace.didTerminateApplicationNotification {
-        currentState = .active
-        pendingLockRequestedAt = nil
-        pendingApplicationLockFallback = nil
-        secureLockConfirmation = .notRequested
-        secureLockReadiness = EndpointSecureLockVerifier.current()
-        report(currentState, activationBoundary: true)
+        sessionBecameActive()
       }
       return
     }
@@ -150,6 +172,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
         as? NSRunningApplication
     else { return }
     applicationRestrictionGate.processDidTerminate(application.processIdentifier)
+    codeIdentityCache.removeValue(forKey: application.processIdentifier)
   }
   @objc private func chatReceived() {
     // A raw LaunchAgent has no application bundle registration for UserNotifications. Calling
@@ -310,7 +333,8 @@ final class SessionReporter: NSObject, @unchecked Sendable {
           let liveBundleURL = application.bundleURL,
           // Enforcement deliberately bypasses the activity-reporting cache: an app can update at
           // the same path, so each action must validate the currently running signed bundle.
-          let identity = ApplicationCodeIdentity.validated(at: liveBundleURL),
+          let identity = ApplicationCodeIdentity.validated(
+            processIdentifier: candidate.processIdentifier, at: liveBundleURL),
           let rule = ApplicationRestrictionEvaluator.matches(
             bundleIdentifier: bundleIdentifier, identity: identity,
             policy: status.applicationRestrictionPolicy)
@@ -332,32 +356,63 @@ final class SessionReporter: NSObject, @unchecked Sendable {
           policyVersion: policyVersion,
           outcome: .quitRequested)
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
-          guard let self,
-            self.applicationRestrictionGate.isCurrent(
-              processIdentifier: processIdentifier, policyVersion: policyVersion)
-          else { return }
-          guard
-            let liveApplication = NSRunningApplication(processIdentifier: processIdentifier),
-            candidate.matchesLiveProcess(
-              bundleIdentifier: liveApplication.bundleIdentifier,
-              bundleURL: liveApplication.bundleURL),
-            !liveApplication.isTerminated
-          else {
-            self.applicationRestrictionGate.processDidTerminate(processIdentifier)
-            self.reportApplicationRestriction(
-              bundleIdentifier: bundleIdentifier,
-              policyVersion: policyVersion,
-              outcome: .closed)
-            return
-          }
-          self.showPolicyBanner(
-            title: "Application did not close",
-            message:
-              "The session will lock to protect open work. Ask a parent to change the app policy."
-          )
-          self.requestSecureSessionLock(
-            applicationFallback: (bundleIdentifier, policyVersion))
+          self?.finishApplicationRestrictionFallback(
+            candidate: candidate, bundleIdentifier: bundleIdentifier,
+            policyVersion: policyVersion)
         }
+      }
+    }
+  }
+
+  private func finishApplicationRestrictionFallback(
+    candidate: ApplicationRestrictionProcessCandidate, bundleIdentifier: String,
+    policyVersion: Int64
+  ) {
+    let processIdentifier = candidate.processIdentifier
+    guard
+      applicationRestrictionGate.isCurrent(
+        processIdentifier: processIdentifier, policyVersion: policyVersion)
+    else { return }
+    guard
+      let application = NSRunningApplication(processIdentifier: processIdentifier),
+      candidate.matchesLiveProcess(
+        bundleIdentifier: application.bundleIdentifier, bundleURL: application.bundleURL),
+      !application.isTerminated
+    else {
+      applicationRestrictionGate.processDidTerminate(processIdentifier)
+      reportApplicationRestriction(
+        bundleIdentifier: bundleIdentifier, policyVersion: policyVersion, outcome: .closed)
+      return
+    }
+    client.fetchStatus { [weak self] result in
+      guard let self, case .success(let status) = result else { return }
+      DispatchQueue.main.async { [weak self] in
+        guard let self,
+          self.applicationRestrictionGate.isCurrent(
+            processIdentifier: processIdentifier, policyVersion: policyVersion),
+          let currentPolicy = status.applicationRestrictionPolicy,
+          let liveApplication = NSRunningApplication(processIdentifier: processIdentifier),
+          candidate.matchesLiveProcess(
+            bundleIdentifier: liveApplication.bundleIdentifier,
+            bundleURL: liveApplication.bundleURL),
+          !liveApplication.isTerminated,
+          let liveBundleURL = liveApplication.bundleURL,
+          let identity = ApplicationCodeIdentity.validated(
+            processIdentifier: processIdentifier, at: liveBundleURL),
+          ApplicationRestrictionEvaluator.matches(
+            bundleIdentifier: bundleIdentifier, identity: identity, policy: currentPolicy,
+            expectedPolicyVersion: policyVersion) != nil
+        else {
+          self?.applicationRestrictionGate.processDidTerminate(processIdentifier)
+          return
+        }
+        self.showPolicyBanner(
+          title: "Application did not close",
+          message:
+            "The session will lock to protect open work. Ask a parent to change the app policy."
+        )
+        self.requestSecureSessionLock(
+          applicationFallback: (bundleIdentifier, policyVersion))
       }
     }
   }
@@ -373,11 +428,15 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     ) { _ in }
   }
 
-  private func codeIdentity(for bundleURL: URL) -> ApplicationCodeIdentity? {
-    let key = bundleURL.resolvingSymlinksInPath().path
-    if let cached = codeIdentityCache[key] { return cached }
-    guard let identity = ApplicationCodeIdentity.validated(at: bundleURL) else { return nil }
-    codeIdentityCache[key] = identity
+  private func codeIdentity(for application: NSRunningApplication) -> ApplicationCodeIdentity? {
+    guard let bundleURL = application.bundleURL else { return nil }
+    let processIdentifier = application.processIdentifier
+    if let cached = codeIdentityCache[processIdentifier] { return cached }
+    guard
+      let identity = ApplicationCodeIdentity.validated(
+        processIdentifier: processIdentifier, at: bundleURL)
+    else { return nil }
+    codeIdentityCache[processIdentifier] = identity
     return identity
   }
 
@@ -601,9 +660,9 @@ final class SessionReporter: NSObject, @unchecked Sendable {
         guard application.activationPolicy == .regular,
           let bundleID = application.bundleIdentifier,
           let name = application.localizedName,
-          let bundleURL = application.bundleURL
+          application.bundleURL != nil
         else { return nil }
-        let identity = self.codeIdentity(for: bundleURL)
+        let identity = self.codeIdentity(for: application)
         return EndpointApplicationActivity(
           bundleIdentifier: bundleID, applicationName: name,
           signingIdentifier: identity?.signingIdentifier,

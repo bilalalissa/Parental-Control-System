@@ -50,6 +50,8 @@ public struct EndpointPolicyRuntimeState: Codable, Equatable, Sendable {
   public var adultCodeLockedUntil: Date?
   public var lastWallClock: Date?
   public var lastUptime: TimeInterval?
+  public var lastActiveUptime: TimeInterval?
+  public var lastSessionActive: Bool?
   public var clockTrusted: Bool
   public var issuedWarnings: [Int]
   public var immediateAction: PolicyAction?
@@ -65,7 +67,9 @@ public struct EndpointPolicyRuntimeState: Codable, Equatable, Sendable {
     usageDay: String? = nil, activeUseSeconds: TimeInterval = 0,
     adultOverrideUntil: Date? = nil, verifier: AdultCodeVerifier? = nil,
     failedAdultAttempts: [Date] = [], adultCodeLockedUntil: Date? = nil,
-    lastWallClock: Date? = nil, lastUptime: TimeInterval? = nil, clockTrusted: Bool = true,
+    lastWallClock: Date? = nil, lastUptime: TimeInterval? = nil,
+    lastActiveUptime: TimeInterval? = nil, lastSessionActive: Bool? = nil,
+    clockTrusted: Bool = true,
     issuedWarnings: [Int] = [], immediateAction: PolicyAction? = nil,
     immediateActionExpiresAt: Date? = nil, restrictionBeganAt: Date? = nil,
     restrictionSource: PolicyDecisionSource? = nil, restrictionAction: PolicyAction? = nil,
@@ -80,6 +84,8 @@ public struct EndpointPolicyRuntimeState: Codable, Equatable, Sendable {
     self.adultCodeLockedUntil = adultCodeLockedUntil
     self.lastWallClock = lastWallClock
     self.lastUptime = lastUptime
+    self.lastActiveUptime = lastActiveUptime
+    self.lastSessionActive = lastSessionActive
     self.clockTrusted = clockTrusted
     self.issuedWarnings = Array(Set(issuedWarnings)).sorted(by: >)
     self.immediateAction = immediateAction
@@ -227,6 +233,34 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
     try? persistLocked()
   }
 
+  /// Records authenticated GUI activity boundaries without evaluating or enforcing policy. This
+  /// prevents awake time at the Lock Screen from being charged when sleep/wake and session-active
+  /// notifications arrive between the daemon's periodic evaluations.
+  public func recordSessionActivity(
+    _ sessionActive: Bool, now: Date = Date(),
+    activeUptime: TimeInterval = EndpointActiveUseClock.uptime()
+  ) {
+    lock.lock()
+    defer { lock.unlock() }
+    guard let policy else { return }
+    let day = dayKey(now, timezone: policy.timezone)
+    let usageDayChanged = state.usageDay != day
+    if usageDayChanged {
+      state.usageDay = day
+      state.activeUseSeconds = 0
+      state.issuedWarnings = []
+    }
+    if !usageDayChanged, state.lastSessionActive == true,
+      let formerActiveUptime = state.lastActiveUptime
+    {
+      let activeDelta = activeUptime - formerActiveUptime
+      if activeDelta >= 0 { state.activeUseSeconds += min(activeDelta, 120) }
+    }
+    state.lastActiveUptime = activeUptime
+    state.lastSessionActive = sessionActive
+    try? persistLocked()
+  }
+
   @discardableResult
   public func submitAdultCode(
     _ code: String, now: Date = Date(), duration: TimeInterval = 15 * 60
@@ -281,28 +315,8 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
   ) -> Date? {
     lock.lock()
     defer { lock.unlock() }
-    guard let policy else { return nil }
-    let boundedHorizon = max(1, min(horizonMinutes, 8 * 24 * 60))
-    let initialMinutes = Int(state.activeUseSeconds / 60)
-    let overrideUntil = state.adultOverrideUntil
-    let current = PolicyEvaluator.evaluate(
-      policy,
-      input: PolicyEvaluationInput(
-        at: now, activeUseMinutes: initialMinutes,
-        adultOverrideActive: overrideUntil.map { $0 > now } ?? false))
-    guard current.decision == .allow else { return nil }
-    for minute in 1...boundedHorizon {
-      let future = now.addingTimeInterval(TimeInterval(minute * 60))
-      let projectedActiveSeconds =
-        state.activeUseSeconds + (sessionActive ? TimeInterval(minute * 60) : 0)
-      let decision = PolicyEvaluator.evaluate(
-        policy,
-        input: PolicyEvaluationInput(
-          at: future, activeUseMinutes: Int(projectedActiveSeconds / 60),
-          adultOverrideActive: overrideUntil.map { $0 > future } ?? false))
-      if decision.decision == .block { return future }
-    }
-    return nil
+    return projectedRestrictionDateLocked(
+      now: now, sessionActive: sessionActive, horizonMinutes: horizonMinutes)
   }
 
   public func allowanceSummary(
@@ -350,10 +364,30 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
         at: now, activeUseMinutes: currentActiveMinutes,
         adultOverrideActive: overrideUntil.map { $0 > now } ?? false))
     guard current.decision == .block else { return nil }
-    let firstMinuteBoundary = Date(
-      timeIntervalSince1970: floor(now.timeIntervalSince1970 / 60) * 60 + 60)
-    for minute in 0..<boundedHorizon {
-      let future = firstMinuteBoundary.addingTimeInterval(TimeInterval(minute * 60))
+    let horizonEnd = now.addingTimeInterval(TimeInterval(boundedHorizon * 60))
+    var candidates = Set<Date>()
+    let exactBoundaries =
+      [policy.effectiveAt, policy.expiresAt].compactMap { $0 }
+      + policy.blockedIntervals.flatMap { [$0.start, $0.end] }
+      + policy.exceptions.flatMap { [$0.start, $0.end] }
+    for boundary in exactBoundaries where boundary > now && boundary <= horizonEnd {
+      candidates.insert(boundary)
+    }
+    for interval in PolicyEvaluator.weeklyAllowedIntervals(
+      policy, intersecting: DateInterval(start: now, end: horizonEnd))
+    {
+      candidates.insert(interval.start)
+      candidates.insert(interval.end)
+    }
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: policy.timezone) ?? .current
+    var day = calendar.startOfDay(for: now)
+    for _ in 0..<9 {
+      guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+      if next <= horizonEnd { candidates.insert(next) }
+      day = next
+    }
+    for future in candidates.sorted() where future > now && future <= horizonEnd {
       let projectedActiveMinutes =
         dayKey(future, timezone: policy.timezone) == currentDay ? currentActiveMinutes : 0
       let decision = PolicyEvaluator.evaluate(
@@ -385,6 +419,7 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
 
   public func tick(
     now: Date = Date(), uptime: TimeInterval = EndpointContinuousClock.uptime(),
+    activeUptime: TimeInterval? = nil,
     sessionActive: Bool
   ) -> [EndpointPolicyEvent] {
     lock.lock()
@@ -405,11 +440,14 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
     }
     guard let policy else { return [] }
     let day = dayKey(now, timezone: policy.timezone)
-    if state.usageDay != day {
+    let usageDayChanged = state.usageDay != day
+    if usageDayChanged {
       state.usageDay = day
       state.activeUseSeconds = 0
       state.issuedWarnings = []
     }
+    let currentActiveUptime = activeUptime ?? uptime
+    var rebooted = false
     if let formerWall = state.lastWallClock, let formerUptime = state.lastUptime {
       let wallDelta = now.timeIntervalSince(formerWall)
       let uptimeDelta = uptime - formerUptime
@@ -419,15 +457,22 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
         // Re-issue an active restriction after login because the prior boot's action is no longer
         // evidence that this session is protected.
         state.restrictionEnforced = false
+        rebooted = true
       } else if wallDelta < -5 || abs(wallDelta - uptimeDelta) > 120 {
         if state.clockTrusted { events.append(.clockChangeDetected) }
         state.clockTrusted = false
-      } else if sessionActive, uptimeDelta > 0 {
-        state.activeUseSeconds += min(uptimeDelta, 120)
       }
+    }
+    if !usageDayChanged, !rebooted, state.lastSessionActive == true,
+      let formerActiveUptime = state.lastActiveUptime
+    {
+      let activeDelta = currentActiveUptime - formerActiveUptime
+      if activeDelta >= 0 { state.activeUseSeconds += min(activeDelta, 120) }
     }
     state.lastWallClock = now
     state.lastUptime = uptime
+    state.lastActiveUptime = currentActiveUptime
+    state.lastSessionActive = sessionActive
     if state.adultOverrideUntil.map({ $0 <= now }) == true { state.adultOverrideUntil = nil }
     let input = PolicyEvaluationInput(
       at: now, activeUseMinutes: Int(state.activeUseSeconds / 60),
@@ -439,7 +484,13 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
         decision: .block, action: policy.defaultAction, source: .inactivePolicy,
         reason: "Clock change detected; reconnect to refresh the signed policy")
     }
-    let remaining = minutesUntilRestriction(policy: policy, input: input)
+    let remaining =
+      state.adultOverrideUntil.map({ $0 > now }) == true
+      ? nil
+      : projectedRestrictionDateLocked(
+        now: now, sessionActive: sessionActive,
+        horizonMinutes: max(policy.warningOffsetsMinutes.max() ?? 0, 1)
+      ).map { max(0, Int(ceil($0.timeIntervalSince(now) / 60))) }
     if decision.decision == .allow, let remaining,
       let offset = PolicyEvaluator.warningOffset(
         policy, remainingMinutes: remaining, alreadyIssued: Set(state.issuedWarnings))
@@ -489,26 +540,71 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
     state.pendingUserEvents = Array(pending.suffix(32))
   }
 
-  private func minutesUntilRestriction(
-    policy: ParentalControlPolicy, input: PolicyEvaluationInput
-  ) -> Int? {
-    let quotaRemaining = max(
-      0, policy.dailyQuotaMinutes + policy.bonusMinutes - input.activeUseMinutes)
-    let maximum = max(policy.warningOffsetsMinutes.max() ?? 0, 1)
-    var scheduleRemaining: Int?
-    for minute in 1...maximum {
-      let future = PolicyEvaluator.evaluate(
-        policy,
-        input: PolicyEvaluationInput(
-          at: input.at.addingTimeInterval(TimeInterval(minute * 60)),
-          activeUseMinutes: input.activeUseMinutes + minute,
-          adultOverrideActive: input.adultOverrideActive))
-      if future.decision == .block {
-        scheduleRemaining = minute
-        break
+  private func projectedRestrictionDateLocked(
+    now: Date, sessionActive: Bool, horizonMinutes: Int
+  ) -> Date? {
+    guard let policy else { return nil }
+    let boundedHorizon = max(1, min(horizonMinutes, 8 * 24 * 60))
+    let horizonEnd = now.addingTimeInterval(TimeInterval(boundedHorizon * 60))
+    let overrideUntil = state.adultOverrideUntil
+    let current = PolicyEvaluator.evaluate(
+      policy,
+      input: PolicyEvaluationInput(
+        at: now, activeUseMinutes: Int(state.activeUseSeconds / 60),
+        adultOverrideActive: overrideUntil.map { $0 > now } ?? false))
+    guard current.decision == .allow else { return nil }
+
+    var candidates = Set<Date>()
+    for interval in PolicyEvaluator.weeklyAllowedIntervals(
+      policy, intersecting: DateInterval(start: now, end: horizonEnd))
+    {
+      candidates.insert(interval.start)
+      candidates.insert(interval.end)
+    }
+    let exactBoundaries =
+      [policy.effectiveAt, policy.expiresAt, overrideUntil].compactMap { $0 }
+      + policy.blockedIntervals.flatMap { [$0.start, $0.end] }
+      + policy.exceptions.flatMap { [$0.start, $0.end] }
+    for boundary in exactBoundaries where boundary > now && boundary <= horizonEnd {
+      candidates.insert(boundary)
+    }
+    if sessionActive {
+      let quotaSeconds = TimeInterval((policy.dailyQuotaMinutes + policy.bonusMinutes) * 60)
+      let remainingQuotaSeconds = quotaSeconds - state.activeUseSeconds
+      let quotaBoundary = now.addingTimeInterval(max(0, remainingQuotaSeconds))
+      if quotaBoundary > now, quotaBoundary <= horizonEnd,
+        dayKey(quotaBoundary, timezone: policy.timezone) == dayKey(now, timezone: policy.timezone)
+      {
+        candidates.insert(quotaBoundary)
       }
     }
-    return [quotaRemaining, scheduleRemaining].compactMap { $0 }.min()
+
+    for future in candidates.sorted() where future > now && future <= horizonEnd {
+      let projectedSeconds = projectedActiveUseSeconds(
+        at: future, from: now, sessionActive: sessionActive, timezone: policy.timezone)
+      let decision = PolicyEvaluator.evaluate(
+        policy,
+        input: PolicyEvaluationInput(
+          at: future, activeUseMinutes: Int(projectedSeconds / 60),
+          adultOverrideActive: overrideUntil.map { $0 > future } ?? false))
+      if decision.decision == .block { return future }
+    }
+    return nil
+  }
+
+  private func projectedActiveUseSeconds(
+    at future: Date, from now: Date, sessionActive: Bool, timezone: String
+  ) -> TimeInterval {
+    guard sessionActive else {
+      return dayKey(future, timezone: timezone) == dayKey(now, timezone: timezone)
+        ? state.activeUseSeconds : 0
+    }
+    guard dayKey(future, timezone: timezone) != dayKey(now, timezone: timezone) else {
+      return state.activeUseSeconds + max(0, future.timeIntervalSince(now))
+    }
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: timezone) ?? .current
+    return max(0, future.timeIntervalSince(calendar.startOfDay(for: future)))
   }
 
   private func dayKey(_ date: Date, timezone: String) -> String {
@@ -558,6 +654,17 @@ public enum EndpointContinuousClock {
     var info = mach_timebase_info_data_t()
     mach_timebase_info(&info)
     let nanoseconds = Double(mach_continuous_time()) * Double(info.numer) / Double(info.denom)
+    return nanoseconds / 1_000_000_000
+  }
+}
+
+/// Unlike `mach_continuous_time`, this clock pauses while the Mac sleeps. It is used only for
+/// active-use accounting; wall-clock tamper detection continues to use the continuous clock.
+public enum EndpointActiveUseClock {
+  public static func uptime() -> TimeInterval {
+    var info = mach_timebase_info_data_t()
+    mach_timebase_info(&info)
+    let nanoseconds = Double(mach_absolute_time()) * Double(info.numer) / Double(info.denom)
     return nanoseconds / 1_000_000_000
   }
 }
