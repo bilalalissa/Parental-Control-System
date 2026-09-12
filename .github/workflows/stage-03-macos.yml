@@ -150,10 +150,14 @@ jobs:
           fi
           console_user="$(/usr/bin/stat -f '%Su' /dev/console)"
           console_user_home="$(/usr/bin/dscl . -read "/Users/$console_user" NFSHomeDirectory | /usr/bin/awk '{print $2}')"
+          console_is_admin=false
+          if /usr/sbin/dseditgroup -o checkmember -m "$console_user" admin | /usr/bin/grep -q 'yes'; then
+            console_is_admin=true
+          fi
           status_ok=false
           for attempt in {1..12}; do
             if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status.json && \
-              node -e 'const s = JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status.json", "utf8")); if (s.helperHealthy !== true || s.sessionState === "unknown") process.exit(1)'; then
+              node -e 'const s = JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status.json", "utf8")); const admin = process.argv[1] === "true"; if (s.daemonHealthy !== true || (admin ? (s.helperHealthy !== false || s.sessionState !== "unknown") : (s.helperHealthy !== true || s.sessionState === "unknown"))) process.exit(1)' "$console_is_admin"; then
               status_ok=true
               break
             fi
@@ -161,7 +165,7 @@ jobs:
           done
           status_exit=0
           if [[ "$status_ok" == true ]]; then
-            node -e 'const fs = require("node:fs"); const status = JSON.parse(fs.readFileSync(".artifacts/endpoint-status.json", "utf8")); if (status.daemonHealthy !== true || status.helperHealthy !== true || status.sessionState === "unknown" || status.connectionState !== "unpaired" || !status.deviceID || status.activityCollectionEnabled !== true || status.activityRetentionDays !== 7 || status.browserCollectionEnabled !== false || status.browserRetentionDays !== 7 || status.browserTabs.length !== 0) process.exit(1)'
+            node -e 'const fs = require("node:fs"); const status = JSON.parse(fs.readFileSync(".artifacts/endpoint-status.json", "utf8")); const admin = process.argv[1] === "true"; if (status.daemonHealthy !== true || (admin ? (status.helperHealthy !== false || status.sessionState !== "unknown") : (status.helperHealthy !== true || status.sessionState === "unknown")) || status.connectionState !== "unpaired" || !status.deviceID || status.activityCollectionEnabled !== true || status.activityRetentionDays !== 7 || status.browserCollectionEnabled !== false || status.browserRetentionDays !== 7 || status.browserTabs.length !== 0) process.exit(1)' "$console_is_admin"
             first_device_id="$(node -p 'JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status.json", "utf8")).deviceID')"
             test "$(sudo /usr/bin/stat -f '%u:%Lp' "/Library/Application Support/ParentalControlAgent/endpoint-identity.key")" = "0:600"
             test "$(sudo /usr/bin/stat -f '%u:%Lp' "/Library/Application Support/ParentalControlAgent/xpc-clients.plist")" = "0:600"
@@ -191,7 +195,7 @@ jobs:
             upgrade_status_ok=false
             for attempt in {1..12}; do
               if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status-upgrade.json && \
-                node -e 'const s = JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status-upgrade.json", "utf8")); if (s.helperHealthy !== true || s.sessionState === "unknown") process.exit(1)'; then
+                node -e 'const s = JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status-upgrade.json", "utf8")); const admin = process.argv[1] === "true"; if (s.daemonHealthy !== true || (admin ? (s.helperHealthy !== false || s.sessionState !== "unknown") : (s.helperHealthy !== true || s.sessionState === "unknown"))) process.exit(1)' "$console_is_admin"; then
                 upgrade_status_ok=true
                 break
               fi
@@ -231,7 +235,7 @@ jobs:
             reconnect_ok=false
             for attempt in {1..12}; do
               if /usr/local/bin/parental-control-agentctl status > .artifacts/endpoint-status-reconnect.json && \
-                node -e 'const s = JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status-reconnect.json", "utf8")); if (s.helperHealthy !== true || s.sessionState === "unknown") process.exit(1)'; then
+                node -e 'const s = JSON.parse(require("fs").readFileSync(".artifacts/endpoint-status-reconnect.json", "utf8")); const admin = process.argv[1] === "true"; if (s.daemonHealthy !== true || (admin ? (s.helperHealthy !== false || s.sessionState !== "unknown") : (s.helperHealthy !== true || s.sessionState === "unknown"))) process.exit(1)' "$console_is_admin"; then
                 reconnect_ok=true
                 break
               fi
