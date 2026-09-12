@@ -7,7 +7,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 Status: **STAGE-06E ready for developer retest; unreleased**
 
 - Reports whether the foreground macOS account is a standard child, an adult administrator, or no signed-in user so an intentionally excluded administrator session is no longer misdiagnosed as a broken helper.
-- Gives account-aware guidance for helper health, browser acknowledgements, and Secure Lock without weakening the current-standard-user XPC boundary.
+- Gives account-aware guidance for helper health, browser acknowledgements, and Secure Lock without weakening the current-standard-user XPC boundary; capability negotiation clears stale role data after an endpoint downgrade or identity repair.
 - Separates a warning-only daily-quota reset from actual availability and displays the next configured weekly window independently.
 - Bounds the fixed read-only Secure Lock readiness command to three seconds so an OS-tool stall cannot block the helper indefinitely.
 
