@@ -14,6 +14,12 @@ struct EndpointSecureLockTests {
       EndpointSecureLockVerifier.parse(
         statusText: "screenLock delay is 300 seconds", terminationStatus: 0) == .passwordDelayed)
     #expect(
+      EndpointSecureLockVerifier.parse(
+        statusText: "screenLock delay is 0 seconds", terminationStatus: 0) == .ready)
+    #expect(
+      EndpointSecureLockVerifier.parse(
+        statusText: "screenLock delay is 0.0 seconds", terminationStatus: 0) == .ready)
+    #expect(
       EndpointSecureLockVerifier.parse(statusText: "screenLock is off", terminationStatus: 0)
         == .passwordNotRequired)
     #expect(
@@ -23,6 +29,21 @@ struct EndpointSecureLockTests {
       EndpointSecureLockVerifier.parse(
         statusText: "screenLock delay is immediate", terminationStatus: 1)
         == .verificationUnavailable)
+  }
+
+  @Test("readiness is refreshed on a bounded interval and after clock rollback")
+  func readinessRefreshGate() {
+    let now = Date(timeIntervalSince1970: 2_000_000_000)
+    #expect(EndpointSecureLockVerifier.shouldRefresh(lastCheckedAt: nil, now: now))
+    #expect(
+      !EndpointSecureLockVerifier.shouldRefresh(
+        lastCheckedAt: now.addingTimeInterval(-59), now: now))
+    #expect(
+      EndpointSecureLockVerifier.shouldRefresh(
+        lastCheckedAt: now.addingTimeInterval(-60), now: now))
+    #expect(
+      EndpointSecureLockVerifier.shouldRefresh(
+        lastCheckedAt: now.addingTimeInterval(1), now: now))
   }
 
   @Test("session reports preserve readiness and confirmed lock evidence")

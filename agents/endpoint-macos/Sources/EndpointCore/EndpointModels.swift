@@ -19,6 +19,72 @@ public enum EndpointSessionState: String, Codable, Sendable {
   case unknown
 }
 
+public struct EndpointConsoleUser: Equatable, Sendable {
+  public let name: String
+  public let uid: uid_t
+
+  public init(name: String, uid: uid_t) {
+    self.name = String(name.prefix(128))
+    self.uid = uid
+  }
+}
+
+/// Binds enforcement-sensitive work to the foreground standard-user session. The package-wide
+/// LaunchAgent can exist in multiple Aqua login sessions, but an adult administrator or a
+/// background fast-user-switched helper must never overwrite child enforcement state.
+public enum EndpointConsoleSession {
+  private static let groupLookupLock = NSLock()
+
+  public static func currentUser() -> EndpointConsoleUser? {
+    var uid: uid_t = 0
+    var gid: gid_t = 0
+    guard let value = SCDynamicStoreCopyConsoleUser(nil, &uid, &gid) as String?,
+      value != "loginwindow", uid >= 500
+    else { return nil }
+    return EndpointConsoleUser(name: value, uid: uid)
+  }
+
+  public static func isCurrentStandardUser(uid: uid_t) -> Bool {
+    guard let current = currentUser() else { return false }
+    return allowsSensitiveOperation(
+      uid: uid, consoleUID: current.uid, isAdministrator: isAdministrator(uid: uid))
+  }
+
+  public static func hasCurrentStandardUser() -> Bool {
+    guard let current = currentUser() else { return false }
+    return !isAdministrator(uid: current.uid)
+  }
+
+  public static func allowsSensitiveOperation(
+    uid: uid_t, consoleUID: uid_t?, isAdministrator: Bool
+  ) -> Bool {
+    uid >= 500 && uid == consoleUID && !isAdministrator
+  }
+
+  public static func isAdministrator(uid: uid_t) -> Bool {
+    groupLookupLock.lock()
+    defer { groupLookupLock.unlock() }
+    guard uid >= 500, let password = getpwuid(uid) else { return true }
+    let user = String(cString: password.pointee.pw_name)
+    let primaryGroup = Int32(password.pointee.pw_gid)
+    guard let admin = getgrnam("admin") else { return true }
+    let adminGroup = Int32(admin.pointee.gr_gid)
+    var count: Int32 = 16
+    var groups = [Int32](repeating: 0, count: Int(count))
+    var result = user.withCString {
+      getgrouplist($0, primaryGroup, &groups, &count)
+    }
+    if result == -1, count > 0, count <= 1_024 {
+      groups = [Int32](repeating: 0, count: Int(count))
+      result = user.withCString {
+        getgrouplist($0, primaryGroup, &groups, &count)
+      }
+    }
+    guard result >= 0, count >= 0 else { return true }
+    return groups.prefix(Int(count)).contains(adminGroup)
+  }
+}
+
 public enum EndpointSecureLockReadiness: String, Codable, Sendable {
   case unknown
   case ready
@@ -121,6 +187,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var policyAction: PolicyAction?
   public var policyReason: String?
   public var policyLastEvaluatedAt: Date?
+  public var policyRestrictionID: UUID?
   public var policyNextRestrictionAt: Date?
   public var policyNextAllowanceAt: Date?
   public var policyAllowanceSummary: EndpointAllowanceSummary?
@@ -155,6 +222,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     browserTabs: [EndpointBrowserTab] = [], policyVersion: UInt64? = nil,
     policyDecision: PolicyDecisionKind? = nil, policyAction: PolicyAction? = nil,
     policyReason: String? = nil, policyLastEvaluatedAt: Date? = nil,
+    policyRestrictionID: UUID? = nil,
     policyNextRestrictionAt: Date? = nil, policyClockTrusted: Bool = true,
     policyNextAllowanceAt: Date? = nil, policyAllowanceSummary: EndpointAllowanceSummary? = nil,
     adultOverrideUntil: Date? = nil,
@@ -189,6 +257,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     self.policyAction = policyAction
     self.policyReason = policyReason.map { String($0.prefix(500)) }
     self.policyLastEvaluatedAt = policyLastEvaluatedAt
+    self.policyRestrictionID = policyRestrictionID
     self.policyNextRestrictionAt = policyNextRestrictionAt
     self.policyNextAllowanceAt = policyNextAllowanceAt
     self.policyAllowanceSummary = policyAllowanceSummary
@@ -487,14 +556,7 @@ public enum DeviceSnapshotCollector {
   }
 
   public static func consoleUser() -> String? {
-    var uid: uid_t = 0
-    var gid: gid_t = 0
-    guard let value = SCDynamicStoreCopyConsoleUser(nil, &uid, &gid) as String?,
-      value != "loginwindow"
-    else {
-      return nil
-    }
-    return String(value.prefix(128))
+    EndpointConsoleSession.currentUser()?.name
   }
 
   public static func networkMetadata() -> [NetworkMetadata] {

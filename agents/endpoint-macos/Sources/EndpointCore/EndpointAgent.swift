@@ -229,6 +229,7 @@ public final class EndpointAgent: @unchecked Sendable {
     refreshed.policyAction = former.policyAction
     refreshed.policyReason = former.policyReason
     refreshed.policyLastEvaluatedAt = former.policyLastEvaluatedAt
+    refreshed.policyRestrictionID = former.policyRestrictionID
     refreshed.policyNextRestrictionAt = former.policyNextRestrictionAt
     refreshed.policyNextAllowanceAt = former.policyNextAllowanceAt
     refreshed.policyAllowanceSummary = former.policyAllowanceSummary

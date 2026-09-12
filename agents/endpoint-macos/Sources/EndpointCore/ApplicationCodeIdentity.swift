@@ -131,6 +131,11 @@ public struct ApplicationRestrictionAttemptGate: Sendable {
     handledPolicyVersions.removeValue(forKey: processIdentifier)
   }
 
+  public mutating func cancel(processIdentifier: Int32, policyVersion: Int64) {
+    guard handledPolicyVersions[processIdentifier] == policyVersion else { return }
+    handledPolicyVersions.removeValue(forKey: processIdentifier)
+  }
+
   public func isCurrent(processIdentifier: Int32, policyVersion: Int64) -> Bool {
     handledPolicyVersions[processIdentifier] == policyVersion
   }

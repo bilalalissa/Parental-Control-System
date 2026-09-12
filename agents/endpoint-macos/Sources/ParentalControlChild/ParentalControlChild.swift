@@ -314,7 +314,7 @@ struct ChildDashboard: View {
             } ?? "No application policy")
           if Self.hasBrowserProtectionGap(status) {
             Label(
-              "Website protection needs adult attention: an installed browser profile is not reporting the current policy. Its extension may be disabled, removed, stopped, or not enrolled.",
+              "Website protection needs adult attention: no enrolled profile has applied the current policy, or a profile reported an error or older policy. Open the affected browser and check its extension.",
               systemImage: "exclamationmark.shield.fill"
             )
             .font(.caption.weight(.semibold))
@@ -334,9 +334,9 @@ struct ChildDashboard: View {
             if let version = status.policyVersion {
               LabeledContent("Signed policy", value: "Version \(version)")
               LabeledContent(
-                "Current decision", value: status.policyDecision?.rawValue.capitalized ?? "Pending")
+                "Current result", value: Self.policyResult(status))
               LabeledContent(
-                "Restriction", value: status.policyAction?.rawValue.capitalized ?? "None")
+                "Configured action", value: Self.policyAction(status.policyAction))
               if let allowance = status.policyAllowanceSummary {
                 LabeledContent("Schedule time zone", value: allowance.timezone)
                 LabeledContent(
@@ -370,7 +370,9 @@ struct ChildDashboard: View {
                     : "\(allowance.dailyQuotaMinutes) min"
                 )
                 LabeledContent(
-                  "Active-use remaining", value: "About \(allowance.quotaRemainingMinutes) min")
+                  allowance.scheduledWindowEndAt == nil
+                    ? "Unused active time today" : "Active-use remaining",
+                  value: "About \(allowance.quotaRemainingMinutes) min")
                 if let until = allowance.temporaryAllowanceUntil, until > Date() {
                   LabeledContent(
                     "Temporary parent allowance",
@@ -385,7 +387,8 @@ struct ChildDashboard: View {
               {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                   LabeledContent(
-                    "Effective time remaining",
+                    status.policyAction == .warningOnly
+                      ? "Next policy warning in" : "Time until restriction",
                     value: Self.countdown(until: restrictionAt, now: context.date)
                   )
                   .monospacedDigit()
@@ -669,10 +672,30 @@ struct ChildDashboard: View {
 
   static func hasBrowserProtectionGap(_ status: EndpointStatus, now: Date = Date()) -> Bool {
     guard let policy = status.websitePolicy, !policy.domains.isEmpty else { return false }
-    let reports = BrowserCoverageInventory.reports(status.browserProtectionReports ?? [], now: now)
-    guard !reports.isEmpty else { return true }
-    return reports.contains {
-      $0.label(expectedVersion: policy.version, now: now, online: true) != "Policy applied"
+    let reports = BrowserProtectionCoverage.enrolledReports(
+      BrowserCoverageInventory.reports(status.browserProtectionReports ?? [], now: now),
+      retiredReportIDs: policy.retiredReportIDs)
+    return BrowserProtectionCoverage.hasProtectionGap(
+      reports: reports, expectedVersion: policy.version, now: now, online: true)
+  }
+
+  static func policyResult(_ status: EndpointStatus) -> String {
+    switch status.policyDecision {
+    case .allow: return "Allowed"
+    case .block:
+      return status.policyAction == .warningOnly ? "Limit reached · warning only" : "Restricted"
+    case nil: return "Pending"
+    }
+  }
+
+  static func policyAction(_ action: PolicyAction?) -> String {
+    switch action {
+    case .warningOnly: return "Warn only"
+    case .lock: return "Lock"
+    case .logoff: return "Log out"
+    case .restart: return "Restart"
+    case .shutdown: return "Shut down"
+    case nil: return "None"
     }
   }
 }

@@ -2,9 +2,20 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
-## 0.6.5-rc.7 — 2026-09-10
+## 0.6.5-rc.8 — 2026-09-11
 
 Status: **STAGE-06E ready for developer retest; unreleased**
+
+- Corrects quota projection across policy-local midnight so the countdown selects the next day's exact active-use quota boundary instead of a later weekly-window boundary.
+- Clarifies `Allowed`, `Limit reached · warning only`, unused-today quota, and next-warning labels so a warn-only policy is not presented as an enforced restriction.
+- Stops inventing browser profiles from installed apps. Real profiles that stop reporting remain protection gaps; an adult can explicitly retire a removed/re-enrolled profile identity through a newer signed website policy.
+- Refreshes secure-lock readiness every minute and accepts macOS zero-second output variants in addition to `immediate`.
+- Limits sensitive per-user XPC and enforcement work to the current foreground standard account, preventing administrator or fast-switched sessions from overwriting child state.
+- Binds queued schedule actions to one restriction instance, expires immediate actions, and safely defers/revalidates actions across fast user switching. App-refusal lock fallbacks can retry after the child session returns.
+
+## 0.6.5-rc.7 — 2026-09-10
+
+Status: **STAGE-06E changes requested; superseded by RC8**
 
 - Projects schedule transitions at exact civil-time boundaries, refreshes the published decision immediately after an authenticated unlock, and keeps wake inactive until macOS reports that the GUI session actually became active.
 - Separates the sleep-pausing active-use clock from the continuous clock used for wall-clock tamper detection, so sleeping and awake Lock Screen time are not charged to the child's quota.

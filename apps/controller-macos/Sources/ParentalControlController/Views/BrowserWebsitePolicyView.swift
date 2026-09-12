@@ -9,6 +9,7 @@ struct BrowserWebsitePolicyView: View {
   let store: ControllerStore
   @State private var domains = ""
   @State private var confirming = false
+  @State private var retiringReport: BrowserProtectionReport?
 
   var body: some View {
     SectionCard {
@@ -40,13 +41,13 @@ struct BrowserWebsitePolicyView: View {
           .font(.caption).foregroundStyle(.secondary)
         if hasProtectionGap {
           Label(
-            "Protection gap: one or more installed browser profiles are not reporting the current website policy. The extension may be disabled, removed, stopped, or not enrolled.",
+            "Protection gap: no enrolled profile has applied the current website policy, or a profile reported an error or older policy. Open the affected browser and check its extension.",
             systemImage: "exclamationmark.shield.fill"
           )
           .font(.caption.weight(.semibold))
           .foregroundStyle(ControlTheme.accentSoft)
         }
-        ForEach(configuration.protectionReports ?? []) { report in
+        ForEach(enrolledReports) { report in
           HStack(alignment: .top) {
             VStack(alignment: .leading) {
               Text(report.browser.capitalized)
@@ -61,6 +62,14 @@ struct BrowserWebsitePolicyView: View {
                 expectedVersion: configuration.websitePolicy?.version, now: now,
                 online: device.state(now: now) == .online)
             ).font(.caption)
+            if report.label(
+              expectedVersion: configuration.websitePolicy?.version, now: now,
+              online: device.state(now: now) == .online) == "Not reporting"
+            {
+              Button("Retire Profile…") { retiringReport = report }
+                .font(.caption)
+                .help("Use only after this browser profile or extension installation was removed.")
+            }
           }
         }
         Text(
@@ -84,16 +93,35 @@ struct BrowserWebsitePolicyView: View {
       }
       Button("Cancel", role: .cancel) {}
     }
+    .alert(item: $retiringReport) { report in
+      Alert(
+        title: Text("Retire this browser profile?"),
+        message: Text(
+          "Only continue if profile \(report.profile.prefix(8)) in \(report.browser.capitalized) was removed or its extension was reinstalled under a new profile identity. This stops the old profile from counting as a protection gap."
+        ),
+        primaryButton: .destructive(Text("Retire Profile")) { retire(report) },
+        secondaryButton: .cancel())
+    }
   }
 
   private var hasProtectionGap: Bool {
     guard configuration.websitePolicy?.domains.isEmpty == false else { return false }
-    let reports = configuration.protectionReports ?? []
-    guard !reports.isEmpty else { return true }
-    return reports.contains {
-      $0.label(
-        expectedVersion: configuration.websitePolicy?.version, now: now,
-        online: device.state(now: now) == .online) != "Policy applied"
-    }
+    return BrowserProtectionCoverage.hasProtectionGap(
+      reports: enrolledReports, expectedVersion: configuration.websitePolicy?.version, now: now,
+      online: device.state(now: now) == .online)
+  }
+
+  private var enrolledReports: [BrowserProtectionReport] {
+    BrowserProtectionCoverage.enrolledReports(
+      configuration.protectionReports ?? [],
+      retiredReportIDs: configuration.websitePolicy?.retiredReportIDs ?? [])
+  }
+
+  private func retire(_ report: BrowserProtectionReport) {
+    var retired = configuration.websitePolicy?.retiredReportIDs ?? []
+    retired.append(report.id)
+    store.applyBrowserWebsitePolicy(
+      configuration: configuration,
+      domains: configuration.websitePolicy?.domains ?? [], retiredReportIDs: retired)
   }
 }

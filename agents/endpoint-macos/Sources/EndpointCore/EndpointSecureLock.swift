@@ -3,6 +3,7 @@ import Foundation
 public enum EndpointSecureLockVerifier {
   public static let executable = "/usr/sbin/sysadminctl"
   public static let arguments = ["-screenLock", "status"]
+  public static let refreshInterval: TimeInterval = 60
 
   public static func parse(statusText: String, terminationStatus: Int32)
     -> EndpointSecureLockReadiness
@@ -12,7 +13,14 @@ public enum EndpointSecureLockVerifier {
       .replacingOccurrences(of: "\n", with: " ")
       .split(whereSeparator: \.isWhitespace)
       .joined(separator: " ")
-    if normalized.contains("screenlock delay is immediate") { return .ready }
+    let delayPrefix = "screenlock delay is "
+    if normalized.contains(delayPrefix + "immediate") { return .ready }
+    if let range = normalized.range(of: delayPrefix) {
+      let value = normalized[range.upperBound...].split(separator: " ").first.flatMap {
+        Double($0)
+      }
+      if value == 0 { return .ready }
+    }
     if normalized.contains("screenlock is off")
       || normalized.contains("screenlock delay is off")
       || normalized.contains("screenlock delay is never")
@@ -21,6 +29,12 @@ public enum EndpointSecureLockVerifier {
     }
     if normalized.contains("screenlock delay is") { return .passwordDelayed }
     return .verificationUnavailable
+  }
+
+  public static func shouldRefresh(lastCheckedAt: Date?, now: Date) -> Bool {
+    guard let lastCheckedAt else { return true }
+    let age = now.timeIntervalSince(lastCheckedAt)
+    return age < 0 || age >= refreshInterval
   }
 
   /// Uses one fixed, read-only macOS command. No shell, credentials, or mutable arguments are

@@ -43,15 +43,58 @@ final class BrowserWebsitePolicyTests: XCTestCase {
       browser: "chrome", profile: "synthetic", version: 2, state: "applied", observedAt: now)
     XCTAssertEqual(r.label(expectedVersion: 2, now: now, online: true), "Policy applied")
     XCTAssertEqual(r.label(expectedVersion: 3, now: now, online: true), "Policy pending")
-    XCTAssertEqual(r.label(expectedVersion: 2, now: now, online: false), "Not reporting")
+    XCTAssertEqual(r.label(expectedVersion: 2, now: now, online: false), "Device offline")
     XCTAssertEqual(
-      r.label(expectedVersion: 2, now: now.addingTimeInterval(181), online: true), "Not reporting")
+      r.label(expectedVersion: 2, now: now.addingTimeInterval(181), online: true),
+      "Not reporting")
   }
 
-  func testSafariIsReportedAsSetupRequiredUntilItsProfileAcknowledges() {
-    let reports = BrowserCoverageInventory.reports([])
-    if let safari = reports.first(where: { $0.browser == "safari" }) {
-      XCTAssertEqual(safari.state, "setup-required")
+  func testInstalledBrowserPathDoesNotInventAnEnrolledProfile() {
+    XCTAssertTrue(BrowserCoverageInventory.reports([]).isEmpty)
+  }
+
+  func testStaleAcknowledgementRemainsAGapUntilAdultRetiresIt() throws {
+    let now = Date()
+    let fresh = BrowserProtectionReport(
+      browser: "arc", profile: "current", version: 7, state: "applied", observedAt: now)
+    let old = BrowserProtectionReport(
+      browser: "arc", profile: "retired", version: 7, state: "applied",
+      observedAt: now.addingTimeInterval(-3_600))
+    let inferred = BrowserProtectionReport(
+      browser: "safari", profile: "", version: nil, state: "setup-required", observedAt: now)
+    let reports = BrowserCoverageInventory.reports([fresh, old, inferred], now: now)
+
+    XCTAssertEqual(reports.map(\.profile), ["current", "retired"])
+    XCTAssertTrue(
+      BrowserProtectionCoverage.hasProtectionGap(
+        reports: reports, expectedVersion: 7, now: now, online: true))
+    let policy = try BrowserWebsitePolicy(
+      version: 8, domains: ["example.com"], retiredReportIDs: [old.id])
+    let active = BrowserProtectionCoverage.enrolledReports(
+      reports, retiredReportIDs: policy.retiredReportIDs)
+    XCTAssertEqual(active.map(\.profile), ["current"])
+    XCTAssertFalse(
+      BrowserProtectionCoverage.hasProtectionGap(
+        reports: active, expectedVersion: 7, now: now, online: true))
+  }
+
+  func testOlderPolicyDecodesWithNoRetiredReports() throws {
+    let data = Data(#"{"version":7,"domains":["example.com"]}"#.utf8)
+    let policy = try JSONDecoder().decode(BrowserWebsitePolicy.self, from: data)
+    XCTAssertEqual(policy.retiredReportIDs, [])
+  }
+
+  func testErrorAndVersionMismatchStillRequireAttention() {
+    let now = Date()
+    for report in [
+      BrowserProtectionReport(
+        browser: "arc", profile: "error", version: 7, state: "error", observedAt: now),
+      BrowserProtectionReport(
+        browser: "arc", profile: "old-policy", version: 6, state: "applied", observedAt: now),
+    ] {
+      XCTAssertTrue(
+        BrowserProtectionCoverage.hasProtectionGap(
+          reports: [report], expectedVersion: 7, now: now, online: true))
     }
   }
 

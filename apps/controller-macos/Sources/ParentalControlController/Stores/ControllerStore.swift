@@ -297,13 +297,17 @@ final class ControllerStore {
     }
   }
 
-  func applyBrowserWebsitePolicy(configuration: BrowserConfiguration, domains: [String]) {
+  func applyBrowserWebsitePolicy(
+    configuration: BrowserConfiguration, domains: [String], retiredReportIDs: [String]? = nil
+  ) {
     Task {
       do {
         let version = max(
           Int64(Date().timeIntervalSince1970 * 1000),
           (configuration.websitePolicy?.version ?? 0) + 1)
-        let policy = try BrowserWebsitePolicy(version: version, domains: domains)
+        let policy = try BrowserWebsitePolicy(
+          version: version, domains: domains,
+          retiredReportIDs: retiredReportIDs ?? configuration.websitePolicy?.retiredReportIDs ?? [])
         applyHubStatus(
           try await hubClient.configureBrowser(
             deviceID: configuration.deviceID,

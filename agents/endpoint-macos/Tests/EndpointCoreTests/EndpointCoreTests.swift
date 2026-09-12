@@ -448,6 +448,18 @@ struct EndpointCoreTests {
       !XPCAuthorization.allows(
         uid: 501, signingIdentifier: EndpointMachService.controlIdentifier,
         operation: "session-update"))
+    #expect(XPCAuthorization.requiresCurrentStandardSession("session-update"))
+    #expect(XPCAuthorization.requiresCurrentStandardSession("browser-update"))
+    #expect(!XPCAuthorization.requiresCurrentStandardSession("status"))
+    #expect(
+      EndpointConsoleSession.allowsSensitiveOperation(
+        uid: 502, consoleUID: 502, isAdministrator: false))
+    #expect(
+      !EndpointConsoleSession.allowsSensitiveOperation(
+        uid: 501, consoleUID: 502, isAdministrator: false))
+    #expect(
+      !EndpointConsoleSession.allowsSensitiveOperation(
+        uid: 502, consoleUID: 502, isAdministrator: true))
     #expect(
       XPCAuthorization.isExpectedInstalledPath(
         "/usr/local/bin/parental-control-agentctl",
@@ -596,6 +608,9 @@ struct EndpointCoreTests {
     #expect(firstAttempt)
     #expect(!repeatedAttempt)
     #expect(gate.isCurrent(processIdentifier: 41, policyVersion: 7))
+    gate.cancel(processIdentifier: 41, policyVersion: 7)
+    let retryAfterCancellation = gate.begin(processIdentifier: 41, policyVersion: 7)
+    #expect(retryAfterCancellation)
     let newerPolicyAttempt = gate.begin(processIdentifier: 41, policyVersion: 8)
     #expect(newerPolicyAttempt)
     gate.processDidTerminate(41)

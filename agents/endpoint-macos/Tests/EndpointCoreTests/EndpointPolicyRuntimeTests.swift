@@ -84,7 +84,7 @@ struct EndpointPolicyRuntimeTests {
       identity.sign(policy: blocked), controllerPublicKey: identity.publicKeyData)
     #expect(
       runtime.tick(now: start, uptime: 100, sessionActive: true).contains {
-        if case .enforce = $0 { return true }
+        if case .enforcePolicy = $0 { return true }
         return false
       })
 
@@ -94,7 +94,7 @@ struct EndpointPolicyRuntimeTests {
     #expect(runtime.snapshot(now: start).1.adultOverrideUntil == expiry)
     #expect(
       runtime.tick(now: expiry, uptime: 700, sessionActive: true).contains {
-        if case .enforce = $0 { return true }
+        if case .enforcePolicy = $0 { return true }
         return false
       })
     #expect(throws: EndpointPolicyError.invalidInstallerMaintenance) {
@@ -126,7 +126,9 @@ struct EndpointPolicyRuntimeTests {
       now: start.addingTimeInterval(610), uptime: 111, sessionActive: false)
     #expect(
       action.contains(
-        .enforce(action: .logoff, explanation: "Authenticated immediate action")))
+        .enforceImmediate(
+          action: .logoff, explanation: "Authenticated immediate action",
+          expiresAt: start.addingTimeInterval(700))))
     #expect(runtime.snapshot().1.immediateAction == nil)
   }
 
@@ -135,14 +137,98 @@ struct EndpointPolicyRuntimeTests {
     let root = temporaryRoot()
     defer { try? FileManager.default.removeItem(at: root) }
     let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
-    try runtime.setImmediateAction(.lock, expiresAt: Date().addingTimeInterval(120))
+    let now = Date()
+    let expiresAt = now.addingTimeInterval(120)
+    try runtime.setImmediateAction(.lock, expiresAt: expiresAt, now: now)
+    let expected = EndpointPolicyEvent.enforceImmediate(
+      action: .lock, explanation: "Authenticated immediate action", expiresAt: expiresAt)
     #expect(
-      runtime.tick(now: Date(), uptime: 100, sessionActive: true)
-        == [.enforce(action: .lock, explanation: "Authenticated immediate action")])
+      runtime.tick(now: now, uptime: 100, sessionActive: true) == [expected])
+    #expect(runtime.claimUserEvents(now: now) == [expected])
+    #expect(runtime.claimUserEvents(now: now).isEmpty)
+  }
+
+  @Test("queued enforcement is rejected after its policy or decision becomes stale")
+  func staleQueuedEnforcementIsRejected() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    let blocked = ParentalControlPolicy(
+      version: 1, deviceID: "child-policy-test", timezone: "UTC",
+      effectiveAt: now.addingTimeInterval(-3_600),
+      expiresAt: now.addingTimeInterval(3_600), defaultAction: .lock,
+      gracePeriodSeconds: 0,
+      weeklyAllowed: PolicyWeekday.allCases.map {
+        PolicyWeeklyWindow(day: $0, start: "00:00", end: "23:59")
+      },
+      blockedIntervals: [
+        PolicyBlockedInterval(
+          start: now.addingTimeInterval(-60), end: now.addingTimeInterval(60),
+          action: .lock, reason: "Synthetic short block")
+      ], dailyQuotaMinutes: 1_440, childExplanation: "Synthetic stale-event test",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.install(
+      identity.sign(policy: blocked), controllerPublicKey: identity.publicKeyData)
     #expect(
-      runtime.claimUserEvents()
-        == [.enforce(action: .lock, explanation: "Authenticated immediate action")])
-    #expect(runtime.claimUserEvents().isEmpty)
+      runtime.tick(now: now, uptime: 100, sessionActive: true).contains {
+        if case .enforcePolicy = $0 { return true }
+        return false
+      })
+
+    #expect(runtime.claimUserEvents(now: now.addingTimeInterval(61)).isEmpty)
+
+    _ = runtime.tick(now: now, uptime: 200, sessionActive: true)
+    let replacement = blocked.replacing(version: 2, signature: blocked.signature)
+    try runtime.install(
+      identity.sign(policy: replacement), controllerPublicKey: identity.publicKeyData)
+    #expect(runtime.claimUserEvents(now: now).isEmpty)
+  }
+
+  @Test("an old restriction event cannot bypass a later restriction grace period")
+  func restrictionInstanceBindsQueuedEnforcement() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    let value = ParentalControlPolicy(
+      version: 1, deviceID: "child-policy-test", timezone: "UTC",
+      effectiveAt: now.addingTimeInterval(-3_600), expiresAt: now.addingTimeInterval(3_600),
+      defaultAction: .lock, gracePeriodSeconds: 30,
+      weeklyAllowed: PolicyWeekday.allCases.map {
+        PolicyWeeklyWindow(day: $0, start: "00:00", end: "23:59")
+      },
+      blockedIntervals: [
+        PolicyBlockedInterval(
+          start: now.addingTimeInterval(-60), end: now.addingTimeInterval(60), action: .lock,
+          reason: "Restriction A"),
+        PolicyBlockedInterval(
+          start: now.addingTimeInterval(120), end: now.addingTimeInterval(600), action: .lock,
+          reason: "Restriction B"),
+      ], dailyQuotaMinutes: 1_440, childExplanation: "Synthetic instance test",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+    let runtime = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try runtime.install(identity.sign(policy: value), controllerPublicKey: identity.publicKeyData)
+
+    _ = runtime.tick(now: now, uptime: 100, sessionActive: true)
+    _ = runtime.tick(now: now.addingTimeInterval(30), uptime: 130, sessionActive: true)
+    _ = runtime.tick(now: now.addingTimeInterval(61), uptime: 161, sessionActive: true)
+    _ = runtime.tick(now: now.addingTimeInterval(120), uptime: 220, sessionActive: true)
+    let duringSecondGrace = runtime.claimUserEvents(now: now.addingTimeInterval(120))
+    #expect(
+      !duringSecondGrace.contains { event in
+        if case .enforcePolicy = event { return true }
+        return false
+      })
+
+    _ = runtime.tick(now: now.addingTimeInterval(150), uptime: 250, sessionActive: true)
+    let afterSecondGrace = runtime.claimUserEvents(now: now.addingTimeInterval(150))
+    #expect(
+      afterSecondGrace.contains { event in
+        if case .enforcePolicy(.lock, "Restriction B", 1, _) = event { return true }
+        return false
+      })
   }
 
   @Test("warning and approved-time events survive until the user helper claims them")
@@ -206,26 +292,38 @@ struct EndpointPolicyRuntimeTests {
       restored.tick(now: start.addingTimeInterval(59), uptime: 159, sessionActive: true).isEmpty)
     #expect(
       restored.tick(now: start.addingTimeInterval(60), uptime: 160, sessionActive: true)
-        .contains(.enforce(action: .lock, explanation: "Synthetic bedtime")))
+        .contains { event in
+          if case .enforcePolicy(.lock, "Synthetic bedtime", 1, _) = event { return true }
+          return false
+        })
     #expect(
       restored.tick(now: start.addingTimeInterval(61), uptime: 161, sessionActive: true).isEmpty)
     restored.rearmRestrictionForActiveSession(now: start.addingTimeInterval(62))
     #expect(
       restored.tick(now: start.addingTimeInterval(62), uptime: 162, sessionActive: true)
-        .contains(.enforce(action: .lock, explanation: "Synthetic bedtime")))
+        .contains { event in
+          if case .enforcePolicy(.lock, "Synthetic bedtime", 1, _) = event { return true }
+          return false
+        })
     restored.rearmRestrictionForActiveSession(now: start.addingTimeInterval(63))
     #expect(
       restored.tick(now: start.addingTimeInterval(63), uptime: 163, sessionActive: true).isEmpty)
     restored.rearmRestrictionForActiveSession(now: start.addingTimeInterval(65))
     #expect(
       restored.tick(now: start.addingTimeInterval(65), uptime: 165, sessionActive: true)
-        .contains(.enforce(action: .lock, explanation: "Synthetic bedtime")))
+        .contains { event in
+          if case .enforcePolicy(.lock, "Synthetic bedtime", 1, _) = event { return true }
+          return false
+        })
 
     let rebooted = EndpointPolicyRuntime(
       root: root, deviceID: "child-policy-test", controllerPublicKey: identity.publicKeyData)
     #expect(
       rebooted.tick(now: start.addingTimeInterval(120), uptime: 10, sessionActive: false)
-        .contains(.enforce(action: .lock, explanation: "Synthetic bedtime")))
+        .contains { event in
+          if case .enforcePolicy(.lock, "Synthetic bedtime", 1, _) = event { return true }
+          return false
+        })
   }
 
   @Test("sleep and resume preserve clock trust without counting sleep as active use")
@@ -348,6 +446,41 @@ struct EndpointPolicyRuntimeTests {
     #expect(abs(plannedWindowSeconds - TimeInterval((14 * 60 + 52) * 60)) < 0.001)
     #expect(summary.totalQuotaMinutes == 270)
     #expect(summary.quotaRemainingMinutes == 270)
+    #expect(summary.limitingReason == "Daily active-use quota reached")
+  }
+
+  @Test("quota projection resets at policy midnight before crossing into the next day")
+  func projectedQuotaAcrossMidnightUsesNextDayBoundary() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let now = try #require(ISO8601DateFormatter().date(from: "2026-09-12T02:50:00Z"))
+    let policy = ParentalControlPolicy(
+      version: 1, deviceID: "child-policy-test", timezone: "America/Regina",
+      effectiveAt: now.addingTimeInterval(-3_600),
+      expiresAt: now.addingTimeInterval(8 * 86_400), defaultAction: .warningOnly,
+      weeklyAllowed: PolicyWeekday.allCases.map {
+        PolicyWeeklyWindow(day: $0, start: "08:00", end: "18:00")
+      }, dailyQuotaMinutes: 540, bonusMinutes: 10,
+      childExplanation: "Synthetic cross-midnight projection",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+    let initial = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try initial.install(identity.sign(policy: policy), controllerPublicKey: identity.publicKeyData)
+    let state = EndpointPolicyRuntimeState(
+      usageDay: "2026-09-11", activeUseSeconds: 51 * 60, lastSessionActive: true)
+    try JSONEncoder.endpoint.encode(state).write(
+      to: root.appendingPathComponent("policy-runtime.json"), options: .atomic)
+    let runtime = EndpointPolicyRuntime(
+      root: root, deviceID: "child-policy-test", controllerPublicKey: identity.publicKeyData)
+
+    let restriction = try #require(
+      runtime.projectedRestrictionDate(now: now, sessionActive: true))
+    #expect(restriction == ISO8601DateFormatter().date(from: "2026-09-12T15:10:00Z"))
+    #expect(restriction != ISO8601DateFormatter().date(from: "2026-09-13T00:00:00Z"))
+    let summary = try #require(
+      runtime.allowanceSummary(
+        now: now, sessionActive: true, nextRestrictionAt: restriction))
+    #expect(summary.quotaRemainingMinutes == 499)
     #expect(summary.limitingReason == "Daily active-use quota reached")
   }
 
