@@ -232,12 +232,26 @@ private struct PairedDeviceDetailView: View {
       .foregroundStyle(.secondary)
       if device.state(now: now) == .online, device.helperHealthy == false {
         Label(
-          "Protection gap: the child enforcement helper is not reporting. Scheduled locks and application restrictions may not run until an adult repairs the child installation.",
+          helperProtectionMessage,
           systemImage: "exclamationmark.shield.fill"
         )
         .font(.caption.weight(.semibold))
         .foregroundStyle(ControlTheme.accentSoft)
       }
+    }
+  }
+
+  private var helperProtectionMessage: String {
+    switch device.consoleAccountType {
+    case "administrator":
+      return
+        "Adult administrator session active. Child activity, browser reporting, Secure Lock, and restrictions are intentionally paused. Sign in to the standard child account to resume protection."
+    case "none":
+      return
+        "No eligible child desktop session is active. Sign in to the standard child account to resume session protection."
+    default:
+      return
+        "Protection gap: the child enforcement helper is not reporting. If the current account is a standard child account, an adult should repair the child installation."
     }
   }
 
@@ -390,10 +404,22 @@ private struct PairedDeviceDetailView: View {
   }
 
   private var secureLockReady: Bool {
-    device.secureLockReadiness == "ready"
+    let eligibleAccount =
+      device.consoleAccountType == nil || device.consoleAccountType == "standard"
+    return device.helperHealthy == true && eligibleAccount
+      && device.secureLockReadiness == "ready"
   }
 
   private var secureLockStatusText: String {
+    if device.consoleAccountType == "administrator" {
+      return "Secure Lock paused · administrator sessions are intentionally excluded"
+    }
+    if device.consoleAccountType == "none" {
+      return "Secure Lock paused · no standard child session is active"
+    }
+    if device.consoleAccountType == "standard", device.helperHealthy == false {
+      return "Secure Lock unavailable · the standard-child helper is not reporting"
+    }
     switch device.secureLockReadiness {
     case "ready":
       if device.secureLockConfirmation == "confirmed", let date = device.secureLockConfirmedAt {
@@ -527,9 +553,7 @@ private struct PairedDeviceDetailView: View {
         .font(.caption).foregroundStyle(.secondary)
         if browserTabs.isEmpty {
           Text(
-            browserConfiguration.enabled
-              ? "No browser metadata received. Install and enable the extension in Chrome, Edge, or Arc."
-              : "Browser sharing is disabled."
+            browserEmptyStateMessage
           )
           .font(.caption).foregroundStyle(.secondary)
         } else {
@@ -545,6 +569,19 @@ private struct PairedDeviceDetailView: View {
         }
       }
     }
+  }
+
+  private var browserEmptyStateMessage: String {
+    guard browserConfiguration.enabled else { return "Browser sharing is disabled." }
+    if device.consoleAccountType == "administrator" {
+      return
+        "Browser reporting is intentionally paused in the adult administrator session. Sign in to the standard child account and open its enrolled browser profile."
+    }
+    if device.consoleAccountType == "none" {
+      return "Browser reporting is paused because no standard child session is active."
+    }
+    return
+      "No browser metadata received. Open an enrolled profile in Chrome, Edge, Arc, Brave, Firefox, or Safari and check its extension."
   }
 
   private func browserRow(_ tab: HubBrowserTab) -> some View {

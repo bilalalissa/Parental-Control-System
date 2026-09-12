@@ -70,7 +70,7 @@ test("Stage 06E follows the approved browser stage without claiming system exten
   const state = JSON.parse(tracker);
   const active = state.stages.find((candidate) => candidate.id === state.activeStage);
   assert.equal(active.id, "STAGE-06E");
-  assert.equal(active.version, "0.6.5-rc.8");
+  assert.equal(active.version, "0.6.5-rc.9");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
       active.status,
@@ -102,7 +102,7 @@ test("Stage 06D contract is content-minimal, bounded, and recoverable", () => {
   assert.match(decision, /no URLs, paths, queries, DNS history, packets, payloads, browsing history/i);
 });
 
-test("Stage 06E RC8 keeps schedule, session identity, and browser gaps explicit", () => {
+test("Stage 06E RC9 keeps schedule, session identity, and browser gaps explicit", () => {
   assert.match(policyRuntime, /mach_absolute_time\(\)/);
   assert.match(policyRuntime, /mach_continuous_time\(\)/);
   assert.match(policyRuntime, /weeklyAllowedIntervals/);

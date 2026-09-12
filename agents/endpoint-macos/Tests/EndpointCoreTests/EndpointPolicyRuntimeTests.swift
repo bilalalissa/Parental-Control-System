@@ -511,6 +511,90 @@ struct EndpointPolicyRuntimeTests {
     #expect(runtime.projectedAllowanceDate(now: start) == start.addingTimeInterval(10 * 60))
   }
 
+  @Test("quota reset and next weekly window stay distinct after Saturday quota exhaustion")
+  func warningOnlyQuotaResetIsNotScheduledAvailability() throws {
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let now = try #require(ISO8601DateFormatter().date(from: "2026-09-12T21:24:00Z"))
+    let midnight = try #require(ISO8601DateFormatter().date(from: "2026-09-13T06:00:00Z"))
+    let sundayWindow = try #require(
+      ISO8601DateFormatter().date(from: "2026-09-13T14:00:00Z"))
+
+    func runtime(action: PolicyAction) throws -> (EndpointPolicyRuntime, URL) {
+      let root = temporaryRoot()
+      let policy = ParentalControlPolicy(
+        version: 1, deviceID: "child-policy-test", timezone: "America/Regina",
+        effectiveAt: now.addingTimeInterval(-86_400),
+        expiresAt: now.addingTimeInterval(8 * 86_400), defaultAction: action,
+        weeklyAllowed: PolicyWeekday.allCases.map {
+          PolicyWeeklyWindow(day: $0, start: "08:00", end: "18:00")
+        }, dailyQuotaMinutes: 540, bonusMinutes: 10,
+        childExplanation: "Synthetic Saturday quota projection",
+        signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+      let initial = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+      try initial.install(
+        identity.sign(policy: policy), controllerPublicKey: identity.publicKeyData)
+      try JSONEncoder.endpoint.encode(
+        EndpointPolicyRuntimeState(
+          usageDay: "2026-09-12", activeUseSeconds: 550 * 60, lastSessionActive: true)
+      ).write(to: root.appendingPathComponent("policy-runtime.json"), options: .atomic)
+      return (
+        EndpointPolicyRuntime(
+          root: root, deviceID: "child-policy-test",
+          controllerPublicKey: identity.publicKeyData), root
+      )
+    }
+
+    let (warningRuntime, warningRoot) = try runtime(action: .warningOnly)
+    defer { try? FileManager.default.removeItem(at: warningRoot) }
+    #expect(warningRuntime.projectedAllowanceDate(now: now) == midnight)
+    let warningSummary = try #require(
+      warningRuntime.allowanceSummary(now: now, sessionActive: true, nextRestrictionAt: nil))
+    #expect(warningSummary.nextScheduledWindowStartAt == sundayWindow)
+
+    let (lockRuntime, lockRoot) = try runtime(action: .lock)
+    defer { try? FileManager.default.removeItem(at: lockRoot) }
+    #expect(lockRuntime.projectedAllowanceDate(now: now) == sundayWindow)
+    let lockSummary = try #require(
+      lockRuntime.allowanceSummary(now: now, sessionActive: true, nextRestrictionAt: nil))
+    #expect(lockSummary.nextScheduledWindowStartAt == sundayWindow)
+  }
+
+  @Test("warning countdown preserves the evaluator's higher-priority decision source")
+  func warningCountdownUsesDecisionSource() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let identity = try Ed25519Identity(keyID: "controller-local-authority")
+    let now = try #require(ISO8601DateFormatter().date(from: "2026-09-12T23:50:00Z"))
+    let intervalEnd = try #require(
+      ISO8601DateFormatter().date(from: "2026-09-13T00:30:00Z"))
+    let policy = ParentalControlPolicy(
+      version: 1, deviceID: "child-policy-test", timezone: "UTC",
+      effectiveAt: now.addingTimeInterval(-86_400),
+      expiresAt: now.addingTimeInterval(8 * 86_400), defaultAction: .warningOnly,
+      weeklyAllowed: PolicyWeekday.allCases.map {
+        PolicyWeeklyWindow(day: $0, start: "00:00", end: "23:59")
+      },
+      blockedIntervals: [
+        PolicyBlockedInterval(
+          start: now.addingTimeInterval(-5 * 60), end: intervalEnd,
+          action: .warningOnly, reason: "Synthetic higher-priority warning")
+      ], dailyQuotaMinutes: 1, childExplanation: "Synthetic overlapping warning",
+      signature: PolicySignature(keyID: "controller-local-authority", value: "unsigned"))
+    let initial = EndpointPolicyRuntime(root: root, deviceID: "child-policy-test")
+    try initial.install(identity.sign(policy: policy), controllerPublicKey: identity.publicKeyData)
+    try JSONEncoder.endpoint.encode(
+      EndpointPolicyRuntimeState(
+        usageDay: "2026-09-12", activeUseSeconds: 60, lastSessionActive: true)
+    ).write(to: root.appendingPathComponent("policy-runtime.json"), options: .atomic)
+    let runtime = EndpointPolicyRuntime(
+      root: root, deviceID: "child-policy-test", controllerPublicKey: identity.publicKeyData)
+
+    _ = runtime.tick(now: now, uptime: 100, sessionActive: true)
+
+    #expect(runtime.snapshot(now: now).2?.source == .blockedInterval)
+    #expect(runtime.projectedAllowanceDate(now: now) == intervalEnd)
+  }
+
   @Test("schedule relock stops at an allowed-window boundary and rejects stale decisions")
   func scheduleRelockGate() throws {
     let now = Date(timeIntervalSince1970: 1_800_000_030)

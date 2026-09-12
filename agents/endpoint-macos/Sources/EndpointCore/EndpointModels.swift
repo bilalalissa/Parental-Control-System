@@ -29,6 +29,12 @@ public struct EndpointConsoleUser: Equatable, Sendable {
   }
 }
 
+public enum EndpointConsoleAccountType: String, Codable, Equatable, Sendable {
+  case standard
+  case administrator
+  case none
+}
+
 /// Binds enforcement-sensitive work to the foreground standard-user session. The package-wide
 /// LaunchAgent can exist in multiple Aqua login sessions, but an adult administrator or a
 /// background fast-user-switched helper must never overwrite child enforcement state.
@@ -53,6 +59,11 @@ public enum EndpointConsoleSession {
   public static func hasCurrentStandardUser() -> Bool {
     guard let current = currentUser() else { return false }
     return !isAdministrator(uid: current.uid)
+  }
+
+  public static func currentAccountType() -> EndpointConsoleAccountType {
+    guard let current = currentUser() else { return .none }
+    return isAdministrator(uid: current.uid) ? .administrator : .standard
   }
 
   public static func allowsSensitiveOperation(
@@ -110,11 +121,13 @@ public struct EndpointAllowanceSummary: Codable, Equatable, Sendable {
   public let activeUseMinutes: Int
   public let temporaryAllowanceUntil: Date?
   public let limitingReason: String?
+  public let nextScheduledWindowStartAt: Date?
 
   public init(
     timezone: String, scheduledWindowStartAt: Date?, scheduledWindowEndAt: Date?,
     dailyQuotaMinutes: Int, bonusMinutes: Int, activeUseMinutes: Int,
-    temporaryAllowanceUntil: Date?, limitingReason: String?
+    temporaryAllowanceUntil: Date?, limitingReason: String?,
+    nextScheduledWindowStartAt: Date? = nil
   ) {
     self.timezone = timezone
     self.scheduledWindowStartAt = scheduledWindowStartAt
@@ -124,6 +137,7 @@ public struct EndpointAllowanceSummary: Codable, Equatable, Sendable {
     self.activeUseMinutes = max(0, activeUseMinutes)
     self.temporaryAllowanceUntil = temporaryAllowanceUntil
     self.limitingReason = limitingReason.map { String($0.prefix(500)) }
+    self.nextScheduledWindowStartAt = nextScheduledWindowStartAt
   }
 
   public var plannedWindowSeconds: TimeInterval? {
@@ -165,6 +179,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var bootTime: Date
   public var sessionState: EndpointSessionState
   public var consoleUser: String?
+  public var consoleAccountType: EndpointConsoleAccountType?
   public var secureLockReadiness: EndpointSecureLockReadiness?
   public var secureLockConfirmation: EndpointSecureLockConfirmation?
   public var secureLockConfirmedAt: Date?
@@ -184,6 +199,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var browserProtectionReports: [BrowserProtectionReport]?
   public var policyVersion: UInt64?
   public var policyDecision: PolicyDecisionKind?
+  public var policyDecisionSource: PolicyDecisionSource?
   public var policyAction: PolicyAction?
   public var policyReason: String?
   public var policyLastEvaluatedAt: Date?
@@ -205,6 +221,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     bootTime: Date,
     sessionState: EndpointSessionState = .unknown,
     consoleUser: String? = nil,
+    consoleAccountType: EndpointConsoleAccountType? = nil,
     secureLockReadiness: EndpointSecureLockReadiness? = nil,
     secureLockConfirmation: EndpointSecureLockConfirmation? = nil,
     secureLockConfirmedAt: Date? = nil,
@@ -220,7 +237,8 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     browserCollectionEnabled: Bool = false,
     browserRetentionDays: Int = 7,
     browserTabs: [EndpointBrowserTab] = [], policyVersion: UInt64? = nil,
-    policyDecision: PolicyDecisionKind? = nil, policyAction: PolicyAction? = nil,
+    policyDecision: PolicyDecisionKind? = nil,
+    policyDecisionSource: PolicyDecisionSource? = nil, policyAction: PolicyAction? = nil,
     policyReason: String? = nil, policyLastEvaluatedAt: Date? = nil,
     policyRestrictionID: UUID? = nil,
     policyNextRestrictionAt: Date? = nil, policyClockTrusted: Bool = true,
@@ -237,6 +255,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     self.bootTime = bootTime
     self.sessionState = sessionState
     self.consoleUser = consoleUser
+    self.consoleAccountType = consoleAccountType
     self.secureLockReadiness = secureLockReadiness
     self.secureLockConfirmation = secureLockConfirmation
     self.secureLockConfirmedAt = secureLockConfirmedAt
@@ -254,6 +273,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     self.browserTabs = Array(browserTabs.prefix(128))
     self.policyVersion = policyVersion
     self.policyDecision = policyDecision
+    self.policyDecisionSource = policyDecisionSource
     self.policyAction = policyAction
     self.policyReason = policyReason.map { String($0.prefix(500)) }
     self.policyLastEvaluatedAt = policyLastEvaluatedAt
@@ -542,6 +562,11 @@ public struct SessionUpdate: Codable, Equatable, Sendable {
 public enum DeviceSnapshotCollector {
   public static func collect(deviceID: String, session: SessionUpdate? = nil) -> EndpointStatus {
     let uptime = UInt64(max(0, ProcessInfo.processInfo.systemUptime))
+    let consoleUser = EndpointConsoleSession.currentUser()
+    let accountType: EndpointConsoleAccountType =
+      consoleUser.map {
+        EndpointConsoleSession.isAdministrator(uid: $0.uid) ? .administrator : .standard
+      } ?? .none
     return EndpointStatus(
       deviceID: deviceID,
       deviceName: Host.current().localizedName ?? ProcessInfo.processInfo.hostName,
@@ -550,8 +575,9 @@ public enum DeviceSnapshotCollector {
       architecture: machineArchitecture(),
       uptimeSeconds: uptime,
       bootTime: Date(timeIntervalSinceNow: -TimeInterval(uptime)),
-      sessionState: session?.state ?? .unknown,
-      consoleUser: session?.consoleUser,
+      sessionState: accountType == .standard ? (session?.state ?? .unknown) : .unknown,
+      consoleUser: consoleUser?.name,
+      consoleAccountType: accountType,
       networks: networkMetadata())
   }
 

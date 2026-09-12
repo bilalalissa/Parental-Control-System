@@ -81,6 +81,7 @@ public struct HubDeviceRecord: Codable, Equatable, Identifiable, Sendable {
   public let isRevoked: Bool
   public let networkInterfaces: [HubNetworkInterface]?
   public let helperHealthy: Bool?
+  public let consoleAccountType: String?
   public let secureLockReadiness: String?
   public let secureLockConfirmation: String?
   public let secureLockConfirmedAt: Date?
@@ -99,6 +100,7 @@ public struct HubDeviceRecord: Codable, Equatable, Identifiable, Sendable {
     isRevoked: Bool = false,
     networkInterfaces: [HubNetworkInterface]? = nil,
     helperHealthy: Bool? = nil,
+    consoleAccountType: String? = nil,
     secureLockReadiness: String? = nil,
     secureLockConfirmation: String? = nil,
     secureLockConfirmedAt: Date? = nil
@@ -116,6 +118,7 @@ public struct HubDeviceRecord: Codable, Equatable, Identifiable, Sendable {
     self.isRevoked = isRevoked
     self.networkInterfaces = networkInterfaces.map { Array($0.prefix(8)) }
     self.helperHealthy = helperHealthy
+    self.consoleAccountType = consoleAccountType.map { String($0.prefix(32)) }
     self.secureLockReadiness = secureLockReadiness.map { String($0.prefix(64)) }
     self.secureLockConfirmation = secureLockConfirmation.map { String($0.prefix(64)) }
     self.secureLockConfirmedAt = secureLockConfirmedAt

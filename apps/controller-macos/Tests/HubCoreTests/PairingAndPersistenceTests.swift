@@ -44,7 +44,8 @@ struct PairingAndPersistenceTests {
           publicKey: identity.publicKeyData,
           capabilities: ["presence", "chat"],
           pairedAt: pairedAt,
-          lastSeen: pairedAt
+          lastSeen: pairedAt,
+          consoleAccountType: "administrator"
         ))
       try database.updateSeen(
         deviceID: "mock-one", sequence: 7, snapshotVersion: 3, now: pairedAt.addingTimeInterval(1))
@@ -70,6 +71,7 @@ struct PairingAndPersistenceTests {
     #expect(device.secureLockConfirmation == "confirmed")
     #expect(device.secureLockConfirmedAt == pairedAt.addingTimeInterval(2))
     #expect(device.helperHealthy == false)
+    #expect(device.consoleAccountType == "administrator")
     #expect(device.state(now: pairedAt.addingTimeInterval(80)) == .offline)
     #expect(device.state(now: pairedAt.addingTimeInterval(-10)) == .offline)
   }

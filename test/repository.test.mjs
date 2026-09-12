@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/06e-macos-app-use-restrictions");
-  assert.equal(active[0].version, "0.6.5-rc.8");
+  assert.equal(active[0].version, "0.6.5-rc.9");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
       active[0].status,
@@ -183,8 +183,8 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
     read("agents/endpoint-macos/Sources/ParentalControlBrowserHost/main.swift"),
   ]);
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.6.5.8");
-  assert.equal(manifest.version_name, "0.6.5-rc.8");
+  assert.equal(manifest.version, "0.6.5.9");
+  assert.equal(manifest.version_name, "0.6.5-rc.9");
   assert.deepEqual(manifest.permissions.sort(), ["alarms", "declarativeNetRequest", "nativeMessaging", "storage", "tabs"]);
   for (const forbidden of ["history", "webRequest", "cookies", "downloads", "debugger"])
     assert.ok(!manifest.permissions.includes(forbidden));
@@ -201,7 +201,7 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /runtime\.onStartup/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.5-rc\.8\.zip"/);
+  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.5-rc\.9\.zip"/);
   assert.match(packager, /blocked\.html/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
@@ -385,8 +385,8 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
     read("agents/endpoint-macos/Installer/ChildComponents.plist"),
   ]);
   for (const build of [controllerBuild, endpointBuild]) {
-    assert.match(build, /VERSION="0\.6\.5-rc\.8"/);
-    assert.match(build, /CFBundleVersion string 6508/);
+    assert.match(build, /VERSION="0\.6\.5-rc\.9"/);
+    assert.match(build, /CFBundleVersion string 6509/);
     assert.match(build, /derived-data\/stage-06e/);
   }
   assert.match(packaging, /ParentalControlSystem-\$VERSION\.pkg/);
@@ -394,7 +394,7 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
   assert.match(packaging, /--component-plist "\$CHILD_COMPONENTS"/);
   assert.doesNotMatch(controllerComponents + childComponents, /<key>BundleIsRelocatable<\/key>\s*<true\/>/);
   assert.equal((childComponents.match(/<key>BundleIsRelocatable<\/key>/g) ?? []).length, 2);
-  assert.match(packaging, /--version 0\.6\.5\.8/);
+  assert.match(packaging, /--version 0\.6\.5\.9/);
   assert.match(packaging, /xpc-clients\.plist/);
   assert.match(endpointBuild, /file identity is authorized only for ad-hoc test builds/);
   assert.match(endpointBuild, /--options runtime/);
@@ -403,7 +403,7 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
   assert.match(packaging, /Parental Control Safari\.app/);
   assert.match(packaging, /ParentalControlBrowserExtension\/Chromium/);
   assert.match(packaging, /blocked\.html/);
-  assert.match(distribution, /version="0\.6\.5\.8"/);
+  assert.match(distribution, /version="0\.6\.5\.9"/);
   assert.match(preinstall, /Quit Safari completely/);
   assert.match(preinstall, /\.installer-maintenance\.plist/);
   assert.doesNotMatch(preinstall + postinstall, /delete-generic-password|rm[^\n]*configuration\.json/);
@@ -420,6 +420,7 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
   assert.match(helper, /createsNewApplicationInstance = true/);
   assert.match(secureLock, /\/usr\/sbin\/sysadminctl/);
   assert.match(secureLock, /"-screenLock", "status"/);
+  assert.match(secureLock, /commandTimeout: TimeInterval = 3/);
   assert.match(helper, /secureLockConfirmation = \.confirmed/);
   assert.match(helper, /secureLockReadiness == \.ready/);
   assert.doesNotMatch(helper + secureLock, /CGSession|osascript|CGEvent|AXUIElement/);
@@ -435,8 +436,15 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
   assert.match(child, /Scheduled time remaining/);
   assert.match(child, /Next policy warning in/);
   assert.match(child, /Next limiting rule/);
+  assert.match(child, /Daily quota resets in/);
+  assert.match(child, /policyDecisionSource == \.dailyQuota/);
+  assert.match(child, /Next scheduled window/);
+  assert.match(child, /Administrator — child enforcement paused/);
+  assert.match(devices, /Adult administrator session active/);
+  assert.match(devices, /consoleAccountType == nil \|\| device\.consoleAccountType == "standard"/);
+  assert.match(agent, /console-account-type/);
   assert.match(helper, /Next policy warning/);
-  assert.match(workflow, /ParentalControlSystem-0\.6\.5-rc\.8\.pkg/);
+  assert.match(workflow, /ParentalControlSystem-0\.6\.5-rc\.9\.pkg/);
   assert.doesNotMatch(workflow, /ParentalControlBrowserSharing-0\.6\.1-rc\.5/);
 });
 

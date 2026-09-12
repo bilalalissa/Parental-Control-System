@@ -291,8 +291,8 @@ struct ChildDashboard: View {
           row("Last contact", status.lastControllerContact?.formatted() ?? "Never")
           row("This Mac", "\(status.deviceName) · \(status.model)")
           row("System", "\(status.operatingSystem) · \(status.architecture)")
-          row("Session", status.sessionState.rawValue.capitalized)
-          row("Secure Lock readiness", Self.secureLockReadinessText(status.secureLockReadiness))
+          row("Session", Self.sessionText(status))
+          row("Secure Lock readiness", Self.secureLockReadinessText(status))
           row(
             "Last lock result",
             Self.secureLockConfirmationText(
@@ -314,7 +314,7 @@ struct ChildDashboard: View {
             } ?? "No application policy")
           if Self.hasBrowserProtectionGap(status) {
             Label(
-              "Website protection needs adult attention: no enrolled profile has applied the current policy, or a profile reported an error or older policy. Open the affected browser and check its extension.",
+              Self.browserProtectionMessage(status),
               systemImage: "exclamationmark.shield.fill"
             )
             .font(.caption.weight(.semibold))
@@ -401,10 +401,21 @@ struct ChildDashboard: View {
               {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                   LabeledContent(
-                    "Available in",
+                    Self.allowanceCountdownLabel(status),
                     value: Self.countdown(until: allowanceAt, now: context.date)
                   )
                   .monospacedDigit()
+                }
+                if status.policyAction == .warningOnly,
+                  let nextWindow = status.policyAllowanceSummary?.nextScheduledWindowStartAt
+                {
+                  LabeledContent(
+                    "Next scheduled window",
+                    value: Self.scheduleTime(
+                      nextWindow,
+                      timezone: status.policyAllowanceSummary?.timezone
+                        ?? TimeZone.current.identifier)
+                  )
                 }
               } else if status.policyDecision == .block {
                 LabeledContent("Countdown", value: "No allowed window within 8 days")
@@ -453,7 +464,7 @@ struct ChildDashboard: View {
                 ? "Managed identity configured" : "Not configured")
             LabeledContent(
               "Password-protected Lock Screen",
-              value: Self.secureLockReadinessText(status.secureLockReadiness))
+              value: Self.secureLockReadinessText(status))
             Text(
               "A lock is reported only after macOS verifies an immediate password requirement and the system screen saver activates. If readiness is unavailable, set Lock Screen > Require password after screen saver begins to Immediately. It does not replace macOS Login Window authentication."
             )
@@ -472,15 +483,61 @@ struct ChildDashboard: View {
   }
 
   private static func secureLockReadinessText(
-    _ readiness: EndpointSecureLockReadiness?
+    _ status: EndpointStatus
   ) -> String {
-    switch readiness ?? .unknown {
-    case .ready: "Ready — password required immediately"
-    case .passwordNotRequired: "Not ready — password requirement is off"
-    case .passwordDelayed: "Not ready — password requirement is delayed"
-    case .verificationUnavailable: "Unavailable — could not verify macOS setting"
-    case .unknown: "Checking"
+    switch effectiveConsoleAccountType(status) {
+    case .some(.administrator):
+      return "Paused for administrator session"
+    case .some(.none):
+      return "Paused until a standard child signs in"
+    case .some(.standard), nil:
+      break
     }
+    if !status.helperHealthy {
+      return "Unavailable — standard-child helper is not reporting"
+    }
+    switch status.secureLockReadiness ?? .unknown {
+    case .ready: return "Ready — password required immediately"
+    case .passwordNotRequired: return "Not ready — password requirement is off"
+    case .passwordDelayed: return "Not ready — password requirement is delayed"
+    case .verificationUnavailable: return "Unavailable — could not verify macOS setting"
+    case .unknown: return "Checking"
+    }
+  }
+
+  private static func sessionText(_ status: EndpointStatus) -> String {
+    switch effectiveConsoleAccountType(status) {
+    case .some(.administrator): return "Administrator — child enforcement paused"
+    case .some(.none): return "No standard child signed in"
+    case .some(.standard), nil:
+      return status.helperHealthy
+        ? status.sessionState.rawValue.capitalized : "Standard child — helper not reporting"
+    }
+  }
+
+  private static func browserProtectionMessage(_ status: EndpointStatus) -> String {
+    switch effectiveConsoleAccountType(status) {
+    case .some(.administrator):
+      return
+        "Website-policy reporting is intentionally paused in this adult administrator session. Sign in to the standard child account and open its enrolled browser profile."
+    case .some(.none):
+      return "Website-policy reporting is paused because no standard child session is active."
+    case .some(.standard), nil:
+      return
+        "Website protection needs adult attention: no enrolled profile has applied the current policy, or a profile reported an error or older policy. Open the affected browser and check its extension."
+    }
+  }
+
+  private static func allowanceCountdownLabel(_ status: EndpointStatus) -> String {
+    guard status.policyAction == .warningOnly else { return "Available in" }
+    return status.policyDecisionSource == .dailyQuota
+      ? "Daily quota resets in" : "Warning condition changes in"
+  }
+
+  private static func effectiveConsoleAccountType(
+    _: EndpointStatus
+  ) -> EndpointConsoleAccountType? {
+    EndpointConsoleSession.currentAccountType()
   }
 
   private static func secureLockConfirmationText(
@@ -683,7 +740,11 @@ struct ChildDashboard: View {
     switch status.policyDecision {
     case .allow: return "Allowed"
     case .block:
-      return status.policyAction == .warningOnly ? "Limit reached · warning only" : "Restricted"
+      if status.policyAction == .warningOnly {
+        return status.policyDecisionSource == .dailyQuota
+          ? "Daily quota reached · warning only" : "Policy warning · access remains available"
+      }
+      return "Restricted"
     case nil: return "Pending"
     }
   }

@@ -107,7 +107,8 @@ public final class EndpointAgent: @unchecked Sendable {
       "publicKey": .string(identity.publicKeyData.base64EncodedString()),
       "capabilities": .array([
         .string("presence"), .string("device-info"), .string("uptime"), .string("session-state"),
-        .string("network-metadata"), .string("health"), .string("delta-snapshot"),
+        .string("console-account-type"), .string("network-metadata"), .string("health"),
+        .string("delta-snapshot"),
         .string("receipt"), .string("app-activity"), .string("chat"),
         .string("app-use-restrictions"),
         .string("browser-tabs"), .string("browser-website-policy"), .string("request-more-time"),
@@ -211,7 +212,8 @@ public final class EndpointAgent: @unchecked Sendable {
       session: SessionUpdate(state: former.sessionState, consoleUser: former.consoleUser))
     refreshed.connectionState = .online
     refreshed.lastControllerContact = former.lastControllerContact
-    refreshed.helperHealthy = former.helperHealthy
+    refreshed.helperHealthy =
+      refreshed.consoleAccountType == .standard ? former.helperHealthy : false
     refreshed.secureLockReadiness = former.secureLockReadiness
     refreshed.secureLockConfirmation = former.secureLockConfirmation
     refreshed.secureLockConfirmedAt = former.secureLockConfirmedAt
@@ -226,6 +228,7 @@ public final class EndpointAgent: @unchecked Sendable {
     refreshed.browserProtectionReports = former.browserProtectionReports
     refreshed.policyVersion = former.policyVersion
     refreshed.policyDecision = former.policyDecision
+    refreshed.policyDecisionSource = former.policyDecisionSource
     refreshed.policyAction = former.policyAction
     refreshed.policyReason = former.policyReason
     refreshed.policyLastEvaluatedAt = former.policyLastEvaluatedAt
@@ -252,6 +255,7 @@ public final class EndpointAgent: @unchecked Sendable {
       "bootTime": .string(ISO8601DateFormatter().string(from: refreshed.bootTime)),
       "sessionState": .string(refreshed.sessionState.rawValue),
       "consoleUser": refreshed.consoleUser.map(JSONValue.string) ?? .null,
+      "consoleAccountType": refreshed.consoleAccountType.map { .string($0.rawValue) } ?? .null,
       "secureLockReadiness": refreshed.secureLockReadiness.map { .string($0.rawValue) } ?? .null,
       "secureLockConfirmation": refreshed.secureLockConfirmation.map { .string($0.rawValue) }
         ?? .null,

@@ -41,7 +41,7 @@ struct BrowserWebsitePolicyView: View {
           .font(.caption).foregroundStyle(.secondary)
         if hasProtectionGap {
           Label(
-            "Protection gap: no enrolled profile has applied the current website policy, or a profile reported an error or older policy. Open the affected browser and check its extension.",
+            protectionGapMessage,
             systemImage: "exclamationmark.shield.fill"
           )
           .font(.caption.weight(.semibold))
@@ -109,6 +109,18 @@ struct BrowserWebsitePolicyView: View {
     return BrowserProtectionCoverage.hasProtectionGap(
       reports: enrolledReports, expectedVersion: configuration.websitePolicy?.version, now: now,
       online: device.state(now: now) == .online)
+  }
+
+  private var protectionGapMessage: String {
+    if device.consoleAccountType == "administrator" {
+      return
+        "Website-policy reporting is intentionally paused in the adult administrator session. Sign in to the standard child account and open its enrolled browser profile."
+    }
+    if device.consoleAccountType == "none" {
+      return "Website-policy reporting is paused because no standard child session is active."
+    }
+    return
+      "Protection gap: no enrolled profile has applied the current website policy, or a profile reported an error or older policy. Open the affected browser and check its extension."
   }
 
   private var enrolledReports: [BrowserProtectionReport] {

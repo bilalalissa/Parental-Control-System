@@ -353,7 +353,12 @@ public final class EndpointPolicyRuntime: @unchecked Sendable {
       timezone: policy.timezone, scheduledWindowStartAt: scheduled?.start,
       scheduledWindowEndAt: scheduled?.end, dailyQuotaMinutes: policy.dailyQuotaMinutes,
       bonusMinutes: policy.bonusMinutes, activeUseMinutes: activeUseMinutes,
-      temporaryAllowanceUntil: temporaryAllowanceUntil, limitingReason: limitingReason)
+      temporaryAllowanceUntil: temporaryAllowanceUntil, limitingReason: limitingReason,
+      nextScheduledWindowStartAt: PolicyEvaluator.weeklyAllowedIntervals(
+        policy,
+        intersecting: DateInterval(
+          start: now, end: now.addingTimeInterval(8 * 24 * 60 * 60))
+      ).first { $0.start > now }?.start)
   }
 
   public func projectedAllowanceDate(

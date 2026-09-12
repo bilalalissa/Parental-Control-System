@@ -2,9 +2,18 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
-## 0.6.5-rc.8 — 2026-09-11
+## 0.6.5-rc.9 — 2026-09-12
 
 Status: **STAGE-06E ready for developer retest; unreleased**
+
+- Reports whether the foreground macOS account is a standard child, an adult administrator, or no signed-in user so an intentionally excluded administrator session is no longer misdiagnosed as a broken helper.
+- Gives account-aware guidance for helper health, browser acknowledgements, and Secure Lock without weakening the current-standard-user XPC boundary.
+- Separates a warning-only daily-quota reset from actual availability and displays the next configured weekly window independently.
+- Bounds the fixed read-only Secure Lock readiness command to three seconds so an OS-tool stall cannot block the helper indefinitely.
+
+## 0.6.5-rc.8 — 2026-09-11
+
+Status: **STAGE-06E changes requested; superseded by RC9**
 
 - Corrects quota projection across policy-local midnight so the countdown selects the next day's exact active-use quota boundary instead of a later weekly-window boundary.
 - Clarifies `Allowed`, `Limit reached · warning only`, unused-today quota, and next-warning labels so a warn-only policy is not presented as an enforced restriction.

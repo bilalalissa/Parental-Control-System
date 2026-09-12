@@ -46,6 +46,15 @@ struct EndpointSecureLockTests {
         lastCheckedAt: now.addingTimeInterval(1), now: now))
   }
 
+  @Test("a stalled readiness command is terminated within the bounded timeout")
+  func readinessCommandTimeout() {
+    let started = Date()
+    let result = EndpointSecureLockVerifier.execute(
+      executable: "/bin/sleep", arguments: ["2"], timeout: 0.05)
+    #expect(result == nil)
+    #expect(Date().timeIntervalSince(started) < 1)
+  }
+
   @Test("session reports preserve readiness and confirmed lock evidence")
   func statusPropagation() {
     let repository = EndpointStatusRepository(

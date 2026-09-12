@@ -1,9 +1,11 @@
+import Darwin
 import Foundation
 
 public enum EndpointSecureLockVerifier {
   public static let executable = "/usr/sbin/sysadminctl"
   public static let arguments = ["-screenLock", "status"]
   public static let refreshInterval: TimeInterval = 60
+  public static let commandTimeout: TimeInterval = 3
 
   public static func parse(statusText: String, terminationStatus: Int32)
     -> EndpointSecureLockReadiness
@@ -40,20 +42,40 @@ public enum EndpointSecureLockVerifier {
   /// Uses one fixed, read-only macOS command. No shell, credentials, or mutable arguments are
   /// involved, and output is retained only long enough to classify the password-delay setting.
   public static func current() -> EndpointSecureLockReadiness {
+    guard
+      let result = execute(
+        executable: executable, arguments: arguments, timeout: commandTimeout)
+    else { return .verificationUnavailable }
+    return parse(statusText: result.output, terminationStatus: result.terminationStatus)
+  }
+
+  static func execute(
+    executable: String, arguments: [String], timeout: TimeInterval
+  ) -> (output: String, terminationStatus: Int32)? {
     let process = Process()
     let pipe = Pipe()
+    let finished = DispatchSemaphore(value: 0)
     process.executableURL = URL(fileURLWithPath: executable)
     process.arguments = arguments
     process.standardOutput = pipe
     process.standardError = pipe
+    process.terminationHandler = { _ in finished.signal() }
     do {
       try process.run()
-      process.waitUntilExit()
+      guard finished.wait(timeout: .now() + max(0.05, timeout)) == .success else {
+        process.terminate()
+        if finished.wait(timeout: .now() + 0.25) == .timedOut {
+          if process.isRunning { Darwin.kill(process.processIdentifier, SIGKILL) }
+          _ = finished.wait(timeout: .now() + 0.25)
+        }
+        return nil
+      }
       let data = pipe.fileHandleForReading.readDataToEndOfFile()
-      let text = String(decoding: data.prefix(2_048), as: UTF8.self)
-      return parse(statusText: text, terminationStatus: process.terminationStatus)
+      return (
+        String(decoding: data.prefix(2_048), as: UTF8.self), process.terminationStatus
+      )
     } catch {
-      return .verificationUnavailable
+      return nil
     }
   }
 }

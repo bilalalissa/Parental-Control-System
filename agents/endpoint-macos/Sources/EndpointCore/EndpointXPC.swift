@@ -172,6 +172,7 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     value.consoleUser = (verifiedConsoleUser ?? update.consoleUser).map {
       String($0.prefix(128))
     }
+    value.consoleAccountType = .standard
     value.secureLockReadiness = update.secureLockReadiness
     value.secureLockConfirmation = update.secureLockConfirmation
     value.secureLockConfirmedAt = update.secureLockConfirmedAt
@@ -547,6 +548,7 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
         repository.update {
           $0.policyVersion = snapshot.0?.version
           $0.policyDecision = snapshot.2?.decision
+          $0.policyDecisionSource = snapshot.2?.source
           $0.policyAction = snapshot.2?.action
           $0.policyReason = snapshot.2?.reason
           $0.policyLastEvaluatedAt = now

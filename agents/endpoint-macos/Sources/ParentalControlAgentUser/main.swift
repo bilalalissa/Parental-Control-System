@@ -26,11 +26,13 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   private var messagesPrimed = false
   private var policyBanner: NSPanel?
   private var statusItem: NSStatusItem?
+  private var statusModeMenuItem: NSMenuItem?
   private var countdownMenuItem: NSMenuItem?
   private var nextRestrictionAt: Date?
   private var nextAllowanceAt: Date?
   private var nextLimitingReason: String?
   private var currentDecision: PolicyDecisionKind?
+  private var currentDecisionSource: PolicyDecisionSource?
   private var currentPolicyAction: PolicyAction?
   private var lastScheduleLockAttemptAt: Date?
   private var secureLockReadiness: EndpointSecureLockReadiness = .unknown
@@ -350,6 +352,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     menu.addItem(open)
     item.menu = menu
     countdownMenuItem = countdown
+    statusModeMenuItem = active
     statusItem = item
     renderStatusItem()
   }
@@ -367,6 +370,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
         self.nextAllowanceAt = status.policyNextAllowanceAt
         self.nextLimitingReason = status.policyAllowanceSummary?.limitingReason
         self.currentDecision = status.policyDecision
+        self.currentDecisionSource = status.policyDecisionSource
         self.currentPolicyAction = status.policyAction
         self.enforceBlockedScheduleIfNeeded(status, now: Date())
         self.renderStatusItem()
@@ -525,6 +529,48 @@ final class SessionReporter: NSObject, @unchecked Sendable {
 
   @MainActor private func renderStatusItem(now: Date = Date()) {
     guard let button = statusItem?.button else { return }
+    switch EndpointConsoleSession.currentAccountType() {
+    case .administrator:
+      statusModeMenuItem?.title = "Adult administrator session"
+      button.image = NSImage(
+        systemSymbolName: "person.badge.shield.checkmark",
+        accessibilityDescription: "Adult administrator session")
+      button.title = " Adult"
+      button.toolTip = "Adult administrator session; child enforcement is paused"
+      countdownMenuItem?.title = "Sign in to the standard child account to resume protection"
+      return
+    case .none:
+      statusModeMenuItem?.title = "No standard child session"
+      button.image = NSImage(
+        systemSymbolName: "person.crop.circle.badge.questionmark",
+        accessibilityDescription: "No standard child session")
+      button.title = " Paused"
+      button.toolTip = "No standard child session is active"
+      countdownMenuItem?.title = "Child enforcement is paused"
+      return
+    case .standard:
+      statusModeMenuItem?.title = "Parental control active"
+      break
+    }
+    if currentDecision == .block, currentPolicyAction == .warningOnly {
+      button.image = NSImage(
+        systemSymbolName: "exclamationmark.shield",
+        accessibilityDescription: "Family policy warning")
+      if let nextAllowanceAt, nextAllowanceAt > now {
+        let remaining = Self.shortCountdown(until: nextAllowanceAt, now: now)
+        let prefix =
+          currentDecisionSource == .dailyQuota
+          ? "Daily quota resets" : "Warning condition changes"
+        button.title = " \(remaining)"
+        button.toolTip = "\(prefix) in \(remaining); access remains available"
+        countdownMenuItem?.title = "\(prefix) in \(remaining) · warning only"
+      } else {
+        button.title = " Warning"
+        button.toolTip = "Family policy warning; access remains available"
+        countdownMenuItem?.title = "Warning only · access remains available"
+      }
+      return
+    }
     if currentDecision == .block {
       button.image = NSImage(
         systemSymbolName: "lock.fill", accessibilityDescription: "Family restriction active")

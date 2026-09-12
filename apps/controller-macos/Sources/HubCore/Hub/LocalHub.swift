@@ -757,6 +757,14 @@ public final class LocalHub: @unchecked Sendable {
       {
         try database.saveHelperHealth(helperHealthy, deviceID: device.id)
       }
+      if case .object(let changed) = envelope.payload["changed"],
+        let accountType = changed["consoleAccountType"]?.stringValue
+      {
+        guard ["standard", "administrator", "none"].contains(accountType) else {
+          throw LocalHubError.unexpectedMessage
+        }
+        try database.saveConsoleAccountType(accountType, deviceID: device.id)
+      }
       try database.updateSeen(
         deviceID: device.id, sequence: envelope.sequence, snapshotVersion: version)
       try database.appendAudit(
