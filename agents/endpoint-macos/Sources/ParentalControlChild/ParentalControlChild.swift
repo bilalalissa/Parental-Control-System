@@ -486,15 +486,13 @@ struct ChildDashboard: View {
     _ status: EndpointStatus
   ) -> String {
     switch effectiveConsoleAccountType(status) {
-    case .some(.administrator):
-      return "Paused for administrator session"
     case .some(.none):
-      return "Paused until a standard child signs in"
-    case .some(.standard), nil:
+      return "Paused until a child session signs in"
+    case .some(.administrator), .some(.standard), nil:
       break
     }
     if !status.helperHealthy {
-      return "Unavailable — standard-child helper is not reporting"
+      return "Unavailable — child-session helper is not reporting"
     }
     switch status.secureLockReadiness ?? .unknown {
     case .ready: return "Ready — password required immediately"
@@ -507,11 +505,14 @@ struct ChildDashboard: View {
 
   private static func sessionText(_ status: EndpointStatus) -> String {
     switch effectiveConsoleAccountType(status) {
-    case .some(.administrator): return "Administrator — child enforcement paused"
-    case .some(.none): return "No standard child signed in"
+    case .some(.administrator):
+      return status.helperHealthy
+        ? "Administrator — controls active; administrator can bypass"
+        : "Administrator — child-session helper not reporting"
+    case .some(.none): return "No child session signed in"
     case .some(.standard), nil:
       return status.helperHealthy
-        ? status.sessionState.rawValue.capitalized : "Standard child — helper not reporting"
+        ? status.sessionState.rawValue.capitalized : "Child-session helper not reporting"
     }
   }
 
@@ -519,9 +520,9 @@ struct ChildDashboard: View {
     switch effectiveConsoleAccountType(status) {
     case .some(.administrator):
       return
-        "Website-policy reporting is intentionally paused in this adult administrator session. Sign in to the standard child account and open its enrolled browser profile."
+        "Website protection needs adult attention: no enrolled profile has applied the current policy, or a profile reported an error or older policy. An administrator can disable or remove an unmanaged extension."
     case .some(.none):
-      return "Website-policy reporting is paused because no standard child session is active."
+      return "Website-policy reporting is paused because no child session is active."
     case .some(.standard), nil:
       return
         "Website protection needs adult attention: no enrolled profile has applied the current policy, or a profile reported an error or older policy. Open the affected browser and check its extension."

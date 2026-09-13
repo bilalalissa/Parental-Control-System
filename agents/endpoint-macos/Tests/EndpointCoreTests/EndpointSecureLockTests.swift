@@ -63,9 +63,13 @@ struct EndpointSecureLockTests {
     _ = repository.applySession(
       SessionUpdate(
         state: .locked, consoleUser: "child", secureLockReadiness: .ready,
-        secureLockConfirmation: .confirmed, secureLockConfirmedAt: confirmedAt))
+        secureLockConfirmation: .confirmed, secureLockConfirmedAt: confirmedAt),
+      verifiedConsoleUser: "admin-child", verifiedAccountType: .administrator)
     let status = repository.status()
     #expect(status.sessionState == .locked)
+    #expect(status.consoleUser == "admin-child")
+    #expect(status.consoleAccountType == .administrator)
+    #expect(status.helperHealthy)
     #expect(status.secureLockReadiness == .ready)
     #expect(status.secureLockConfirmation == .confirmed)
     #expect(status.secureLockConfirmedAt == confirmedAt)

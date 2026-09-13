@@ -216,9 +216,11 @@ private final class EndpointPolicyScheduler: @unchecked Sendable {
   private func evaluate() {
     let current = repository.status()
     let now = Date()
+    let consoleUser = EndpointConsoleSession.currentUser()
     let sessionActive =
       current.sessionState == .active
-      && EndpointConsoleSession.hasCurrentStandardUser()
+      && consoleUser != nil
+      && consoleUser?.name == current.consoleUser
     let events = runtime.tick(
       now: now, activeUptime: EndpointActiveUseClock.uptime(), sessionActive: sessionActive)
     let snapshot = runtime.snapshot()

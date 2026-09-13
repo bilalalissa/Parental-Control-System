@@ -75,13 +75,17 @@ public enum EndpointXPCManifestError: Error, Equatable, CustomStringConvertible 
   }
 }
 
-/// Verifies the root-owned package manifest and all fixed client executables once at daemon
-/// startup. A connection is then mapped by its kernel-reported executable path to that exact
-/// prevalidated record, avoiding the unreliable PID-to-SecCode lookup used by RC3.
+/// Verifies the root-owned package manifest and all fixed client executables at daemon startup,
+/// then revalidates the live path against that immutable manifest for every new connection.
+/// Mapping still uses the kernel-reported executable path, avoiding the unreliable
+/// PID-to-SecCode lookup used by RC3, while an administrator replacing a package path cannot gain
+/// a stale prevalidated role without restarting the daemon into a fail-closed manifest check.
 public final class EndpointXPCClientVerifier: @unchecked Sendable {
   private let records: [String: EndpointXPCClientRecord]
+  private let requireRootProtection: Bool
 
   public init(manifestURL: URL, requireRootProtection: Bool = true) throws {
+    self.requireRootProtection = requireRootProtection
     guard FileManager.default.fileExists(atPath: manifestURL.path) else {
       throw EndpointXPCManifestError.missingManifest
     }
@@ -111,6 +115,10 @@ public final class EndpointXPCClientVerifier: @unchecked Sendable {
     guard uid != 0, let path = Self.processPath(pid: pid), let record = records[path] else {
       return nil
     }
+    if requireRootProtection, !XPCAuthorization.isRootProtected(path) { return nil }
+    guard (try? Self.sha256(path: path)) == record.sha256,
+      Self.validSigningIdentifier(path: path) == record.identifier
+    else { return nil }
     return record.identifier
   }
 

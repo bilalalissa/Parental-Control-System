@@ -35,9 +35,11 @@ public enum EndpointConsoleAccountType: String, Codable, Equatable, Sendable {
   case none
 }
 
-/// Binds enforcement-sensitive work to the foreground standard-user session. The package-wide
-/// LaunchAgent can exist in multiple Aqua login sessions, but an adult administrator or a
-/// background fast-user-switched helper must never overwrite child enforcement state.
+/// Binds session-sensitive work to the foreground interactive session. The package-wide
+/// LaunchAgent can exist in multiple Aqua login sessions, so a background fast-user-switched
+/// helper must never overwrite the enrolled endpoint's current session state. Administrator
+/// membership remains a visible bypass-risk classification, not a reason to misclassify the
+/// installed child endpoint as uncontrolled.
 public enum EndpointConsoleSession {
   private static let groupLookupLock = NSLock()
 
@@ -52,13 +54,12 @@ public enum EndpointConsoleSession {
 
   public static func isCurrentStandardUser(uid: uid_t) -> Bool {
     guard let current = currentUser() else { return false }
-    return allowsSensitiveOperation(
-      uid: uid, consoleUID: current.uid, isAdministrator: isAdministrator(uid: uid))
+    return allowsCurrentConsoleOperation(uid: uid, consoleUID: current.uid)
+      && !isAdministrator(uid: uid)
   }
 
-  public static func hasCurrentStandardUser() -> Bool {
-    guard let current = currentUser() else { return false }
-    return !isAdministrator(uid: current.uid)
+  public static func isCurrentEndpointUser(uid: uid_t) -> Bool {
+    allowsCurrentConsoleOperation(uid: uid, consoleUID: currentUser()?.uid)
   }
 
   public static func currentAccountType() -> EndpointConsoleAccountType {
@@ -66,10 +67,8 @@ public enum EndpointConsoleSession {
     return isAdministrator(uid: current.uid) ? .administrator : .standard
   }
 
-  public static func allowsSensitiveOperation(
-    uid: uid_t, consoleUID: uid_t?, isAdministrator: Bool
-  ) -> Bool {
-    uid >= 500 && uid == consoleUID && !isAdministrator
+  public static func allowsCurrentConsoleOperation(uid: uid_t, consoleUID: uid_t?) -> Bool {
+    uid >= 500 && uid == consoleUID
   }
 
   public static func isAdministrator(uid: uid_t) -> Bool {
@@ -575,7 +574,7 @@ public enum DeviceSnapshotCollector {
       architecture: machineArchitecture(),
       uptimeSeconds: uptime,
       bootTime: Date(timeIntervalSinceNow: -TimeInterval(uptime)),
-      sessionState: accountType == .standard ? (session?.state ?? .unknown) : .unknown,
+      sessionState: accountType == .none ? .unknown : (session?.state ?? .unknown),
       consoleUser: consoleUser?.name,
       consoleAccountType: accountType,
       networks: networkMetadata())

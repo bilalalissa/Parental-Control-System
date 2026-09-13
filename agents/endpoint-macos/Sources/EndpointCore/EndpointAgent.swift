@@ -213,7 +213,7 @@ public final class EndpointAgent: @unchecked Sendable {
     refreshed.connectionState = .online
     refreshed.lastControllerContact = former.lastControllerContact
     refreshed.helperHealthy =
-      refreshed.consoleAccountType == .standard ? former.helperHealthy : false
+      refreshed.consoleAccountType == EndpointConsoleAccountType.none ? false : former.helperHealthy
     refreshed.secureLockReadiness = former.secureLockReadiness
     refreshed.secureLockConfirmation = former.secureLockConfirmation
     refreshed.secureLockConfirmedAt = former.secureLockConfirmedAt

@@ -230,6 +230,14 @@ private struct PairedDeviceDetailView: View {
       }
       .font(.caption)
       .foregroundStyle(.secondary)
+      if device.state(now: now) == .online, device.consoleAccountType == "administrator" {
+        Label(
+          "Administrator session on this enrolled child endpoint. Controls operate while the child-session helper is reporting, but an authorized administrator can bypass or remove them. Use a standard child account for meaningful enforcement.",
+          systemImage: "exclamationmark.shield.fill"
+        )
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(ControlTheme.accentSoft)
+      }
       if device.state(now: now) == .online, device.helperHealthy == false {
         Label(
           helperProtectionMessage,
@@ -243,15 +251,12 @@ private struct PairedDeviceDetailView: View {
 
   private var helperProtectionMessage: String {
     switch device.consoleAccountType {
-    case "administrator":
-      return
-        "Adult administrator session active. Child activity, browser reporting, Secure Lock, and restrictions are intentionally paused. Sign in to the standard child account to resume protection."
     case "none":
       return
-        "No eligible child desktop session is active. Sign in to the standard child account to resume session protection."
+        "No eligible child desktop session is active. Sign in to a child session to resume session protection."
     default:
       return
-        "Protection gap: the child enforcement helper is not reporting. If the current account is a standard child account, an adult should repair the child installation."
+        "Protection gap: the child-session enforcement helper is not reporting. An adult should repair the child installation."
     }
   }
 
@@ -353,7 +358,7 @@ private struct PairedDeviceDetailView: View {
         }
         .font(.caption.weight(.semibold))
         Text(
-          "This release applies signed schedules after the standard child session becomes active. It does not replace macOS Login Window authentication. Managed-identity support remains separately gated future work."
+          "This release applies signed schedules after a child session becomes active. An administrator session is best effort and can bypass or remove these controls. This does not replace macOS Login Window authentication; managed-identity support remains separately gated future work."
         )
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -404,21 +409,17 @@ private struct PairedDeviceDetailView: View {
   }
 
   private var secureLockReady: Bool {
-    let eligibleAccount =
-      device.consoleAccountType == nil || device.consoleAccountType == "standard"
-    return device.helperHealthy == true && eligibleAccount
+    let eligibleSession = device.consoleAccountType == nil || device.consoleAccountType != "none"
+    return device.helperHealthy == true && eligibleSession
       && device.secureLockReadiness == "ready"
   }
 
   private var secureLockStatusText: String {
-    if device.consoleAccountType == "administrator" {
-      return "Secure Lock paused · administrator sessions are intentionally excluded"
-    }
     if device.consoleAccountType == "none" {
-      return "Secure Lock paused · no standard child session is active"
+      return "Secure Lock paused · no child session is active"
     }
-    if device.consoleAccountType == "standard", device.helperHealthy == false {
-      return "Secure Lock unavailable · the standard-child helper is not reporting"
+    if device.helperHealthy == false {
+      return "Secure Lock unavailable · the child-session helper is not reporting"
     }
     switch device.secureLockReadiness {
     case "ready":
@@ -573,12 +574,8 @@ private struct PairedDeviceDetailView: View {
 
   private var browserEmptyStateMessage: String {
     guard browserConfiguration.enabled else { return "Browser sharing is disabled." }
-    if device.consoleAccountType == "administrator" {
-      return
-        "Browser reporting is intentionally paused in the adult administrator session. Sign in to the standard child account and open its enrolled browser profile."
-    }
     if device.consoleAccountType == "none" {
-      return "Browser reporting is paused because no standard child session is active."
+      return "Browser reporting is paused because no child session is active."
     }
     return
       "No browser metadata received. Open an enrolled profile in Chrome, Edge, Arc, Brave, Firefox, or Safari and check its extension."

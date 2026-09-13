@@ -448,18 +448,17 @@ struct EndpointCoreTests {
       !XPCAuthorization.allows(
         uid: 501, signingIdentifier: EndpointMachService.controlIdentifier,
         operation: "session-update"))
-    #expect(XPCAuthorization.requiresCurrentStandardSession("session-update"))
-    #expect(XPCAuthorization.requiresCurrentStandardSession("browser-update"))
-    #expect(!XPCAuthorization.requiresCurrentStandardSession("status"))
+    #expect(XPCAuthorization.requiresCurrentConsoleSession("session-update"))
+    #expect(XPCAuthorization.requiresCurrentConsoleSession("browser-update"))
+    #expect(!XPCAuthorization.requiresCurrentConsoleSession("status"))
     #expect(
-      EndpointConsoleSession.allowsSensitiveOperation(
-        uid: 502, consoleUID: 502, isAdministrator: false))
+      EndpointConsoleSession.allowsCurrentConsoleOperation(uid: 502, consoleUID: 502))
     #expect(
-      !EndpointConsoleSession.allowsSensitiveOperation(
-        uid: 501, consoleUID: 502, isAdministrator: false))
+      !EndpointConsoleSession.allowsCurrentConsoleOperation(uid: 501, consoleUID: 502))
     #expect(
-      !EndpointConsoleSession.allowsSensitiveOperation(
-        uid: 502, consoleUID: 502, isAdministrator: true))
+      !EndpointConsoleSession.allowsCurrentConsoleOperation(uid: 0, consoleUID: 0))
+    #expect(
+      !EndpointConsoleSession.allowsCurrentConsoleOperation(uid: 502, consoleUID: nil))
     #expect(
       XPCAuthorization.isExpectedInstalledPath(
         "/usr/local/bin/parental-control-agentctl",

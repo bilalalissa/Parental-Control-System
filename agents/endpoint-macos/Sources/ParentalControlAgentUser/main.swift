@@ -50,7 +50,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     configureStatusItem()
     refreshSecureLockReadiness(force: true)
     currentState =
-      EndpointConsoleSession.isCurrentStandardUser(uid: getuid())
+      EndpointConsoleSession.isCurrentEndpointUser(uid: getuid())
         && NSWorkspace.shared.frontmostApplication?.bundleIdentifier
           != Self.screenSaverBundleIdentifier
       ? .active : .inactive
@@ -127,7 +127,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     }
   }
   @MainActor @objc private func sessionBecameActive() {
-    guard EndpointConsoleSession.isCurrentStandardUser(uid: getuid()) else {
+    guard EndpointConsoleSession.isCurrentEndpointUser(uid: getuid()) else {
       currentState = .inactive
       return
     }
@@ -142,7 +142,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   }
   @MainActor @objc private func sessionResignedActive() {
     if secureLockConfirmation == .pending, secureLockReadiness == .ready,
-      EndpointConsoleSession.isCurrentStandardUser(uid: getuid())
+      EndpointConsoleSession.isCurrentEndpointUser(uid: getuid())
     {
       confirmSecureLock()
     } else {
@@ -215,7 +215,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   }
 
   @MainActor private func handlePolicyEvent(_ event: EndpointPolicyEvent) {
-    guard EndpointConsoleSession.isCurrentStandardUser(uid: getuid()) else {
+    guard EndpointConsoleSession.isCurrentEndpointUser(uid: getuid()) else {
       deferEnforcementEvent(event)
       return
     }
@@ -238,7 +238,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
         }
         DispatchQueue.main.async { [weak self] in
           guard let self else { return }
-          guard EndpointConsoleSession.isCurrentStandardUser(uid: getuid()) else {
+          guard EndpointConsoleSession.isCurrentEndpointUser(uid: getuid()) else {
             self.deferEnforcementEvent(event)
             return
           }
@@ -282,7 +282,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   }
 
   @MainActor private func processDeferredEnforcementEvents() {
-    guard EndpointConsoleSession.isCurrentStandardUser(uid: getuid()),
+    guard EndpointConsoleSession.isCurrentEndpointUser(uid: getuid()),
       !deferredEnforcementEvents.isEmpty
     else { return }
     let pending = deferredEnforcementEvents
@@ -379,7 +379,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   }
 
   private func enforceCurrentApplicationRestrictions() {
-    guard EndpointConsoleSession.isCurrentStandardUser(uid: getuid()) else { return }
+    guard EndpointConsoleSession.isCurrentEndpointUser(uid: getuid()) else { return }
     for application in NSWorkspace.shared.runningApplications
     where application.activationPolicy == .regular {
       enforceApplicationRestriction(for: application)
@@ -387,7 +387,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   }
 
   private func enforceApplicationRestriction(for application: NSRunningApplication) {
-    guard EndpointConsoleSession.isCurrentStandardUser(uid: getuid()) else { return }
+    guard EndpointConsoleSession.isCurrentEndpointUser(uid: getuid()) else { return }
     guard let bundleIdentifier = application.bundleIdentifier,
       !ApplicationRestrictionRule.isProtected(bundleIdentifier),
       let bundleURL = application.bundleURL
@@ -445,7 +445,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     policyVersion: Int64
   ) {
     let processIdentifier = candidate.processIdentifier
-    guard EndpointConsoleSession.isCurrentStandardUser(uid: getuid()) else {
+    guard EndpointConsoleSession.isCurrentEndpointUser(uid: getuid()) else {
       applicationRestrictionGate.cancel(
         processIdentifier: processIdentifier, policyVersion: policyVersion)
       return
@@ -469,7 +469,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
       guard let self, case .success(let status) = result else { return }
       DispatchQueue.main.async { [weak self] in
         guard let self else { return }
-        guard EndpointConsoleSession.isCurrentStandardUser(uid: getuid()) else {
+        guard EndpointConsoleSession.isCurrentEndpointUser(uid: getuid()) else {
           self.applicationRestrictionGate.cancel(
             processIdentifier: processIdentifier, policyVersion: policyVersion)
           return
@@ -531,21 +531,15 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     guard let button = statusItem?.button else { return }
     switch EndpointConsoleSession.currentAccountType() {
     case .administrator:
-      statusModeMenuItem?.title = "Adult administrator session"
-      button.image = NSImage(
-        systemSymbolName: "person.badge.shield.checkmark",
-        accessibilityDescription: "Adult administrator session")
-      button.title = " Adult"
-      button.toolTip = "Adult administrator session; child enforcement is paused"
-      countdownMenuItem?.title = "Sign in to the standard child account to resume protection"
-      return
+      statusModeMenuItem?.title =
+        "Parental control active · administrator can bypass or remove it"
     case .none:
-      statusModeMenuItem?.title = "No standard child session"
+      statusModeMenuItem?.title = "No child session"
       button.image = NSImage(
         systemSymbolName: "person.crop.circle.badge.questionmark",
-        accessibilityDescription: "No standard child session")
+        accessibilityDescription: "No child session")
       button.title = " Paused"
-      button.toolTip = "No standard child session is active"
+      button.toolTip = "No child session is active"
       countdownMenuItem?.title = "Child enforcement is paused"
       return
     case .standard:
@@ -616,7 +610,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   }
 
   @MainActor @discardableResult private func perform(_ action: String) -> Bool {
-    guard EndpointConsoleSession.isCurrentStandardUser(uid: getuid()) else { return false }
+    guard EndpointConsoleSession.isCurrentEndpointUser(uid: getuid()) else { return false }
     switch action {
     case "warningOnly":
       return true
@@ -637,7 +631,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
   @MainActor private func enforceBlockedScheduleIfNeeded(
     _ status: EndpointStatus, now: Date
   ) {
-    guard EndpointConsoleSession.isCurrentStandardUser(uid: getuid()) else { return }
+    guard EndpointConsoleSession.isCurrentEndpointUser(uid: getuid()) else { return }
     guard
       EndpointScheduleRelockGate.shouldRelock(
         status: status, sessionIsActive: currentState == .active,
@@ -654,7 +648,7 @@ final class SessionReporter: NSObject, @unchecked Sendable {
     applicationFallback:
       (processIdentifier: Int32, bundleIdentifier: String, policyVersion: Int64)? = nil
   ) {
-    guard EndpointConsoleSession.isCurrentStandardUser(uid: getuid()) else {
+    guard EndpointConsoleSession.isCurrentEndpointUser(uid: getuid()) else {
       if let applicationFallback {
         applicationRestrictionGate.cancel(
           processIdentifier: applicationFallback.processIdentifier,

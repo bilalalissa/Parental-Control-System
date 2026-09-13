@@ -2,9 +2,18 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
-## 0.6.5-rc.9 — 2026-09-12
+## 0.6.5-rc.10 — 2026-09-12
 
 Status: **STAGE-06E ready for developer retest; unreleased**
+
+- Keeps the visibly installed child endpoint operational in its current interactive administrator session while continuing to warn that an authorized administrator can bypass or remove unmanaged controls.
+- Preserves exact package path, per-client SHA-256/signing identity, operation-role allowlists, and current-console UID binding; client files are revalidated for every new XPC connection.
+- Allows the authenticated helper and enrolled browser extensions to report activity, apply policies, enforce signed schedules/app rules, and verify Secure Lock in either a standard or administrator child session. Login Window and background fast-user-switched sessions remain excluded.
+- Rehydrates the same-device website-domain editor when its persisted policy arrives asynchronously without overwriting a draft the parent has already started editing. Policies remain scoped to one paired device identity.
+
+## 0.6.5-rc.9 — 2026-09-12
+
+Status: **STAGE-06E changes requested; superseded by RC10**
 
 - Reports whether the foreground macOS account is a standard child, an adult administrator, or no signed-in user so an intentionally excluded administrator session is no longer misdiagnosed as a broken helper.
 - Gives account-aware guidance for helper health, browser acknowledgements, and Secure Lock without weakening the current-standard-user XPC boundary; capability negotiation clears stale role data after an endpoint downgrade or identity repair.

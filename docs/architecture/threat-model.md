@@ -44,6 +44,7 @@ The operating system, platform secure storage, supported public APIs, and correc
 | Network eavesdropping or tampering | Family-data disclosure or command modification | TLS 1.3 where supported, certificate/key binding, signed messages, no downgrade, transport tests |
 | Arbitrary privileged execution | Full device compromise | Typed allowlisted commands, authenticated narrow IPC, capability checks, no shell/script fields, contract and authorization tests |
 | Child-accessible policy/configuration | Enforcement bypass | Protected storage, signed/versioned policy, standard child account, integrity checks, fail-closed behavior |
+| Current child endpoint account is an administrator | Administrator bypasses or removes unmanaged controls | Keep exact installed-client/hash/signing and current-console checks, remain visibly best-effort operational, disclose bypass risk, recommend a standard child account, and never claim administrator resistance |
 | Clock manipulation | Restored quota or bypassed schedule | Trusted UTC plus IANA zone, monotonic elapsed usage, rollback detection, restart/sleep/DST vectors |
 | Excess collection or retention | Privacy harm | Per-device controls, endpoint disclosure, bounded deltas/queues/logs, pruning, no content/credentials/private browsing |
 | Dangerous shutdown/logoff | Lost work or safety issue | Lock by default, warnings/grace, explicit confirmation and capability, graceful operations, force disabled |

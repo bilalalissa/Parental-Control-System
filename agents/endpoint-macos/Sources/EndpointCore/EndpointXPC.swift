@@ -42,7 +42,7 @@ public enum EndpointPolicyWake {
 }
 
 public enum XPCAuthorization {
-  public static func requiresCurrentStandardSession(_ operation: String) -> Bool {
+  public static func requiresCurrentConsoleSession(_ operation: String) -> Bool {
     operation != "status" && operation != "dashboard"
   }
 
@@ -162,7 +162,10 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     transform(&value)
   }
   @discardableResult
-  public func applySession(_ update: SessionUpdate, verifiedConsoleUser: String? = nil) -> Bool {
+  public func applySession(
+    _ update: SessionUpdate, verifiedConsoleUser: String? = nil,
+    verifiedAccountType: EndpointConsoleAccountType = .standard
+  ) -> Bool {
     lock.lock()
     defer { lock.unlock() }
     let becameActive =
@@ -172,7 +175,7 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     value.consoleUser = (verifiedConsoleUser ?? update.consoleUser).map {
       String($0.prefix(128))
     }
-    value.consoleAccountType = .standard
+    value.consoleAccountType = verifiedAccountType
     value.secureLockReadiness = update.secureLockReadiness
     value.secureLockConfirmation = update.secureLockConfirmation
     value.secureLockConfirmedAt = update.secureLockConfirmedAt
@@ -482,8 +485,8 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
       XPCAuthorization.allows(
         uid: uid, signingIdentifier: identifier, operation: operation)
     else { return false }
-    return !XPCAuthorization.requiresCurrentStandardSession(operation)
-      || EndpointConsoleSession.isCurrentStandardUser(uid: uid)
+    return !XPCAuthorization.requiresCurrentConsoleSession(operation)
+      || EndpointConsoleSession.isCurrentEndpointUser(uid: uid)
   }
 
   func status(withReply reply: @escaping (Data?, String?) -> Void) {
@@ -526,7 +529,9 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
         return
       }
       let becameActive = repository.applySession(
-        update, verifiedConsoleUser: consoleUser.name)
+        update, verifiedConsoleUser: consoleUser.name,
+        verifiedAccountType: EndpointConsoleSession.isAdministrator(uid: uid)
+          ? .administrator : .standard)
       if let policyRuntime {
         let now = Date()
         let activeUptime = EndpointActiveUseClock.uptime()
