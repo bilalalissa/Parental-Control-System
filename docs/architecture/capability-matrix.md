@@ -1,6 +1,6 @@
 # Capability matrix
 
-This matrix is the truthful Stage 06 capability contract and the Stage 06A–06E result.
+This matrix is the truthful Stage 06 capability contract, the Stage 06A–06E result, and the Stage 07 Windows foundation boundary.
 
 | Capability | Parent Controller (Apple silicon) | macOS child endpoint | Windows child endpoint | Standard iPadOS child app | Optional supervised iPad MDM |
 | --- | --- | --- | --- | --- | --- |
@@ -11,8 +11,8 @@ This matrix is the truthful Stage 06 capability contract and the Stage 06A–06E
 | Authenticated LAN pairing/status | Hub role | Outbound endpoint | Outbound endpoint | While app/framework delivery permits | Supported management channel |
 | Offline signed-policy enforcement | Signs per-device policy | Stage 06 verified root-protected cache and local evaluator | Planned | Family Controls schedules/shields | Supported restrictions |
 | Continuous presence | Controller itself | Heartbeat-based | Heartbeat-based | **No; approximate only** | Management check-in is not continuous app presence |
-| Boot time / reliable uptime | Local Mac only | Stage 03+ | Planned | **Not available** | Device information only where supported |
-| Login/logout/lock state | Local Mac only | Stage 03+ session state | Planned | **Not available** | Not desktop session semantics |
+| Boot time / reliable uptime | Local Mac only | Stage 03+ | Stage 07 bounded status | **Not available** | Device information only where supported |
+| Login/logout/lock state | Local Mac only | Stage 03+ session state | Stage 07 coarse WTS session state | **Not available** | Not desktop session semantics |
 | Foreground/running applications | Controller process only | Stage 04 candidate; names/bundle IDs only | Metadata planned | **Not available** | **Not available** |
 | Browser-tab metadata | Controller browser is out of scope | Visible enrolled Chromium/Firefox extensions and Stage 06E Safari local-test extension; title/origin only | Visible Chrome/Edge extension planned | **Not available** | **Not available** |
 | Hardware MAC metadata | Local interfaces | Optional display metadata | Optional display metadata | **Not available** | Only if a supported command returns it; never identity |
@@ -42,3 +42,5 @@ Stage 06C found that the evaluated ARRIS NVG448BQ firmware offers an interactive
 Stage 06D was amended to browser-only website blocking on 2026-09-05. The prior Network Extension and Endpoint Security design remains deferred and unimplemented. Browser policy acknowledgements mean rules were read back in one reporting profile, not that every browser is protected. Native tests are ad-hoc signed; production browser updates require supported signing/publication separately.
 
 Stage 06E adds entitlement-free macOS app-use restrictions for a standard child account and best-effort operation when the enrolled endpoint's current interactive account is an administrator. The parent can select only observed third-party apps with an exact validated bundle, signing and Team identity. The visible session helper asks a matching running app to quit after launch; if it remains running for five seconds, it locks the session once for that process and policy version. Apple/system, login/recovery and parental-control components are always protected. This does not prevent launch, force-terminate an app, protect against an administrator, or replace the deferred Endpoint Security design. A standard child account remains required for meaningful enforcement.
+
+Stage 07 adds only the Windows x64 foundation: an automatic service, visible dashboard, administrator pairing, authenticated named pipe, pinned/signed LAN status, protected identity, and bounded device/uptime/session/network/health metadata. Application/browser monitoring, chat, schedules, and enforcement remain unavailable and are not advertised. An authorized local administrator can repair or remove the endpoint.

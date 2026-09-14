@@ -1,0 +1,98 @@
+name: Stage 07 Windows endpoint
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/stage-07-windows.yml"
+      - ".gitignore"
+      - "agents/endpoint-windows/**"
+      - "packages/protocol/**"
+      - "packages/design-assets/**"
+      - "script/build_windows_release.ps1"
+      - "script/test_windows_installer.ps1"
+      - "script/generate_windows_child_icon.sh"
+      - "test/**"
+      - "tools/**"
+  push:
+    branches:
+      - "stage/07-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage-07-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: x64 service, UI, and MSI
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: "8.0.401"
+          cache: true
+          cache-dependency-path: "agents/endpoint-windows/**/packages.lock.json"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Run canonical repository contracts
+        shell: powershell
+        run: node --test --test-concurrency=2 test/contracts.test.mjs test/repository.test.mjs
+
+      - name: Build one x64 release candidate
+        shell: powershell
+        run: .\script\build_windows_release.ps1
+
+      - name: Verify Authenticode status is honestly reported
+        shell: powershell
+        run: |
+          $candidate = ".artifacts\release-candidate\ParentalControlWindows-0.7.0-rc.1-x64.msi"
+          $signature = Get-AuthenticodeSignature -LiteralPath $candidate
+          if ($signature.Status -ne "NotSigned") { throw "Unexpected signature state: $($signature.Status)" }
+
+      - name: Install, query, repair, and uninstall MSI
+        shell: powershell
+        run: .\script\test_windows_installer.ps1 -MsiPath ".artifacts\release-candidate\ParentalControlWindows-0.7.0-rc.1-x64.msi"
+
+      - name: Upload one verified release candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ParentalControlWindows-0.7.0-rc.1-x64
+          path: |
+            .artifacts/release-candidate/ParentalControlWindows-0.7.0-rc.1-x64.msi
+            .artifacts/release-candidate/ParentalControlWindows-0.7.0-rc.1-x64.msi.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload bounded failure evidence
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stage-07-windows-failure
+          path: .artifacts/test-results/stage-07
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop endpoint and clean project-owned output
+        if: always()
+        shell: powershell
+        run: |
+          Get-Process -Name "ParentalControl.Windows.App" -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (Get-Service -Name "ParentalControlWindowsEndpoint" -ErrorAction SilentlyContinue) {
+            Stop-Service -Name "ParentalControlWindowsEndpoint" -Force -ErrorAction SilentlyContinue
+          }
+          .\tools\cleanup.ps1 -Apply

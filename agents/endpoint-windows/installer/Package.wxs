@@ -1,0 +1,99 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Parental Control Child"
+           Manufacturer="Parental Control System"
+           Version="0.7.0.1"
+           UpgradeCode="C9225424-65E4-4F1F-A1A1-860292AD4AAF"
+           Scope="perMachine"
+           Platform="x64"
+           Language="1033">
+    <SummaryInformation Description="Visible local-first Windows child endpoint" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Parental Control Child is already installed."
+                  Schedule="afterInstallInitialize" />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="ProductIcon" SourceFile="..\assets\ParentalControlChild.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
+    <Property Id="ARPNOREPAIR" Value="0" />
+
+    <Feature Id="Complete" Title="Parental Control Child" Level="1">
+      <ComponentRef Id="ServiceExecutable" />
+      <ComponentRef Id="AppExecutable" />
+      <ComponentGroupRef Id="EndpointPayload" />
+      <ComponentRef Id="ProtectedDataDirectory" />
+      <ComponentRef Id="UninstallShortcut" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="ManufacturerFolder" Name="Parental Control System">
+        <Directory Id="INSTALLFOLDER" Name="Windows Child Endpoint">
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="CommonDataManufacturer" Name="Parental Control">
+        <Directory Id="DATAFOLDER" Name="Windows Endpoint" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="PROGRAMMENUFOLDER" Name="Parental Control" />
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <Component Id="ServiceExecutable" Directory="INSTALLFOLDER" Guid="*" Bitness="always64">
+      <File Id="ServiceExe" Source="$(var.PayloadDir)\ParentalControl.Windows.Service.exe" KeyPath="yes" />
+      <ServiceInstall Id="EndpointServiceInstall"
+                      Name="ParentalControlWindowsEndpoint"
+                      DisplayName="Parental Control Windows Endpoint"
+                      Description="Visible local-first child device status service"
+                      Type="ownProcess"
+                      Start="auto"
+                      ErrorControl="normal"
+                      Account="LocalSystem" />
+      <ServiceControl Id="EndpointServiceControl"
+                      Name="ParentalControlWindowsEndpoint"
+                      Start="install"
+                      Stop="both"
+                      Remove="uninstall"
+                      Wait="yes" />
+    </Component>
+    <Component Id="AppExecutable" Directory="INSTALLFOLDER" Guid="*" Bitness="always64">
+      <File Id="AppExe" Source="$(var.PayloadDir)\ParentalControl.Windows.App.exe" KeyPath="yes">
+        <Shortcut Id="ChildAppShortcut" Directory="PROGRAMMENUFOLDER"
+                  Name="Parental Control Child" WorkingDirectory="INSTALLFOLDER"
+                  Advertise="yes" Icon="ProductIcon" />
+      </File>
+      <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run"
+                     Name="ParentalControlChild" Type="string"
+                     Value="&quot;[INSTALLFOLDER]ParentalControl.Windows.App.exe&quot;" />
+    </Component>
+    <ComponentGroup Id="EndpointPayload" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PayloadDir)\**"
+             Exclude="$(var.PayloadDir)\ParentalControl.Windows.Service.exe;$(var.PayloadDir)\ParentalControl.Windows.App.exe" />
+    </ComponentGroup>
+
+    <Component Id="ProtectedDataDirectory" Directory="DATAFOLDER" Guid="*" Bitness="always64">
+      <CreateFolder>
+        <PermissionEx Sddl="D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)" />
+      </CreateFolder>
+      <RemoveFile Id="RemoveProtectedConfig" Name="endpoint.dat" On="uninstall" />
+      <RemoveFile Id="RemovePendingProtectedConfig" Name="endpoint.dat.new" On="uninstall" />
+      <RemoveFile Id="RemoveCurrentLog" Name="endpoint.log" On="uninstall" />
+      <RemoveFile Id="RemoveRotatedLog" Name="endpoint.log.1" On="uninstall" />
+      <RemoveFolder Id="RemoveDataDirectory" On="uninstall" />
+      <RegistryValue Root="HKLM" Key="Software\Parental Control System\Windows Endpoint"
+                     Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <Component Id="UninstallShortcut" Directory="PROGRAMMENUFOLDER" Guid="*" Bitness="always64">
+      <Shortcut Id="UninstallProduct" Name="Uninstall Parental Control Child"
+                Target="[System64Folder]msiexec.exe" Arguments="/x [ProductCode]"
+                Icon="ProductIcon" />
+      <RemoveFolder Id="RemoveProgramMenuFolder" On="uninstall" />
+      <RegistryValue Root="HKLM" Key="Software\Parental Control System\Windows Endpoint"
+                     Name="UninstallShortcut" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+  </Fragment>
+</Wix>

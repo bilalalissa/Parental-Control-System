@@ -34,8 +34,8 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   const active = tracker.stages.filter((stage) => stage.id === tracker.activeStage);
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
-  assert.equal(active[0].branch, "stage/06e-macos-app-use-restrictions");
-  assert.equal(active[0].version, "0.6.5-rc.10");
+  assert.equal(active[0].branch, "stage/07-windows-endpoint-foundation");
+  assert.equal(active[0].version, "0.7.0-rc.1");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
       active[0].status,
@@ -559,8 +559,31 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /STAGE-06E macOS application-use restrictions[\s\S]*STAGE-07 has not begun/);
+  assert.match(readme, /STAGE-07 Windows x64 endpoint foundation[\s\S]*0\.7\.0-rc\.1/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
+});
+
+test("Stage 07 Windows foundation is visible, bounded, and capability-honest", async () => {
+  const [stage, product, workflow, installer, service, app] = await Promise.all([
+    read("docs/stages/stage-07.md"),
+    read("agents/endpoint-windows/src/ParentalControl.Windows.Core/ProductInfo.cs"),
+    read(".github/workflows/stage-07-windows.yml"),
+    read("agents/endpoint-windows/installer/Package.wxs"),
+    read("agents/endpoint-windows/src/ParentalControl.Windows.Service/NamedPipeEndpointServer.cs"),
+    read("agents/endpoint-windows/src/ParentalControl.Windows.App/MainWindow.xaml"),
+  ]);
+  assert.match(stage, /Application activity.*not included/i);
+  assert.match(stage, /Windows x64/i);
+  assert.match(product, /MaximumMessageBytes = 64 \* 1024/);
+  const capabilities = product.match(/Capabilities\s*=\s*\[([\s\S]*?)\];/)?.[1] ?? "";
+  assert.doesNotMatch(capabilities, /app-activity|browser-tabs|chat|signed-policy/);
+  assert.match(service, /IsAdministrator\(pipe\)/);
+  assert.match(service, /PipeSecurity/);
+  assert.match(app, /VISIBLE FAMILY ENDPOINT/);
+  assert.match(installer, /Start="auto"/);
+  assert.match(installer, /Remove="uninstall"/);
+  assert.match(workflow, /runs-on: windows-2025/);
+  assert.match(workflow, /retention-days: 7/);
 });

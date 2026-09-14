@@ -67,16 +67,11 @@ test("readiness checker help is dependency-free and documents all private profil
   assert.match(output, /never copied/);
 });
 
-test("Stage 06E follows the approved browser stage without claiming system extensions", () => {
+test("Stage 06E remains recorded without claiming system extensions", () => {
   const state = JSON.parse(tracker);
-  const active = state.stages.find((candidate) => candidate.id === state.activeStage);
-  assert.equal(active.id, "STAGE-06E");
-  assert.equal(active.version, "0.6.5-rc.10");
-  assert.ok(
-    ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
-      active.status,
-    ),
-  );
+  const macStage = state.stages.find((candidate) => candidate.id === "STAGE-06E");
+  assert.equal(macStage.version, "0.6.5-rc.10");
+  assert.equal(macStage.status, "MERGED");
   assert.match(stage, /MANAGED BROWSER WEBSITE BLOCKING/);
   assert.match(appStage, /post-launch|after launch/i);
   assert.match(appStage, /exact bundle, signing and Team|bundle\/signing\/Team/i);

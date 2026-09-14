@@ -6,6 +6,34 @@ import Testing
 
 @Suite("Stage 02 protocol security")
 struct ProtocolSecurityTests {
+  @Test("Windows and Swift use identical canonical Ed25519 signing data")
+  func windowsGoldenSignature() throws {
+    let seed = Data((0..<32).map(UInt8.init))
+    let identity = try Ed25519Identity(
+      keyID: "device-windows-golden", rawPrivateKey: seed)
+    let date = try #require(ISO8601DateFormatter().date(from: "2026-09-14T12:00:00Z"))
+    let envelope = try identity.sign(
+      deviceID: "windows-golden",
+      sequence: 1,
+      type: .snapshotResponse,
+      payload: [
+        "changed": .object([
+          "deviceName": .string("Windows Test"),
+          "state": .string("online"),
+          "uptimeSeconds": .integer(42),
+        ]),
+        "reason": .string("connected"),
+        "snapshotVersion": .integer(1),
+      ],
+      now: date,
+      lifetime: 120,
+      id: UUID(uuidString: "77777777-0000-4000-8000-000000000001")!)
+    #expect(
+      envelope.auth.signature
+        == "DgNlYb3nMg+KhxdQwx+6agrEj5PSkIcxVth5NDppnnrWVpRy0tEaM9I3LUKTJiuxFNXpChUqYQn7dhbDVnQnDA=="
+    )
+  }
+
   @Test("signed envelopes round-trip and verify")
   func roundTrip() throws {
     let identity = try Ed25519Identity(keyID: "mock-key")

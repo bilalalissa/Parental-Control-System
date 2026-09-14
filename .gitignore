@@ -50,6 +50,8 @@ dist/
 # Project-owned build, package, and diagnostic output
 build/
 .artifacts/derived-data/
+.artifacts/build/
+.artifacts/nuget/
 .artifacts/test-results/
 .artifacts/tmp/
 .artifacts/package-staging/
