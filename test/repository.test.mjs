@@ -498,7 +498,7 @@ test("local Markdown links resolve inside the repository", async () => {
 
 test("CI is least-privilege, cancellable, pinned, and short-retention", async () => {
   const workflow = await read(".github/workflows/stage-00-quality.yml");
-  assert.match(workflow, /permissions:\n  contents: read/);
+  assert.match(workflow, /permissions:\r?\n  contents: read/);
   assert.match(workflow, /cancel-in-progress: true/);
   assert.match(workflow, /retention-days: 7/);
   const actionRefs = [...workflow.matchAll(/uses:\s+([^\s]+)/g)].map((match) => match[1]);
