@@ -4,12 +4,13 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.6.5-rc.10 — 2026-09-12
 
-Status: **STAGE-06E ready for developer retest; unreleased**
+Status: **STAGE-06E approved on 2026-09-14; unmerged and unreleased**
 
 - Keeps the visibly installed child endpoint operational in its current interactive administrator session while continuing to warn that an authorized administrator can bypass or remove unmanaged controls.
 - Preserves exact package path, per-client SHA-256/signing identity, operation-role allowlists, and current-console UID binding; client files are revalidated for every new XPC connection.
 - Allows the authenticated helper and enrolled browser extensions to report activity, apply policies, enforce signed schedules/app rules, and verify Secure Lock in either a standard or administrator child session. Login Window and background fast-user-switched sessions remain excluded.
 - Rehydrates the same-device website-domain editor when its persisted policy arrives asynchronously without overwriting a draft the parent has already started editing. Policies remain scoped to one paired device identity.
+- Developer physical retest of build `6510` passed, followed by the exact approval command `APPROVED: STAGE-06E 0.6.5-rc.10` on 2026-09-14.
 
 ## 0.6.5-rc.9 — 2026-09-12
 

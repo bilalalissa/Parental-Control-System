@@ -2,7 +2,8 @@
 
 - Version: `0.6.5-rc.10` (build `6510`)
 - Branch: `stage/06e-macos-app-use-restrictions`
-- Status: `READY_FOR_RETEST`
+- Status: `APPROVED`
+- Approved: `2026-09-14` via `APPROVED: STAGE-06E 0.6.5-rc.10`
 - Authorized on 2026-09-05 with `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06E MACOS APP-USE RESTRICTIONS BEFORE STAGE-07` and `PROCEED: STAGE-06E`.
 - Browser-compatibility amendment authorized on 2026-09-06 with `AUTHORIZE STAGE-06E SCOPE AMENDMENT: HARDEN DOMAIN ENFORCEMENT FOR YOUTUBE, RESTORED TABS, AND SPA NAVIGATION IN ENROLLED BROWSERS; USE LOCAL HOSTNAME MATCHING ONLY, WITH NO CONTENT INSPECTION.` and `PROCEED: STAGE-06E 0.6.5-rc.3 BROWSER COMPATIBILITY FIX`.
 - Safari local-test amendment authorized conversationally on 2026-09-06 after the developer asked whether a Safari extension was available and then instructed `go ahead`.
@@ -117,6 +118,8 @@ Apply empty newer app and website policies before reverting. Installing Stage 06
 - Signing status: embedded apps/helpers use hardened-runtime ad-hoc signatures with no Team ID. The Safari extension is sandboxed and has only the temporary fixed mach-service lookup exception required by this unsigned local-test bridge. The product package is unsigned and not notarized. The Firefox XPI is unsigned and temporary. No Endpoint Security entitlement is present or claimed.
 - RC10 CI passed repository checks, both Swift linters and native suites, the universal release build, browser packaging, binary-slice and package-choice inspection, a disposable default-parent install, and the child clean-install/in-place-upgrade/persistence/uninstall fixture. Local and CI verification do not claim an in-place physical console-session relaunch, fast-user-switch behavior, administrator bypass resistance, Safari/Chromium profile behavior, Steam compatibility or a physical password challenge.
 
-Physical RC9-to-RC10 in-place upgrade with the Child UI left open, connection recovery without uninstalling/unpairing, administrator and standard-account operation, fast-user-switch boundaries, extension disable/remove and explicit retirement reporting, ordinary/restored/SPA website enforcement, website-editor refresh/device isolation, Steam identity/enforcement, refusal/cleared-policy fallback and idle-resource evidence remain the developer test gate. RC10 also requires direct Intel and Apple-silicon confirmation of exact schedule/quota transitions, correct warning-only labels, excluded sleep/Lock Screen time, no allowed-window relock and the secure-lock password challenge. Local package inspection cannot prove those physical behaviors.
+The developer reported that build `6510` passed and approved RC10 with the exact command `APPROVED: STAGE-06E 0.6.5-rc.10` on 2026-09-14. This approval closes the Stage-06E physical developer test gate. It does not broaden the documented administrator, unmanaged-browser, signing, notarization, MDM, pre-login or Endpoint Security limitations.
 
-AWAITING DEVELOPER TEST RESULT
+## Approval record
+
+Stage 06E is approved but remains unmerged and unreleased. Stage 07 must not begin without a separate `PROCEED` command, and this pull request must not be merged without a separate `MERGE` command.
