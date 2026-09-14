@@ -13,9 +13,6 @@ on:
       - "script/generate_windows_child_icon.sh"
       - "test/**"
       - "tools/**"
-  push:
-    branches:
-      - "stage/07-*"
   workflow_dispatch:
 
 permissions:

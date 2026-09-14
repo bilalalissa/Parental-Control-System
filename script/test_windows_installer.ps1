@@ -80,7 +80,9 @@ try {
         installedBytes = (Get-ChildItem -LiteralPath $installRoot -File -Recurse | Measure-Object Length -Sum).Sum
         collectedAt = [DateTimeOffset]::UtcNow.ToString("O")
     }
-    $resourceEvidence | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidenceRoot "resources.json") -Encoding utf8
+    $resourceJson = $resourceEvidence | ConvertTo-Json
+    $resourceJson | Set-Content -LiteralPath (Join-Path $evidenceRoot "resources.json") -Encoding utf8
+    Write-Host "Stage 07 resource evidence: $($resourceJson -replace '\r?\n', ' ')"
 
     Invoke-Msi "/fa `"$msi`" /qn /norestart /l*v `"$repairLog`""
     (Get-Service -Name $serviceName).WaitForStatus("Running", [TimeSpan]::FromSeconds(20))
