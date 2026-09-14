@@ -63,7 +63,7 @@ The second command intentionally installs, repairs, and removes the test endpoin
 
 ## Rollback and uninstall
 
-Use **Apps > Installed apps > Parental Control Child > Uninstall** or the visible Start-menu uninstall shortcut and approve the administrator prompt. The MSI stops and removes the service, binaries, startup entry, protected endpoint configuration, and bounded logs. Reinstalling after uninstall creates a new endpoint identity and therefore requires a new one-time invitation.
+Use **Apps > Installed apps > Parental Control Child > Uninstall** and approve the administrator prompt. The MSI stops and removes the service, binaries, startup entry, protected endpoint configuration, and bounded logs. Reinstalling after uninstall creates a new endpoint identity and therefore requires a new one-time invitation.
 
 ## Evidence status
 

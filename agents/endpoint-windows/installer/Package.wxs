@@ -19,7 +19,6 @@
       <ComponentRef Id="AppExecutable" />
       <ComponentGroupRef Id="EndpointPayload" />
       <ComponentRef Id="ProtectedDataDirectory" />
-      <ComponentRef Id="UninstallShortcut" />
     </Feature>
   </Package>
 
@@ -36,7 +35,7 @@
       </Directory>
     </StandardDirectory>
     <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="PROGRAMMENUFOLDER" Name="Parental Control" />
+      <Directory Id="ProgramMenuParentalControlFolder" Name="Parental Control" />
     </StandardDirectory>
   </Fragment>
 
@@ -60,9 +59,9 @@
     </Component>
     <Component Id="AppExecutable" Directory="INSTALLFOLDER" Guid="*" Bitness="always64">
       <File Id="AppExe" Source="$(var.PayloadDir)\ParentalControl.Windows.App.exe" KeyPath="yes">
-        <Shortcut Id="ChildAppShortcut" Directory="PROGRAMMENUFOLDER"
+        <Shortcut Id="ChildAppShortcut" Directory="ProgramMenuParentalControlFolder"
                   Name="Parental Control Child" WorkingDirectory="INSTALLFOLDER"
-                  Advertise="yes" Icon="ProductIcon" />
+                  Advertise="yes" />
       </File>
       <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run"
                      Name="ParentalControlChild" Type="string"
@@ -86,15 +85,6 @@
       <RemoveFolder Id="RemoveDataDirectory" On="uninstall" />
       <RegistryValue Root="HKLM" Key="Software\Parental Control System\Windows Endpoint"
                      Name="Installed" Type="integer" Value="1" KeyPath="yes" />
-    </Component>
-
-    <Component Id="UninstallShortcut" Directory="PROGRAMMENUFOLDER" Guid="*" Bitness="always64">
-      <Shortcut Id="UninstallProduct" Name="Uninstall Parental Control Child"
-                Target="[System64Folder]msiexec.exe" Arguments="/x [ProductCode]"
-                Icon="ProductIcon" />
-      <RemoveFolder Id="RemoveProgramMenuFolder" On="uninstall" />
-      <RegistryValue Root="HKLM" Key="Software\Parental Control System\Windows Endpoint"
-                     Name="UninstallShortcut" Type="integer" Value="1" KeyPath="yes" />
     </Component>
   </Fragment>
 </Wix>

@@ -11,6 +11,6 @@
 
 Stage 07 shares only bounded device, uptime, coarse session, physical-network, and service-health metadata. It does not include app/browser monitoring, website restrictions, chat, schedules, locking, shutdown, or other enforcement.
 
-To remove it, use **Apps > Installed apps > Parental Control Child > Uninstall** or the Start-menu uninstall shortcut. Administrator approval is required. Uninstall removes the service, startup entry, binaries, protected identity/configuration, and bounded logs; a later reinstall requires fresh pairing.
+To remove it, use **Apps > Installed apps > Parental Control Child > Uninstall**. Administrator approval is required. Uninstall removes the service, startup entry, binaries, protected identity/configuration, and bounded logs; a later reinstall requires fresh pairing.
 
 The candidate is unsigned until production Authenticode credentials are available. Windows may therefore show an unverified-publisher warning. Do not disable SmartScreen or other system protection globally; test only on a device you own and administer.
