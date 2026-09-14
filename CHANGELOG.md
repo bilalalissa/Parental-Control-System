@@ -2,9 +2,109 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.6.5-rc.10 — 2026-09-12
+
+Status: **STAGE-06E approved on 2026-09-14; unmerged and unreleased**
+
+- Keeps the visibly installed child endpoint operational in its current interactive administrator session while continuing to warn that an authorized administrator can bypass or remove unmanaged controls.
+- Preserves exact package path, per-client SHA-256/signing identity, operation-role allowlists, and current-console UID binding; client files are revalidated for every new XPC connection.
+- Allows the authenticated helper and enrolled browser extensions to report activity, apply policies, enforce signed schedules/app rules, and verify Secure Lock in either a standard or administrator child session. Login Window and background fast-user-switched sessions remain excluded.
+- Rehydrates the same-device website-domain editor when its persisted policy arrives asynchronously without overwriting a draft the parent has already started editing. Policies remain scoped to one paired device identity.
+- Developer physical retest of build `6510` passed, followed by the exact approval command `APPROVED: STAGE-06E 0.6.5-rc.10` on 2026-09-14.
+
+## 0.6.5-rc.9 — 2026-09-12
+
+Status: **STAGE-06E changes requested; superseded by RC10**
+
+- Reports whether the foreground macOS account is a standard child, an adult administrator, or no signed-in user so an intentionally excluded administrator session is no longer misdiagnosed as a broken helper.
+- Gives account-aware guidance for helper health, browser acknowledgements, and Secure Lock without weakening the current-standard-user XPC boundary; capability negotiation clears stale role data after an endpoint downgrade or identity repair.
+- Separates a warning-only daily-quota reset from actual availability and displays the next configured weekly window independently.
+- Bounds the fixed read-only Secure Lock readiness command to three seconds so an OS-tool stall cannot block the helper indefinitely.
+
+## 0.6.5-rc.8 — 2026-09-11
+
+Status: **STAGE-06E changes requested; superseded by RC9**
+
+- Corrects quota projection across policy-local midnight so the countdown selects the next day's exact active-use quota boundary instead of a later weekly-window boundary.
+- Clarifies `Allowed`, `Limit reached · warning only`, unused-today quota, and next-warning labels so a warn-only policy is not presented as an enforced restriction.
+- Stops inventing browser profiles from installed apps. Real profiles that stop reporting remain protection gaps; an adult can explicitly retire a removed/re-enrolled profile identity through a newer signed website policy.
+- Refreshes secure-lock readiness every minute and accepts macOS zero-second output variants in addition to `immediate`.
+- Limits sensitive per-user XPC and enforcement work to the current foreground standard account, preventing administrator or fast-switched sessions from overwriting child state.
+- Binds queued schedule actions to one restriction instance, expires immediate actions, and safely defers/revalidates actions across fast user switching. App-refusal lock fallbacks can retry after the child session returns.
+
+## 0.6.5-rc.7 — 2026-09-10
+
+Status: **STAGE-06E changes requested; superseded by RC8**
+
+- Projects schedule transitions at exact civil-time boundaries, refreshes the published decision immediately after an authenticated unlock, and keeps wake inactive until macOS reports that the GUI session actually became active.
+- Separates the sleep-pausing active-use clock from the continuous clock used for wall-clock tamper detection, so sleeping and awake Lock Screen time are not charged to the child's quota.
+- Accepts distinct exact bundle, signing and Team identities and validates the live signed process before enforcement, covering signed self-updating launchers such as Steam without trusting names or paths.
+- Shows a prominent protection-gap warning in both apps when a configured browser profile stops reporting, including after a removable unmanaged extension is disabled or removed.
+- Persists the authenticated per-user enforcement-helper health bit and warns the parent when the root endpoint remains online but schedule/app enforcement is unavailable.
+- Preserves the honest platform boundary: this unmanaged build cannot make an extension non-removable, restrict Apple system apps or System Settings panes, or resist an administrator using Terminal.
+
+## 0.6.5-rc.6 — 2026-09-07
+
+Status: **STAGE-06E superseded by RC7**
+
+- Verifies the effective macOS screen-lock delay with one fixed read-only `sysadminctl` status command and enables Lock only when the password requirement is immediate.
+- Confirms a lock only after the system screen-saver app activates or the authenticated GUI session resigns active; launch failures and eight-second timeouts remain visible failures.
+- Reports readiness and the last confirmed result in both apps, persists bounded status in the local hub, and disables the parent Lock button when the child is not ready.
+- Removes false `session-locked` app-policy audit results and limits failed schedule relock attempts to once per minute.
+- Uses no private APIs, `CGSession`, AppleScript, Accessibility keystrokes, synthetic input, or Internet-pause behavior.
+
+## 0.6.5-rc.5 — 2026-09-06
+
+Status: **STAGE-06E superseded by RC6**
+
+- Adds an ad-hoc local-test Safari Web Extension in a visible companion app embedded in the child installer.
+- Uses Safari declarative hostname rules and the shared restored-tab/SPA hostname reconciliation without content or traffic inspection.
+- Allows only the exact root-protected, package-hashed Safari extension executable to call browser configuration/update XPC operations.
+- Requires explicit adult enablement, per-profile website access, Safari to be quit during installation, and a physical test; production signing/publication is not claimed.
+- Carries forward the required RC4-to-RC5 in-place upgrade test because RC4 was only confirmed after uninstall/reinstall/re-pair.
+
+## 0.6.5-rc.4 — 2026-09-06
+
+Status: **STAGE-06E changes requested; superseded by RC5**
+
+- Replaces RC3 after physical in-place installation left an already-running ad-hoc Child UI unable to reconnect to the replacement protected endpoint service.
+- The child installer now detects only the exact package-owned visible app in the console session, requests normal termination before replacing its bundle, and fails safely instead of force-killing it if it does not exit.
+- A short-lived root-only marker records whether the UI was open. After the daemon and session helper restart, the installer validates and consumes that marker and relaunches the new Child app in the standard user's GUI session.
+- CI now keeps the visible Child app open during a same-version in-place reinstall and requires the post-upgrade process to have a new PID while endpoint identity and protected state remain unchanged.
+
+## 0.6.5-rc.3 — 2026-09-06
+
+Status: **STAGE-06E changes requested; superseded by RC4**
+
+- Retains RC2 application-use enforcement and hardens enrolled-browser domain enforcement for ordinary navigation, restored tabs and SPA URL changes.
+- Parses only local HTTP(S) hostnames, matches exact domains and subdomains, rejects lookalikes, and redirects matches to a bundled static local block page without inspecting or transmitting paths, queries, content, requests, cookies, DNS history or traffic.
+- Installs the Chromium test-extension source at a stable root-owned read-only path. Existing unpacked test profiles require one explicit adult-supervised move to that path; later installer replacements keep the path stable.
+- Updates both Chromium and temporary unsigned Firefox test packages and preserves optional tab sharing as a separate control.
+- Authorized with the exact Stage-06E scope amendment and `PROCEED: STAGE-06E 0.6.5-rc.3 BROWSER COMPATIBILITY FIX` on 2026-09-06.
+
+## 0.6.5-rc.2 — 2026-09-06
+
+Status: **STAGE-06E ready for developer retest; unreleased**
+
+- Replaces RC1 after physical testing showed that delivered Discord and YouTube policies were visible on the child but neither enforcement consumer completed its work.
+- Repairs application enforcement by carrying immutable PID/bundle metadata across the asynchronous XPC lookup, reacquiring the live process, and revalidating its current path and signed code identity before requesting ordinary termination.
+- Prevents PID reuse and same-path application updates from inheriting a stale decision, while preserving the one-attempt-per-process/policy lock fallback.
+- Retires only the project-owned native browser bridge during an in-place child upgrade so the already-installed Stage 06D extension can launch the replacement bridge without closing or reloading the browser.
+- Does not change the browser extension, inspect content, force-kill apps, add Endpoint Security authority, or claim that already-loaded web content is retroactively stopped.
+
+## 0.6.5-rc.1 — 2026-09-05
+
+Status: **STAGE-06E changes requested; superseded by RC2**
+
+- Adds bounded parent-authored application-use policies for observed signed third-party macOS apps, using exact bundle, signing and Team identity.
+- Caches the monotonic policy in root-protected child configuration, preserves it when optional activity sharing is disabled, and transports it through the authenticated local connection.
+- Uses the visible per-user helper to warn and request normal app termination after launch, with a five-second session-lock fallback if the app refuses; enforcement outcomes are authenticated and audited.
+- Unconditionally protects Apple/system, login/recovery and parental-control components. This ad-hoc build has no Endpoint Security entitlement and does not claim pre-launch denial or resistance to a local administrator.
+- Authorized with `AUTHORIZE ROADMAP AMENDMENT: INSERT STAGE-06E MACOS APP-USE RESTRICTIONS BEFORE STAGE-07` and `PROCEED: STAGE-06E` on 2026-09-05.
+
 ## 0.6.4-rc.5 — 2026-09-05
 
-Status: **STAGE-06D approved for merge; unreleased**
+Status: **STAGE-06D merged; unreleased**
 
 - Implements signed, bounded website-domain policy delivery to explicitly enrolled Chromium and Firefox profiles without inspecting paths, queries, content, forms, cookies, private sessions, or network traffic.
 - Preserves browser rules offline, requires rule readback before a profile acknowledgement, and reports honest per-profile setup, pending, applied, and not-reporting states.

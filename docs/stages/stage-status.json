@@ -1,6 +1,6 @@
 {
   "$schema": "./stage-status.schema.json",
-  "activeStage": "STAGE-06D",
+  "activeStage": "STAGE-06E",
   "stages": [
     {
       "id": "STAGE-00",
@@ -86,9 +86,17 @@
       "id": "STAGE-06D",
       "name": "Managed browser website blocking",
       "version": "0.6.4-rc.5",
-      "status": "APPROVED",
+      "status": "MERGED",
       "branch": "stage/06d-macos-app-web-network-enforcement",
       "document": "stage-06d.md"
+    },
+    {
+      "id": "STAGE-06E",
+      "name": "macOS application-use restrictions",
+      "version": "0.6.5-rc.10",
+      "status": "APPROVED",
+      "branch": "stage/06e-macos-app-use-restrictions",
+      "document": "stage-06e.md"
     }
   ]
 }

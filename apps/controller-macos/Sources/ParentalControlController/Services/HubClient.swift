@@ -141,13 +141,19 @@ final class HubClient {
   }
 
   func configureActivity(
-    deviceID: String, enabled: Bool, retentionDays: Int
+    deviceID: String, enabled: Bool, retentionDays: Int,
+    restrictionPolicy: ApplicationRestrictionPolicy? = nil
   ) async throws -> LocalHubStatus? {
-    try await request(
+    var payload: [String: JSONValue] = [
+      "enabled": .bool(enabled), "retentionDays": .integer(Int64(retentionDays)),
+    ]
+    if let restrictionPolicy {
+      payload["restrictionPolicy"] = .string(
+        String(decoding: try JSONEncoder().encode(restrictionPolicy), as: UTF8.self))
+    }
+    return try await request(
       .configureActivity, deviceID: deviceID,
-      payload: [
-        "enabled": .bool(enabled), "retentionDays": .integer(Int64(retentionDays)),
-      ])
+      payload: payload)
   }
 
   func configureBrowser(

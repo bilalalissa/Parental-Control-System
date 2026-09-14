@@ -174,6 +174,12 @@ public final class HubDatabase: @unchecked Sendable {
       INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at)
           VALUES(3, strftime('%s','now'));
       """)
+    try? execute("ALTER TABLE app_activity ADD COLUMN signing_identifier TEXT;")
+    try? execute("ALTER TABLE app_activity ADD COLUMN team_identifier TEXT;")
+    try? execute("ALTER TABLE activity_configuration ADD COLUMN restriction_policy_json TEXT;")
+    try execute(
+      "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(8, strftime('%s','now'));"
+    )
     // These two nullable columns upgrade databases created by Stage 04/earlier Stage 05 RCs.
     // Duplicate-column errors are expected when migrate() is called again.
     try? execute("ALTER TABLE hub_chat_messages ADD COLUMN edited_at REAL;")
@@ -220,6 +226,19 @@ public final class HubDatabase: @unchecked Sendable {
       INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at)
           VALUES(7, strftime('%s','now'));
       """)
+    try? execute("ALTER TABLE paired_devices ADD COLUMN secure_lock_readiness TEXT;")
+    try? execute("ALTER TABLE paired_devices ADD COLUMN secure_lock_confirmation TEXT;")
+    try? execute("ALTER TABLE paired_devices ADD COLUMN secure_lock_confirmed_at REAL;")
+    try? execute(
+      "ALTER TABLE paired_devices ADD COLUMN helper_healthy INTEGER CHECK(helper_healthy IN (0, 1));"
+    )
+    try execute(
+      "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(10, strftime('%s','now'));"
+    )
+    try? execute("ALTER TABLE paired_devices ADD COLUMN console_account_type TEXT;")
+    try execute(
+      "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(11, strftime('%s','now'));"
+    )
   }
 
   public func upsertDevice(_ device: HubDeviceRecord) throws {
@@ -230,8 +249,9 @@ public final class HubDatabase: @unchecked Sendable {
       INSERT INTO paired_devices(
           id, name, platform, key_id, public_key, capabilities_json,
           paired_at, last_seen, last_sequence, snapshot_version, revoked,
-          network_interfaces_json
-      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          network_interfaces_json, secure_lock_readiness, secure_lock_confirmation,
+          secure_lock_confirmed_at, helper_healthy, console_account_type
+      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
           name=excluded.name,
           platform=excluded.platform,
@@ -246,7 +266,12 @@ public final class HubDatabase: @unchecked Sendable {
             WHEN excluded.network_interfaces_json = '[]'
             THEN paired_devices.network_interfaces_json
             ELSE excluded.network_interfaces_json
-          END;
+          END,
+          secure_lock_readiness=COALESCE(excluded.secure_lock_readiness, paired_devices.secure_lock_readiness),
+          secure_lock_confirmation=COALESCE(excluded.secure_lock_confirmation, paired_devices.secure_lock_confirmation),
+          secure_lock_confirmed_at=COALESCE(excluded.secure_lock_confirmed_at, paired_devices.secure_lock_confirmed_at),
+          helper_healthy=COALESCE(excluded.helper_healthy, paired_devices.helper_healthy),
+          console_account_type=COALESCE(excluded.console_account_type, paired_devices.console_account_type);
       """,
       [
         .text(device.id), .text(device.name), .text(device.platform), .text(device.keyID),
@@ -257,6 +282,13 @@ public final class HubDatabase: @unchecked Sendable {
         .integer(Int64(clamping: device.snapshotVersion)),
         .integer(device.isRevoked ? 1 : 0),
         .text(networkInterfaces),
+        device.secureLockReadiness.map(HubSQLiteValue.text) ?? .null,
+        device.secureLockConfirmation.map(HubSQLiteValue.text) ?? .null,
+        device.secureLockConfirmedAt.map {
+          .integer(Int64($0.timeIntervalSince1970))
+        } ?? .null,
+        device.helperHealthy.map { .integer($0 ? 1 : 0) } ?? .null,
+        device.consoleAccountType.map(HubSQLiteValue.text) ?? .null,
       ])
   }
 
@@ -272,7 +304,8 @@ public final class HubDatabase: @unchecked Sendable {
       """
       SELECT id, name, platform, key_id, public_key, capabilities_json,
              paired_at, last_seen, last_sequence, snapshot_version, revoked,
-             network_interfaces_json
+             network_interfaces_json, secure_lock_readiness, secure_lock_confirmation,
+             secure_lock_confirmed_at, helper_healthy, console_account_type
       FROM paired_devices
       \(includeRevoked ? "" : "WHERE revoked = 0")
       ORDER BY name;
@@ -303,7 +336,14 @@ public final class HubDatabase: @unchecked Sendable {
           lastSequence: UInt64(max(0, sqlite3_column_int64(statement, 8))),
           snapshotVersion: UInt64(max(0, sqlite3_column_int64(statement, 9))),
           isRevoked: sqlite3_column_int(statement, 10) == 1,
-          networkInterfaces: networkInterfaces
+          networkInterfaces: networkInterfaces,
+          helperHealthy: sqlite3_column_type(statement, 15) == SQLITE_NULL
+            ? nil : sqlite3_column_int(statement, 15) == 1,
+          consoleAccountType: nullableText(statement, 16),
+          secureLockReadiness: nullableText(statement, 12),
+          secureLockConfirmation: nullableText(statement, 13),
+          secureLockConfirmedAt: sqlite3_column_type(statement, 14) == SQLITE_NULL
+            ? nil : Date(timeIntervalSince1970: sqlite3_column_double(statement, 14))
         ))
     }
     return result
@@ -312,8 +352,16 @@ public final class HubDatabase: @unchecked Sendable {
   /// Update only negotiated support. Never replace keys, pairing dates or revocation state.
   public func refreshCapabilities(deviceID: String, capabilities: [String]) throws {
     try run(
-      "UPDATE paired_devices SET capabilities_json = ? WHERE id = ? AND revoked = 0;",
-      [.text(try json(capabilities)), .text(deviceID)])
+      """
+      UPDATE paired_devices
+      SET capabilities_json = ?,
+          console_account_type = CASE WHEN ? THEN console_account_type ELSE NULL END
+      WHERE id = ? AND revoked = 0;
+      """,
+      [
+        .text(try json(capabilities)),
+        .integer(capabilities.contains("console-account-type") ? 1 : 0), .text(deviceID),
+      ])
   }
 
   /// Rotate a paired endpoint's public credential after an adult-authorized one-time invitation.
@@ -326,13 +374,16 @@ public final class HubDatabase: @unchecked Sendable {
       """
       UPDATE paired_devices
       SET name = ?, platform = ?, key_id = ?, public_key = ?, capabilities_json = ?,
+          console_account_type = CASE WHEN ? THEN console_account_type ELSE NULL END,
           last_seen = ?, last_sequence = ?
       WHERE id = ? AND revoked = 0;
       """,
       [
         .text(name), .text(platform), .text(keyID), .text(publicKey.base64EncodedString()),
-        .text(try json(capabilities)), .integer(Int64(now.timeIntervalSince1970)),
-        .integer(Int64(clamping: sequence)), .text(deviceID),
+        .text(try json(capabilities)),
+        .integer(capabilities.contains("console-account-type") ? 1 : 0),
+        .integer(Int64(now.timeIntervalSince1970)), .integer(Int64(clamping: sequence)),
+        .text(deviceID),
       ])
   }
 
@@ -361,6 +412,35 @@ public final class HubDatabase: @unchecked Sendable {
     try run(
       "UPDATE paired_devices SET network_interfaces_json = ? WHERE id = ? AND revoked = 0;",
       [.text(try json(Array(interfaces.prefix(8)))), .text(deviceID)])
+  }
+
+  public func saveSecureLockStatus(
+    readiness: String?, confirmation: String?, confirmedAt: Date?, deviceID: String
+  ) throws {
+    try run(
+      """
+      UPDATE paired_devices
+      SET secure_lock_readiness = ?, secure_lock_confirmation = ?, secure_lock_confirmed_at = ?
+      WHERE id = ? AND revoked = 0;
+      """,
+      [
+        readiness.map(HubSQLiteValue.text) ?? .null,
+        confirmation.map(HubSQLiteValue.text) ?? .null,
+        confirmedAt.map { .integer(Int64($0.timeIntervalSince1970)) } ?? .null,
+        .text(deviceID),
+      ])
+  }
+
+  public func saveHelperHealth(_ healthy: Bool, deviceID: String) throws {
+    try run(
+      "UPDATE paired_devices SET helper_healthy = ? WHERE id = ? AND revoked = 0;",
+      [.integer(healthy ? 1 : 0), .text(deviceID)])
+  }
+
+  public func saveConsoleAccountType(_ accountType: String?, deviceID: String) throws {
+    try run(
+      "UPDATE paired_devices SET console_account_type = ? WHERE id = ? AND revoked = 0;",
+      [accountType.map(HubSQLiteValue.text) ?? .null, .text(deviceID)])
   }
 
   public func revoke(deviceID: String) throws {
@@ -606,17 +686,22 @@ public final class HubDatabase: @unchecked Sendable {
       try run(
         """
         INSERT INTO app_activity(
-            device_id, bundle_id, application_name, is_foreground, observed_at
-        ) VALUES(?, ?, ?, ?, ?)
+            device_id, bundle_id, application_name, is_foreground, observed_at,
+            signing_identifier, team_identifier
+        ) VALUES(?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(device_id, bundle_id) DO UPDATE SET
             application_name=excluded.application_name,
             is_foreground=excluded.is_foreground,
-            observed_at=excluded.observed_at;
+            observed_at=excluded.observed_at,
+            signing_identifier=excluded.signing_identifier,
+            team_identifier=excluded.team_identifier;
         """,
         [
           .text(deviceID), .text(record.bundleIdentifier), .text(record.applicationName),
           .integer(record.isForeground ? 1 : 0),
           .integer(Int64(record.observedAt.timeIntervalSince1970)),
+          record.signingIdentifier.map(HubSQLiteValue.text) ?? .null,
+          record.teamIdentifier.map(HubSQLiteValue.text) ?? .null,
         ])
     }
     try run(
@@ -634,7 +719,8 @@ public final class HubDatabase: @unchecked Sendable {
     var statement: OpaquePointer?
     try prepare(
       """
-      SELECT device_id, bundle_id, application_name, is_foreground, observed_at
+      SELECT device_id, bundle_id, application_name, is_foreground, observed_at,
+             signing_identifier, team_identifier
       FROM app_activity ORDER BY is_foreground DESC, observed_at DESC LIMIT ?;
       """, &statement)
     defer { sqlite3_finalize(statement) }
@@ -645,6 +731,10 @@ public final class HubDatabase: @unchecked Sendable {
         HubAppActivity(
           deviceID: text(statement, 0), bundleIdentifier: text(statement, 1),
           applicationName: text(statement, 2),
+          signingIdentifier: sqlite3_column_type(statement, 5) == SQLITE_NULL
+            ? nil : text(statement, 5),
+          teamIdentifier: sqlite3_column_type(statement, 6) == SQLITE_NULL
+            ? nil : text(statement, 6),
           isForeground: sqlite3_column_int(statement, 3) == 1,
           observedAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 4))))
     }
@@ -652,15 +742,20 @@ public final class HubDatabase: @unchecked Sendable {
   }
 
   public func saveActivityConfiguration(_ configuration: ActivityConfiguration) throws {
+    let restrictionPolicy = try configuration.restrictionPolicy.map(json)
     try run(
       """
-      INSERT INTO activity_configuration(device_id, enabled, retention_days) VALUES(?, ?, ?)
+      INSERT INTO activity_configuration(
+          device_id, enabled, retention_days, restriction_policy_json
+      ) VALUES(?, ?, ?, ?)
       ON CONFLICT(device_id) DO UPDATE SET
-          enabled=excluded.enabled, retention_days=excluded.retention_days;
+          enabled=excluded.enabled, retention_days=excluded.retention_days,
+          restriction_policy_json=excluded.restriction_policy_json;
       """,
       [
         .text(configuration.deviceID), .integer(configuration.enabled ? 1 : 0),
         .integer(Int64(configuration.retentionDays)),
+        restrictionPolicy.map(HubSQLiteValue.text) ?? .null,
       ])
     try pruneActivity(now: Date())
   }
@@ -670,7 +765,7 @@ public final class HubDatabase: @unchecked Sendable {
     defer { lock.unlock() }
     var statement: OpaquePointer?
     try prepare(
-      "SELECT device_id, enabled, retention_days FROM activity_configuration ORDER BY device_id;",
+      "SELECT device_id, enabled, retention_days, restriction_policy_json FROM activity_configuration ORDER BY device_id;",
       &statement)
     defer { sqlite3_finalize(statement) }
     var result: [ActivityConfiguration] = []
@@ -678,7 +773,11 @@ public final class HubDatabase: @unchecked Sendable {
       result.append(
         ActivityConfiguration(
           deviceID: text(statement, 0), enabled: sqlite3_column_int(statement, 1) == 1,
-          retentionDays: Int(sqlite3_column_int(statement, 2))))
+          retentionDays: Int(sqlite3_column_int(statement, 2)),
+          restrictionPolicy: sqlite3_column_type(statement, 3) == SQLITE_NULL
+            ? nil
+            : try? JSONDecoder().decode(
+              ApplicationRestrictionPolicy.self, from: Data(text(statement, 3).utf8))))
     }
     return result
   }
@@ -978,5 +1077,10 @@ public final class HubDatabase: @unchecked Sendable {
   private func text(_ statement: OpaquePointer?, _ column: Int32) -> String {
     guard let value = sqlite3_column_text(statement, column) else { return "" }
     return String(cString: value)
+  }
+
+  private func nullableText(_ statement: OpaquePointer?, _ column: Int32) -> String? {
+    guard sqlite3_column_type(statement, column) != SQLITE_NULL else { return nil }
+    return text(statement, column)
   }
 }

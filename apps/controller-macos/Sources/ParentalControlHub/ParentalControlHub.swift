@@ -81,10 +81,15 @@ enum ParentalControlHubMain {
           throw AuthenticatedIPCError.remote("Activity configuration is incomplete")
         }
         let retention = Int(request.payload["retentionDays"]?.integerValue ?? 7)
+        let restrictionPolicy = try request.payload["restrictionPolicy"]?.stringValue.map {
+          try JSONDecoder().decode(
+            ApplicationRestrictionPolicy.self, from: Data($0.utf8)
+          ).validated()
+        }
         try hub.configureActivity(
           ActivityConfiguration(
             deviceID: try requiredDeviceID(request), enabled: enabled,
-            retentionDays: retention))
+            retentionDays: retention, restrictionPolicy: restrictionPolicy))
       case .configureBrowser:
         guard let enabled = request.payload["enabled"]?.boolValue else {
           throw AuthenticatedIPCError.remote("Browser configuration is incomplete")

@@ -4,19 +4,38 @@ import Foundation
 public struct BrowserWebsitePolicy: Codable, Equatable, Sendable {
   public let version: Int64
   public let domains: [String]
+  /// Browser/profile report identities that an adult explicitly retired after removing a
+  /// profile or reinstalling its extension. This never gets inferred from app installation or
+  /// heartbeat age: a stale enrolled profile remains a visible protection gap until an adult
+  /// confirms that it no longer needs coverage.
+  public let retiredReportIDs: [String]
 
-  public init(version: Int64, domains: [String]) throws {
+  public init(version: Int64, domains: [String], retiredReportIDs: [String] = []) throws {
     guard version > 0, version <= 9_007_199_254_740_991, domains.count <= 256,
-      domains.reduce(0, { $0 + $1.utf8.count }) <= 32_768
+      domains.reduce(0, { $0 + $1.utf8.count }) <= 32_768,
+      retiredReportIDs.count <= 32,
+      retiredReportIDs.allSatisfy({ !$0.isEmpty && $0.utf8.count <= 121 }),
+      retiredReportIDs.reduce(0, { $0 + $1.utf8.count }) <= 3_872
     else {
       throw BrowserPolicyError.invalidPolicy
     }
     self.version = version
     self.domains = try Array(Set(domains.map(Self.normalize))).sorted()
+    self.retiredReportIDs = Array(Set(retiredReportIDs)).sorted()
   }
 
   public func validated() throws -> Self {
-    try Self(version: version, domains: domains)
+    try Self(version: version, domains: domains, retiredReportIDs: retiredReportIDs)
+  }
+
+  private enum CodingKeys: String, CodingKey { case version, domains, retiredReportIDs }
+
+  public init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    try self.init(
+      version: values.decode(Int64.self, forKey: .version),
+      domains: values.decode([String].self, forKey: .domains),
+      retiredReportIDs: values.decodeIfPresent([String].self, forKey: .retiredReportIDs) ?? [])
   }
 
   /// Leave room for authenticated status metadata and pairing responses within 64 KiB.
@@ -68,13 +87,48 @@ public struct BrowserProtectionReport: Codable, Equatable, Identifiable, Sendabl
   }
 
   public func label(expectedVersion: Int64?, now: Date, online: Bool) -> String {
+    if !online { return "Device offline" }
     if state == "unsupported" { return "Unsupported" }
     if state == "setup-required" { return "Setup required" }
-    guard online, now.timeIntervalSince(observedAt) < 180,
-      observedAt.timeIntervalSince(now) < 120
-    else { return "Not reporting" }
+    let recent = isRecent(now: now)
     if state == "error" { return "Application failed" }
-    guard let expectedVersion, version == expectedVersion else { return "Policy pending" }
-    return "Policy applied"
+    guard let expectedVersion, version == expectedVersion else {
+      return recent ? "Policy pending" : "Not reporting current policy"
+    }
+    return recent ? "Policy applied" : "Not reporting"
   }
+
+  public func requiresAdultAttention(expectedVersion: Int64?, now: Date, online: Bool) -> Bool {
+    guard online, let expectedVersion else { return false }
+    return state != "applied" || version != expectedVersion || !isRecent(now: now)
+  }
+
+  private func isRecent(now: Date) -> Bool {
+    now.timeIntervalSince(observedAt) < 180 && observedAt.timeIntervalSince(now) < 120
+  }
+}
+
+public enum BrowserProtectionCoverage {
+  /// Empty profile identifiers were synthesized by RC7 from application installation paths.
+  /// They never proved that a browser profile or extension existed and must not drive coverage.
+  public static func enrolledReports(
+    _ reports: [BrowserProtectionReport], retiredReportIDs: [String] = []
+  )
+    -> [BrowserProtectionReport]
+  {
+    let retired = Set(retiredReportIDs)
+    return Array(reports.filter { !$0.profile.isEmpty && !retired.contains($0.id) }.suffix(24))
+  }
+
+  public static func hasProtectionGap(
+    reports: [BrowserProtectionReport], expectedVersion: Int64?, now: Date, online: Bool
+  ) -> Bool {
+    guard online, expectedVersion != nil else { return false }
+    let enrolled = reports
+    guard !enrolled.isEmpty else { return true }
+    return enrolled.contains {
+      $0.requiresAdultAttention(expectedVersion: expectedVersion, now: now, online: online)
+    }
+  }
+
 }

@@ -19,6 +19,98 @@ public enum EndpointSessionState: String, Codable, Sendable {
   case unknown
 }
 
+public struct EndpointConsoleUser: Equatable, Sendable {
+  public let name: String
+  public let uid: uid_t
+
+  public init(name: String, uid: uid_t) {
+    self.name = String(name.prefix(128))
+    self.uid = uid
+  }
+}
+
+public enum EndpointConsoleAccountType: String, Codable, Equatable, Sendable {
+  case standard
+  case administrator
+  case none
+}
+
+/// Binds session-sensitive work to the foreground interactive session. The package-wide
+/// LaunchAgent can exist in multiple Aqua login sessions, so a background fast-user-switched
+/// helper must never overwrite the enrolled endpoint's current session state. Administrator
+/// membership remains a visible bypass-risk classification, not a reason to misclassify the
+/// installed child endpoint as uncontrolled.
+public enum EndpointConsoleSession {
+  private static let groupLookupLock = NSLock()
+
+  public static func currentUser() -> EndpointConsoleUser? {
+    var uid: uid_t = 0
+    var gid: gid_t = 0
+    guard let value = SCDynamicStoreCopyConsoleUser(nil, &uid, &gid) as String?,
+      value != "loginwindow", uid >= 500
+    else { return nil }
+    return EndpointConsoleUser(name: value, uid: uid)
+  }
+
+  public static func isCurrentStandardUser(uid: uid_t) -> Bool {
+    guard let current = currentUser() else { return false }
+    return allowsCurrentConsoleOperation(uid: uid, consoleUID: current.uid)
+      && !isAdministrator(uid: uid)
+  }
+
+  public static func isCurrentEndpointUser(uid: uid_t) -> Bool {
+    allowsCurrentConsoleOperation(uid: uid, consoleUID: currentUser()?.uid)
+  }
+
+  public static func currentAccountType() -> EndpointConsoleAccountType {
+    guard let current = currentUser() else { return .none }
+    return isAdministrator(uid: current.uid) ? .administrator : .standard
+  }
+
+  public static func allowsCurrentConsoleOperation(uid: uid_t, consoleUID: uid_t?) -> Bool {
+    uid >= 500 && uid == consoleUID
+  }
+
+  public static func isAdministrator(uid: uid_t) -> Bool {
+    groupLookupLock.lock()
+    defer { groupLookupLock.unlock() }
+    guard uid >= 500, let password = getpwuid(uid) else { return true }
+    let user = String(cString: password.pointee.pw_name)
+    let primaryGroup = Int32(password.pointee.pw_gid)
+    guard let admin = getgrnam("admin") else { return true }
+    let adminGroup = Int32(admin.pointee.gr_gid)
+    var count: Int32 = 16
+    var groups = [Int32](repeating: 0, count: Int(count))
+    var result = user.withCString {
+      getgrouplist($0, primaryGroup, &groups, &count)
+    }
+    if result == -1, count > 0, count <= 1_024 {
+      groups = [Int32](repeating: 0, count: Int(count))
+      result = user.withCString {
+        getgrouplist($0, primaryGroup, &groups, &count)
+      }
+    }
+    guard result >= 0, count >= 0 else { return true }
+    return groups.prefix(Int(count)).contains(adminGroup)
+  }
+}
+
+public enum EndpointSecureLockReadiness: String, Codable, Sendable {
+  case unknown
+  case ready
+  case passwordNotRequired = "password-not-required"
+  case passwordDelayed = "password-delayed"
+  case verificationUnavailable = "verification-unavailable"
+}
+
+public enum EndpointSecureLockConfirmation: String, Codable, Sendable {
+  case notRequested = "not-requested"
+  case pending
+  case confirmed
+  case timedOut = "timed-out"
+  case launchFailed = "launch-failed"
+}
+
 public struct EndpointAllowanceSummary: Codable, Equatable, Sendable {
   public let timezone: String
   public let scheduledWindowStartAt: Date?
@@ -28,11 +120,13 @@ public struct EndpointAllowanceSummary: Codable, Equatable, Sendable {
   public let activeUseMinutes: Int
   public let temporaryAllowanceUntil: Date?
   public let limitingReason: String?
+  public let nextScheduledWindowStartAt: Date?
 
   public init(
     timezone: String, scheduledWindowStartAt: Date?, scheduledWindowEndAt: Date?,
     dailyQuotaMinutes: Int, bonusMinutes: Int, activeUseMinutes: Int,
-    temporaryAllowanceUntil: Date?, limitingReason: String?
+    temporaryAllowanceUntil: Date?, limitingReason: String?,
+    nextScheduledWindowStartAt: Date? = nil
   ) {
     self.timezone = timezone
     self.scheduledWindowStartAt = scheduledWindowStartAt
@@ -42,6 +136,7 @@ public struct EndpointAllowanceSummary: Codable, Equatable, Sendable {
     self.activeUseMinutes = max(0, activeUseMinutes)
     self.temporaryAllowanceUntil = temporaryAllowanceUntil
     self.limitingReason = limitingReason.map { String($0.prefix(500)) }
+    self.nextScheduledWindowStartAt = nextScheduledWindowStartAt
   }
 
   public var plannedWindowSeconds: TimeInterval? {
@@ -83,6 +178,10 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var bootTime: Date
   public var sessionState: EndpointSessionState
   public var consoleUser: String?
+  public var consoleAccountType: EndpointConsoleAccountType?
+  public var secureLockReadiness: EndpointSecureLockReadiness?
+  public var secureLockConfirmation: EndpointSecureLockConfirmation?
+  public var secureLockConfirmedAt: Date?
   public var connectionState: EndpointConnectionState
   public var lastControllerContact: Date?
   public var networks: [NetworkMetadata]
@@ -91,6 +190,7 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var activityCollectionEnabled: Bool
   public var activityRetentionDays: Int
   public var applications: [EndpointApplicationActivity]
+  public var applicationRestrictionPolicy: ApplicationRestrictionPolicy?
   public var browserCollectionEnabled: Bool
   public var browserRetentionDays: Int
   public var browserTabs: [EndpointBrowserTab]
@@ -98,9 +198,11 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
   public var browserProtectionReports: [BrowserProtectionReport]?
   public var policyVersion: UInt64?
   public var policyDecision: PolicyDecisionKind?
+  public var policyDecisionSource: PolicyDecisionSource?
   public var policyAction: PolicyAction?
   public var policyReason: String?
   public var policyLastEvaluatedAt: Date?
+  public var policyRestrictionID: UUID?
   public var policyNextRestrictionAt: Date?
   public var policyNextAllowanceAt: Date?
   public var policyAllowanceSummary: EndpointAllowanceSummary?
@@ -118,6 +220,10 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     bootTime: Date,
     sessionState: EndpointSessionState = .unknown,
     consoleUser: String? = nil,
+    consoleAccountType: EndpointConsoleAccountType? = nil,
+    secureLockReadiness: EndpointSecureLockReadiness? = nil,
+    secureLockConfirmation: EndpointSecureLockConfirmation? = nil,
+    secureLockConfirmedAt: Date? = nil,
     connectionState: EndpointConnectionState = .unpaired,
     lastControllerContact: Date? = nil,
     networks: [NetworkMetadata] = [],
@@ -126,11 +232,14 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     activityCollectionEnabled: Bool = true,
     activityRetentionDays: Int = 7,
     applications: [EndpointApplicationActivity] = [],
+    applicationRestrictionPolicy: ApplicationRestrictionPolicy? = nil,
     browserCollectionEnabled: Bool = false,
     browserRetentionDays: Int = 7,
     browserTabs: [EndpointBrowserTab] = [], policyVersion: UInt64? = nil,
-    policyDecision: PolicyDecisionKind? = nil, policyAction: PolicyAction? = nil,
+    policyDecision: PolicyDecisionKind? = nil,
+    policyDecisionSource: PolicyDecisionSource? = nil, policyAction: PolicyAction? = nil,
     policyReason: String? = nil, policyLastEvaluatedAt: Date? = nil,
+    policyRestrictionID: UUID? = nil,
     policyNextRestrictionAt: Date? = nil, policyClockTrusted: Bool = true,
     policyNextAllowanceAt: Date? = nil, policyAllowanceSummary: EndpointAllowanceSummary? = nil,
     adultOverrideUntil: Date? = nil,
@@ -145,6 +254,10 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     self.bootTime = bootTime
     self.sessionState = sessionState
     self.consoleUser = consoleUser
+    self.consoleAccountType = consoleAccountType
+    self.secureLockReadiness = secureLockReadiness
+    self.secureLockConfirmation = secureLockConfirmation
+    self.secureLockConfirmedAt = secureLockConfirmedAt
     self.connectionState = connectionState
     self.lastControllerContact = lastControllerContact
     self.networks = networks
@@ -153,14 +266,17 @@ public struct EndpointStatus: Codable, Equatable, Sendable {
     self.activityCollectionEnabled = activityCollectionEnabled
     self.activityRetentionDays = max(1, min(activityRetentionDays, 30))
     self.applications = Array(applications.prefix(64))
+    self.applicationRestrictionPolicy = applicationRestrictionPolicy
     self.browserCollectionEnabled = browserCollectionEnabled
     self.browserRetentionDays = max(1, min(browserRetentionDays, 30))
     self.browserTabs = Array(browserTabs.prefix(128))
     self.policyVersion = policyVersion
     self.policyDecision = policyDecision
+    self.policyDecisionSource = policyDecisionSource
     self.policyAction = policyAction
     self.policyReason = policyReason.map { String($0.prefix(500)) }
     self.policyLastEvaluatedAt = policyLastEvaluatedAt
+    self.policyRestrictionID = policyRestrictionID
     self.policyNextRestrictionAt = policyNextRestrictionAt
     self.policyNextAllowanceAt = policyNextAllowanceAt
     self.policyAllowanceSummary = policyAllowanceSummary
@@ -174,15 +290,20 @@ public struct EndpointApplicationActivity: Codable, Equatable, Identifiable, Sen
   public var id: String { bundleIdentifier }
   public let bundleIdentifier: String
   public let applicationName: String
+  public let signingIdentifier: String?
+  public let teamIdentifier: String?
   public let isForeground: Bool
   public let observedAt: Date
 
   public init(
-    bundleIdentifier: String, applicationName: String, isForeground: Bool,
+    bundleIdentifier: String, applicationName: String,
+    signingIdentifier: String? = nil, teamIdentifier: String? = nil, isForeground: Bool,
     observedAt: Date = Date()
   ) {
     self.bundleIdentifier = String(bundleIdentifier.prefix(200))
     self.applicationName = String(applicationName.prefix(120))
+    self.signingIdentifier = signingIdentifier.map { String($0.prefix(200)) }
+    self.teamIdentifier = teamIdentifier.map { String($0.prefix(64)) }
     self.isForeground = isForeground
     self.observedAt = observedAt
   }
@@ -194,6 +315,31 @@ public struct EndpointActivityUpdate: Codable, Equatable, Sendable {
 
   public init(applications: [EndpointApplicationActivity], observedAt: Date = Date()) {
     self.applications = Array(applications.prefix(64))
+    self.observedAt = observedAt
+  }
+}
+
+public enum EndpointApplicationRestrictionOutcome: String, Codable, Sendable {
+  case quitRequested = "quit-requested"
+  case closed
+  case sessionLocked = "session-locked"
+  case lockUnavailable = "lock-unavailable"
+  case lockConfirmationTimedOut = "lock-confirmation-timed-out"
+}
+
+public struct EndpointApplicationRestrictionEvent: Codable, Equatable, Sendable {
+  public let bundleIdentifier: String
+  public let policyVersion: Int64
+  public let outcome: EndpointApplicationRestrictionOutcome
+  public let observedAt: Date
+
+  public init(
+    bundleIdentifier: String, policyVersion: Int64,
+    outcome: EndpointApplicationRestrictionOutcome, observedAt: Date = Date()
+  ) {
+    self.bundleIdentifier = String(bundleIdentifier.prefix(200))
+    self.policyVersion = policyVersion
+    self.outcome = outcome
     self.observedAt = observedAt
   }
 }
@@ -339,6 +485,7 @@ public enum EndpointOutboundKind: String, Codable, Sendable {
   case chat
   case requestMoreTime
   case receipt
+  case applicationRestrictionEvent
 }
 
 public struct EndpointOutboundItem: Codable, Equatable, Identifiable, Sendable {
@@ -389,15 +536,24 @@ public struct SessionUpdate: Codable, Equatable, Sendable {
   /// True when the authenticated GUI helper observed a new graphical-session boundary even if
   /// the daemon's last reported state was already active. Older helpers omit this field.
   public let activationBoundary: Bool?
+  public let secureLockReadiness: EndpointSecureLockReadiness?
+  public let secureLockConfirmation: EndpointSecureLockConfirmation?
+  public let secureLockConfirmedAt: Date?
   public let observedAt: Date
 
   public init(
     state: EndpointSessionState, consoleUser: String?, activationBoundary: Bool = false,
+    secureLockReadiness: EndpointSecureLockReadiness? = nil,
+    secureLockConfirmation: EndpointSecureLockConfirmation? = nil,
+    secureLockConfirmedAt: Date? = nil,
     observedAt: Date = Date()
   ) {
     self.state = state
     self.consoleUser = consoleUser
     self.activationBoundary = activationBoundary ? true : nil
+    self.secureLockReadiness = secureLockReadiness
+    self.secureLockConfirmation = secureLockConfirmation
+    self.secureLockConfirmedAt = secureLockConfirmedAt
     self.observedAt = observedAt
   }
 }
@@ -405,6 +561,11 @@ public struct SessionUpdate: Codable, Equatable, Sendable {
 public enum DeviceSnapshotCollector {
   public static func collect(deviceID: String, session: SessionUpdate? = nil) -> EndpointStatus {
     let uptime = UInt64(max(0, ProcessInfo.processInfo.systemUptime))
+    let consoleUser = EndpointConsoleSession.currentUser()
+    let accountType: EndpointConsoleAccountType =
+      consoleUser.map {
+        EndpointConsoleSession.isAdministrator(uid: $0.uid) ? .administrator : .standard
+      } ?? .none
     return EndpointStatus(
       deviceID: deviceID,
       deviceName: Host.current().localizedName ?? ProcessInfo.processInfo.hostName,
@@ -413,20 +574,14 @@ public enum DeviceSnapshotCollector {
       architecture: machineArchitecture(),
       uptimeSeconds: uptime,
       bootTime: Date(timeIntervalSinceNow: -TimeInterval(uptime)),
-      sessionState: session?.state ?? .unknown,
-      consoleUser: session?.consoleUser,
+      sessionState: accountType == .none ? .unknown : (session?.state ?? .unknown),
+      consoleUser: consoleUser?.name,
+      consoleAccountType: accountType,
       networks: networkMetadata())
   }
 
   public static func consoleUser() -> String? {
-    var uid: uid_t = 0
-    var gid: gid_t = 0
-    guard let value = SCDynamicStoreCopyConsoleUser(nil, &uid, &gid) as String?,
-      value != "loginwindow"
-    else {
-      return nil
-    }
-    return String(value.prefix(128))
+    EndpointConsoleSession.currentUser()?.name
   }
 
   public static func networkMetadata() -> [NetworkMetadata] {

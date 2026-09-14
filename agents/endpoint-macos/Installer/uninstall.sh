@@ -28,6 +28,8 @@ fi
 /bin/rmdir /Library/Google/Chrome/NativeMessagingHosts >/dev/null 2>&1 || true
 /bin/rmdir /Library/Microsoft/Edge/NativeMessagingHosts >/dev/null 2>&1 || true
 /bin/rm -rf -- "/Applications/Parental Control Child.app"
+/bin/rm -rf -- "/Applications/Parental Control Safari.app"
 /bin/rm -rf -- "/Library/Application Support/ParentalControlAgent"
+/bin/rm -rf -- "/Library/Application Support/ParentalControlBrowserExtension"
 /usr/sbin/pkgutil --forget com.bilalalissa.ParentalControlChild.component >/dev/null 2>&1 || true
 echo "Parental Control Child and its project-owned local data were removed. Restart login sessions to refresh all launchd state."

@@ -38,7 +38,8 @@ public final class EndpointAgent: @unchecked Sendable {
     let configuration = try store.load()
     repository.configureActivity(
       enabled: configuration.activityCollectionEnabled,
-      retentionDays: configuration.activityRetentionDays)
+      retentionDays: configuration.activityRetentionDays,
+      restrictionPolicy: configuration.applicationRestrictionPolicy)
     repository.configureBrowser(
       enabled: configuration.browserCollectionEnabled,
       retentionDays: configuration.browserRetentionDays, websitePolicy: configuration.websitePolicy)
@@ -106,14 +107,17 @@ public final class EndpointAgent: @unchecked Sendable {
       "publicKey": .string(identity.publicKeyData.base64EncodedString()),
       "capabilities": .array([
         .string("presence"), .string("device-info"), .string("uptime"), .string("session-state"),
-        .string("network-metadata"), .string("health"), .string("delta-snapshot"),
+        .string("console-account-type"), .string("network-metadata"), .string("health"),
+        .string("delta-snapshot"),
         .string("receipt"), .string("app-activity"), .string("chat"),
+        .string("app-use-restrictions"),
         .string("browser-tabs"), .string("browser-website-policy"), .string("request-more-time"),
         .string("notifications"),
         .string("time-request-resolution"),
         .string("signed-policy"), .string("offline-enforcement"), .string("policy-warning"),
         .string(HubLoginEnforcementCapability.session.rawValue),
-        .string("lock"), .string("logoff"), .string("restart"), .string("shutdown"),
+        .string("lock"), .string("secure-lock-readiness"), .string("logoff"),
+        .string("restart"), .string("shutdown"),
         .string("adult-override"), .string("bonus-time"),
       ]),
     ]
@@ -192,7 +196,8 @@ public final class EndpointAgent: @unchecked Sendable {
         try receiveAdultVerifier(envelope)
       case .policyQuery:
         try sendPolicyReceipt(for: envelope.id, state: "queried")
-      case .activityUpdate, .browserUpdate, .requestMoreTime, .capabilityAnnounce,
+      case .activityUpdate, .applicationRestrictionEvent, .browserUpdate, .requestMoreTime,
+        .capabilityAnnounce,
         .snapshotResponse:
         break
       }
@@ -207,10 +212,15 @@ public final class EndpointAgent: @unchecked Sendable {
       session: SessionUpdate(state: former.sessionState, consoleUser: former.consoleUser))
     refreshed.connectionState = .online
     refreshed.lastControllerContact = former.lastControllerContact
-    refreshed.helperHealthy = former.helperHealthy
+    refreshed.helperHealthy =
+      refreshed.consoleAccountType == EndpointConsoleAccountType.none ? false : former.helperHealthy
+    refreshed.secureLockReadiness = former.secureLockReadiness
+    refreshed.secureLockConfirmation = former.secureLockConfirmation
+    refreshed.secureLockConfirmedAt = former.secureLockConfirmedAt
     refreshed.activityCollectionEnabled = former.activityCollectionEnabled
     refreshed.activityRetentionDays = former.activityRetentionDays
     refreshed.applications = former.applications
+    refreshed.applicationRestrictionPolicy = former.applicationRestrictionPolicy
     refreshed.browserCollectionEnabled = former.browserCollectionEnabled
     refreshed.browserRetentionDays = former.browserRetentionDays
     refreshed.browserTabs = former.browserTabs
@@ -218,9 +228,11 @@ public final class EndpointAgent: @unchecked Sendable {
     refreshed.browserProtectionReports = former.browserProtectionReports
     refreshed.policyVersion = former.policyVersion
     refreshed.policyDecision = former.policyDecision
+    refreshed.policyDecisionSource = former.policyDecisionSource
     refreshed.policyAction = former.policyAction
     refreshed.policyReason = former.policyReason
     refreshed.policyLastEvaluatedAt = former.policyLastEvaluatedAt
+    refreshed.policyRestrictionID = former.policyRestrictionID
     refreshed.policyNextRestrictionAt = former.policyNextRestrictionAt
     refreshed.policyNextAllowanceAt = former.policyNextAllowanceAt
     refreshed.policyAllowanceSummary = former.policyAllowanceSummary
@@ -243,6 +255,13 @@ public final class EndpointAgent: @unchecked Sendable {
       "bootTime": .string(ISO8601DateFormatter().string(from: refreshed.bootTime)),
       "sessionState": .string(refreshed.sessionState.rawValue),
       "consoleUser": refreshed.consoleUser.map(JSONValue.string) ?? .null,
+      "consoleAccountType": refreshed.consoleAccountType.map { .string($0.rawValue) } ?? .null,
+      "secureLockReadiness": refreshed.secureLockReadiness.map { .string($0.rawValue) } ?? .null,
+      "secureLockConfirmation": refreshed.secureLockConfirmation.map { .string($0.rawValue) }
+        ?? .null,
+      "secureLockConfirmedAt": refreshed.secureLockConfirmedAt.map {
+        .string(ISO8601DateFormatter().string(from: $0))
+      } ?? .null,
       "networks": .array(networks), "daemonHealthy": .bool(true),
       "helperHealthy": .bool(refreshed.helperHealthy),
       "policyVersion": refreshed.policyVersion.map { .integer(Int64(clamping: $0)) } ?? .null,
@@ -307,6 +326,8 @@ public final class EndpointAgent: @unchecked Sendable {
       .object([
         "bundleIdentifier": .string(application.bundleIdentifier),
         "applicationName": .string(application.applicationName),
+        "signingIdentifier": application.signingIdentifier.map(JSONValue.string) ?? .null,
+        "teamIdentifier": application.teamIdentifier.map(JSONValue.string) ?? .null,
         "isForeground": .bool(application.isForeground),
         "observedAt": .string(ISO8601DateFormatter().string(from: application.observedAt)),
       ])
@@ -365,14 +386,30 @@ public final class EndpointAgent: @unchecked Sendable {
       let enabled = envelope.payload["enabled"]?.boolValue
     else { throw EndpointAgentError.invalidMessage }
     let retention = Int(envelope.payload["retentionDays"]?.integerValue ?? 7)
-    try store.setActivityCollection(enabled: enabled, retentionDays: retention)
-    repository.configureActivity(enabled: enabled, retentionDays: retention)
+    let restrictionPolicy = try envelope.payload["restrictionPolicy"]?.stringValue.map {
+      try JSONDecoder().decode(
+        ApplicationRestrictionPolicy.self, from: Data($0.utf8)
+      ).validated()
+    }
+    try store.setActivityConfiguration(
+      enabled: enabled, retentionDays: retention, restrictionPolicy: restrictionPolicy)
+    repository.configureActivity(
+      enabled: enabled, retentionDays: retention,
+      restrictionPolicy: try store.load().applicationRestrictionPolicy)
+    EndpointPolicyWake.post()
     try sendReceipt(for: envelope.id, state: .delivered)
     log.write(
       event: "activity.configuration",
       detail: enabled
         ? "Collection enabled with \(max(1, min(retention, 30))) day retention"
         : "Collection disabled")
+    if let restrictionPolicy {
+      log.write(
+        event: "application.restriction-policy",
+        detail:
+          "Accepted version \(restrictionPolicy.version) with \(restrictionPolicy.rules.count) validated code identities"
+      )
+    }
   }
 
   private func receiveBrowserConfiguration(_ envelope: ProtocolEnvelope) throws {
@@ -450,7 +487,9 @@ public final class EndpointAgent: @unchecked Sendable {
       let expiresAt = ISO8601DateFormatter().date(from: expiresText)
     else { throw EndpointAgentError.invalidMessage }
     try policyRuntime.setImmediateAction(action, expiresAt: expiresAt)
-    _ = policyRuntime.tick(sessionActive: repository.status().sessionState == .active)
+    _ = policyRuntime.tick(
+      activeUptime: EndpointActiveUseClock.uptime(),
+      sessionActive: repository.status().sessionState == .active)
     EndpointPolicyWake.post()
     try sendPolicyReceipt(for: envelope.id, state: "action-accepted")
     log.write(event: "policy.immediate", detail: "Accepted allowlisted action \(action.rawValue)")
@@ -498,6 +537,7 @@ public final class EndpointAgent: @unchecked Sendable {
         case .chat: type = .chatMessage
         case .requestMoreTime: type = .requestMoreTime
         case .receipt: type = .receipt
+        case .applicationRestrictionEvent: type = .applicationRestrictionEvent
         }
         let envelope = try identity.sign(
           deviceID: configuration.deviceID, sequence: store.nextSequence(), type: type,

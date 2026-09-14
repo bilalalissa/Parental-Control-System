@@ -316,6 +316,45 @@ public enum PolicyEvaluator {
     return nil
   }
 
+  /// Returns the small set of civil-time schedule intervals that can affect a bounded projection.
+  /// This avoids polling every wall-clock minute and preserves exact minute boundaries across DST.
+  public static func weeklyAllowedIntervals(
+    _ policy: ParentalControlPolicy, intersecting range: DateInterval
+  ) -> [DateInterval] {
+    guard let zone = TimeZone(identifier: policy.timezone), range.start < range.end else {
+      return []
+    }
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = zone
+    guard
+      let firstDay = calendar.date(
+        byAdding: .day, value: -1, to: calendar.startOfDay(for: range.start))
+    else { return [] }
+    var day = firstDay
+    var intervals: [DateInterval] = []
+    for _ in 0..<12 {
+      guard day <= range.end,
+        let weekday = PolicyWeekday.from(calendarWeekday: calendar.component(.weekday, from: day))
+      else { break }
+      for window in policy.weeklyAllowed where window.day == weekday {
+        guard let startMinute = minutes(window.start), let endMinute = minutes(window.end),
+          startMinute != endMinute,
+          let start = localTime(
+            startMinute, on: day, calendar: calendar, repeatedTimePolicy: .first),
+          let endDay = startMinute < endMinute
+            ? Optional(day) : calendar.date(byAdding: .day, value: 1, to: day),
+          let end = localTime(
+            endMinute, on: endDay, calendar: calendar, repeatedTimePolicy: .last)
+        else { continue }
+        let interval = DateInterval(start: start, end: end)
+        if interval.end > range.start, interval.start <= range.end { intervals.append(interval) }
+      }
+      guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+      day = next
+    }
+    return intervals.sorted { $0.start < $1.start }
+  }
+
   private static func localTime(
     _ minuteOfDay: Int, on day: Date, calendar: Calendar,
     repeatedTimePolicy: Calendar.RepeatedTimePolicy

@@ -45,6 +45,7 @@
         "snapshot.response",
         "activity.update",
         "activity.configuration",
+        "application.restriction-event",
         "browser.update",
         "browser.configuration",
         "policy.apply",

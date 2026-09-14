@@ -4,15 +4,50 @@ set -euo pipefail
 TARGET_VOLUME="${3:-/}"
 SUPPORT="$TARGET_VOLUME/Library/Application Support/ParentalControlAgent"
 MARKER="$SUPPORT/.installer-maintenance.plist"
+RELAUNCH_MARKER="$SUPPORT/.installer-relaunch-child.plist"
 
 # Stop the current visible-session helper before package replacement. This also halts a stale
 # RC3 fail-closed relock loop while the administrator-authorized upgrade is in progress.
 if [[ "$TARGET_VOLUME" == "/" ]]; then
   CONSOLE_UID="$(/usr/bin/stat -f '%u' /dev/console)"
   if [[ "$CONSOLE_UID" =~ ^[0-9]+$ ]] && (( CONSOLE_UID >= 500 )); then
+    SAFARI_PROCESS_PATTERN='^/System/Applications/Safari\.app/Contents/MacOS/Safari([[:space:]]|$)'
+    if /usr/bin/pgrep -u "$CONSOLE_UID" -f "$SAFARI_PROCESS_PATTERN" >/dev/null 2>&1; then
+      echo "Quit Safari completely before installing the Safari test extension, then run the installer again." >&2
+      exit 1
+    fi
+    CHILD_PROCESS_PATTERN='^/Applications/Parental Control Child\.app/Contents/MacOS/ParentalControlChild([[:space:]]|$)'
+    /bin/rm -f "$RELAUNCH_MARKER"
+    if /usr/bin/pgrep -u "$CONSOLE_UID" -f "$CHILD_PROCESS_PATTERN" >/dev/null 2>&1; then
+      # An ad-hoc client that remains mapped while its bundle is replaced cannot be trusted by
+      # the replacement daemon's exact package manifest. Remember that the visible UI was open,
+      # request a normal termination, and refuse to replace it if it does not exit promptly.
+      RELAUNCH_TEMP="$SUPPORT/.installer-relaunch-child.$$.tmp"
+      /usr/bin/plutil -create xml1 "$RELAUNCH_TEMP"
+      /usr/libexec/PlistBuddy -c "Add :consoleUID integer $CONSOLE_UID" "$RELAUNCH_TEMP"
+      /usr/libexec/PlistBuddy -c "Add :issuedAtEpoch integer $(/bin/date +%s)" "$RELAUNCH_TEMP"
+      /usr/sbin/chown root:wheel "$RELAUNCH_TEMP"
+      /bin/chmod 600 "$RELAUNCH_TEMP"
+      /bin/mv -f "$RELAUNCH_TEMP" "$RELAUNCH_MARKER"
+      /usr/bin/pkill -TERM -u "$CONSOLE_UID" -f "$CHILD_PROCESS_PATTERN" >/dev/null 2>&1 || true
+      for attempt in 1 2 3 4 5; do
+        if ! /usr/bin/pgrep -u "$CONSOLE_UID" -f "$CHILD_PROCESS_PATTERN" >/dev/null 2>&1; then
+          break
+        fi
+        /bin/sleep 1
+      done
+      if /usr/bin/pgrep -u "$CONSOLE_UID" -f "$CHILD_PROCESS_PATTERN" >/dev/null 2>&1; then
+        echo "Unable to close the visible child app safely. Quit it and run the installer again." >&2
+        exit 1
+      fi
+    fi
     USER_SERVICE="gui/$CONSOLE_UID/com.bilalalissa.ParentalControlAgent.user"
     /bin/launchctl bootout "$USER_SERVICE" >/dev/null 2>&1 || true
     /usr/bin/pkill -u "$CONSOLE_UID" -x ParentalControlAgentUser >/dev/null 2>&1 || true
+    # Native-messaging hosts are repository-owned, short-lived bridges. End any pre-upgrade
+    # instance so the next already-installed extension request launches the replacement binary;
+    # this does not stop or reload Chrome, Edge, Arc, Brave, or Firefox.
+    /usr/bin/pkill -u "$CONSOLE_UID" -x ParentalControlBrowserHost >/dev/null 2>&1 || true
   fi
 fi
 

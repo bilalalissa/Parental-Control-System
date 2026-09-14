@@ -291,7 +291,12 @@ struct ChildDashboard: View {
           row("Last contact", status.lastControllerContact?.formatted() ?? "Never")
           row("This Mac", "\(status.deviceName) · \(status.model)")
           row("System", "\(status.operatingSystem) · \(status.architecture)")
-          row("Session", status.sessionState.rawValue.capitalized)
+          row("Session", Self.sessionText(status))
+          row("Secure Lock readiness", Self.secureLockReadinessText(status))
+          row(
+            "Last lock result",
+            Self.secureLockConfirmationText(
+              status.secureLockConfirmation, confirmedAt: status.secureLockConfirmedAt))
           row(
             "Applications", status.activityCollectionEnabled ? "Shared (names only)" : "Not shared")
           row("Retention", "\(status.activityRetentionDays) days on parent controller")
@@ -302,8 +307,25 @@ struct ChildDashboard: View {
             "Website restrictions",
             status.websitePolicy.map { "\($0.domains.count) domains · policy \($0.version)" }
               ?? "No website policy")
+          row(
+            "Application restrictions",
+            status.applicationRestrictionPolicy.map {
+              "\($0.rules.count) apps · policy \($0.version)"
+            } ?? "No application policy")
+          if Self.hasBrowserProtectionGap(status) {
+            Label(
+              Self.browserProtectionMessage(status),
+              systemImage: "exclamationmark.shield.fill"
+            )
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(ControlTheme.accentSoft)
+          }
           Text(
-            "Website rules apply only in enrolled browser profiles, independently of tab sharing. Other profiles, private browsing and Safari are not covered; this is not a device-wide Internet pause."
+            "Website rules apply only in enrolled browser profiles, independently of tab sharing. Other profiles and private browsing are not covered; Safari requires its visible companion extension and per-profile website access. This is not a device-wide Internet pause."
+          )
+          .font(.caption).foregroundStyle(.secondary)
+          Text(
+            "Application rules use validated signing identities. A restricted app may appear briefly before the visible session helper asks it to quit. If it refuses, the session locks; system and parental-control apps are protected."
           )
           .font(.caption).foregroundStyle(.secondary)
         }
@@ -312,9 +334,9 @@ struct ChildDashboard: View {
             if let version = status.policyVersion {
               LabeledContent("Signed policy", value: "Version \(version)")
               LabeledContent(
-                "Current decision", value: status.policyDecision?.rawValue.capitalized ?? "Pending")
+                "Current result", value: Self.policyResult(status))
               LabeledContent(
-                "Restriction", value: status.policyAction?.rawValue.capitalized ?? "None")
+                "Configured action", value: Self.policyAction(status.policyAction))
               if let allowance = status.policyAllowanceSummary {
                 LabeledContent("Schedule time zone", value: allowance.timezone)
                 LabeledContent(
@@ -348,7 +370,9 @@ struct ChildDashboard: View {
                     : "\(allowance.dailyQuotaMinutes) min"
                 )
                 LabeledContent(
-                  "Active-use remaining", value: "About \(allowance.quotaRemainingMinutes) min")
+                  allowance.scheduledWindowEndAt == nil
+                    ? "Unused active time today" : "Active-use remaining",
+                  value: "About \(allowance.quotaRemainingMinutes) min")
                 if let until = allowance.temporaryAllowanceUntil, until > Date() {
                   LabeledContent(
                     "Temporary parent allowance",
@@ -363,7 +387,8 @@ struct ChildDashboard: View {
               {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                   LabeledContent(
-                    "Effective time remaining",
+                    status.policyAction == .warningOnly
+                      ? "Next policy warning in" : "Time until restriction",
                     value: Self.countdown(until: restrictionAt, now: context.date)
                   )
                   .monospacedDigit()
@@ -376,10 +401,21 @@ struct ChildDashboard: View {
               {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                   LabeledContent(
-                    "Available in",
+                    Self.allowanceCountdownLabel(status),
                     value: Self.countdown(until: allowanceAt, now: context.date)
                   )
                   .monospacedDigit()
+                }
+                if status.policyAction == .warningOnly,
+                  let nextWindow = status.policyAllowanceSummary?.nextScheduledWindowStartAt
+                {
+                  LabeledContent(
+                    "Next scheduled window",
+                    value: Self.scheduleTime(
+                      nextWindow,
+                      timezone: status.policyAllowanceSummary?.timezone
+                        ?? TimeZone.current.identifier)
+                  )
                 }
               } else if status.policyDecision == .block {
                 LabeledContent("Countdown", value: "No allowed window within 8 days")
@@ -426,8 +462,11 @@ struct ChildDashboard: View {
               "Before sign-in",
               value: readiness.managedIdentityConfigured
                 ? "Managed identity configured" : "Not configured")
+            LabeledContent(
+              "Password-protected Lock Screen",
+              value: Self.secureLockReadinessText(status))
             Text(
-              "This version can warn and re-lock the standard child session after it becomes active. It does not replace macOS Login Window authentication."
+              "A lock is reported only after macOS verifies an immediate password requirement and the system screen saver activates. If readiness is unavailable, set Lock Screen > Require password after screen saver begins to Immediately. It does not replace macOS Login Window authentication."
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -440,6 +479,79 @@ struct ChildDashboard: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.top, 14)
       .padding(.trailing, 6)
+    }
+  }
+
+  private static func secureLockReadinessText(
+    _ status: EndpointStatus
+  ) -> String {
+    switch effectiveConsoleAccountType(status) {
+    case .some(.none):
+      return "Paused until a child session signs in"
+    case .some(.administrator), .some(.standard), nil:
+      break
+    }
+    if !status.helperHealthy {
+      return "Unavailable — child-session helper is not reporting"
+    }
+    switch status.secureLockReadiness ?? .unknown {
+    case .ready: return "Ready — password required immediately"
+    case .passwordNotRequired: return "Not ready — password requirement is off"
+    case .passwordDelayed: return "Not ready — password requirement is delayed"
+    case .verificationUnavailable: return "Unavailable — could not verify macOS setting"
+    case .unknown: return "Checking"
+    }
+  }
+
+  private static func sessionText(_ status: EndpointStatus) -> String {
+    switch effectiveConsoleAccountType(status) {
+    case .some(.administrator):
+      return status.helperHealthy
+        ? "Administrator — controls active; administrator can bypass"
+        : "Administrator — child-session helper not reporting"
+    case .some(.none): return "No child session signed in"
+    case .some(.standard), nil:
+      return status.helperHealthy
+        ? status.sessionState.rawValue.capitalized : "Child-session helper not reporting"
+    }
+  }
+
+  private static func browserProtectionMessage(_ status: EndpointStatus) -> String {
+    switch effectiveConsoleAccountType(status) {
+    case .some(.administrator):
+      return
+        "Website protection needs adult attention: no enrolled profile has applied the current policy, or a profile reported an error or older policy. An administrator can disable or remove an unmanaged extension."
+    case .some(.none):
+      return "Website-policy reporting is paused because no child session is active."
+    case .some(.standard), nil:
+      return
+        "Website protection needs adult attention: no enrolled profile has applied the current policy, or a profile reported an error or older policy. Open the affected browser and check its extension."
+    }
+  }
+
+  private static func allowanceCountdownLabel(_ status: EndpointStatus) -> String {
+    guard status.policyAction == .warningOnly else { return "Available in" }
+    return status.policyDecisionSource == .dailyQuota
+      ? "Daily quota resets in" : "Warning condition changes in"
+  }
+
+  private static func effectiveConsoleAccountType(
+    _: EndpointStatus
+  ) -> EndpointConsoleAccountType? {
+    EndpointConsoleSession.currentAccountType()
+  }
+
+  private static func secureLockConfirmationText(
+    _ confirmation: EndpointSecureLockConfirmation?, confirmedAt: Date?
+  ) -> String {
+    switch confirmation ?? .notRequested {
+    case .confirmed:
+      return confirmedAt.map { "Confirmed · \($0.formatted(date: .omitted, time: .standard))" }
+        ?? "Confirmed"
+    case .pending: return "Waiting for macOS confirmation"
+    case .timedOut: return "Not confirmed — timed out"
+    case .launchFailed: return "Not confirmed — system screen failed to start"
+    case .notRequested: return "No recent request"
     }
   }
 
@@ -561,6 +673,12 @@ struct ChildDashboard: View {
             : "Browser sharing is disabled.",
           systemImage: status.browserCollectionEnabled
             ? "globe.badge.chevron.backward" : "eye.slash")
+        Label(
+          status.applicationRestrictionPolicy?.rules.isEmpty == false
+            ? "Application-use restrictions are active."
+            : "No application-use restrictions are active.",
+          systemImage: status.applicationRestrictionPolicy?.rules.isEmpty == false
+            ? "app.badge.checkmark" : "app")
       }.padding(.top, 14)
     }
   }
@@ -608,6 +726,39 @@ struct ChildDashboard: View {
     formatter.timeZone = TimeZone(identifier: timezone) ?? .autoupdatingCurrent
     formatter.setLocalizedDateFormatFromTemplate("EEE h:mm a")
     return formatter.string(from: date)
+  }
+
+  static func hasBrowserProtectionGap(_ status: EndpointStatus, now: Date = Date()) -> Bool {
+    guard let policy = status.websitePolicy, !policy.domains.isEmpty else { return false }
+    let reports = BrowserProtectionCoverage.enrolledReports(
+      BrowserCoverageInventory.reports(status.browserProtectionReports ?? [], now: now),
+      retiredReportIDs: policy.retiredReportIDs)
+    return BrowserProtectionCoverage.hasProtectionGap(
+      reports: reports, expectedVersion: policy.version, now: now, online: true)
+  }
+
+  static func policyResult(_ status: EndpointStatus) -> String {
+    switch status.policyDecision {
+    case .allow: return "Allowed"
+    case .block:
+      if status.policyAction == .warningOnly {
+        return status.policyDecisionSource == .dailyQuota
+          ? "Daily quota reached · warning only" : "Policy warning · access remains available"
+      }
+      return "Restricted"
+    case nil: return "Pending"
+    }
+  }
+
+  static func policyAction(_ action: PolicyAction?) -> String {
+    switch action {
+    case .warningOnly: return "Warn only"
+    case .lock: return "Lock"
+    case .logoff: return "Log out"
+    case .restart: return "Restart"
+    case .shutdown: return "Shut down"
+    case nil: return "None"
+    }
   }
 }
 

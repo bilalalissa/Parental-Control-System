@@ -33,16 +33,25 @@ final class BrowserPolicyPersistenceTests: XCTestCase {
     let identity = try Ed25519Identity(keyID: "synthetic-key")
     let device = HubDeviceRecord(
       id: "synthetic-child", name: "Synthetic Child", platform: "macOS",
-      keyID: identity.keyID, publicKey: identity.publicKeyData, capabilities: ["presence"],
-      pairedAt: now, lastSeen: now, lastSequence: 12, snapshotVersion: 9)
+      keyID: identity.keyID, publicKey: identity.publicKeyData,
+      capabilities: ["presence", "console-account-type"], pairedAt: now, lastSeen: now,
+      lastSequence: 12, snapshotVersion: 9, consoleAccountType: "administrator")
     try db.upsertDevice(device)
     try db.refreshCapabilities(deviceID: device.id, capabilities: ["browser-website-policy"])
     let updated = try XCTUnwrap(db.device(id: device.id))
     XCTAssertEqual(updated.capabilities, ["browser-website-policy"])
+    XCTAssertNil(updated.consoleAccountType)
     XCTAssertEqual(updated.publicKey, device.publicKey)
     XCTAssertEqual(updated.pairedAt, device.pairedAt)
     XCTAssertEqual(updated.lastSequence, device.lastSequence)
     XCTAssertEqual(updated.snapshotVersion, device.snapshotVersion)
+    try db.saveConsoleAccountType("administrator", deviceID: device.id)
+    let replacement = try Ed25519Identity(keyID: "replacement-key")
+    try db.repairDeviceIdentity(
+      deviceID: device.id, name: "Repaired Child", platform: "macOS",
+      keyID: replacement.keyID, publicKey: replacement.publicKeyData,
+      capabilities: ["browser-website-policy"], sequence: 13, now: now.addingTimeInterval(1))
+    XCTAssertNil(try db.device(id: device.id)?.consoleAccountType)
     try db.refreshCapabilities(deviceID: device.id, capabilities: [])
     XCTAssertEqual(try db.device(id: device.id)?.capabilities, [])
     try db.revoke(deviceID: device.id)

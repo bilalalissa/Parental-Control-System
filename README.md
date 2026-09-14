@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-06D managed browser website blocking is ready for developer testing; STAGE-07 has not begun.** The developer amended scope on 2026-09-05 to Chromium/Firefox extensions managed through the authenticated child host. Safari, app-launch denial and device-wide Internet pause remain unavailable. Test packages are not production automatic-update distribution. See [Stage status](docs/stages/stage-status.json) and [Stage 06D](docs/stages/stage-06d.md).
+> **STAGE-06E macOS application-use restrictions RC5 with Safari local-test coverage is ready for developer retest; STAGE-07 has not begun.** RC5 retains signed-identity app restrictions and hostname-only enforcement for new, restored and SPA browser navigation. It never inspects page content or network traffic. Chromium/Firefox remain manually enrolled; Safari uses an ad-hoc companion extension that an adult must explicitly enable per profile. Production Safari distribution is not claimed. Without Apple's Endpoint Security entitlement, Stage 06E can visibly close a selected signed third-party app after launch but cannot claim pre-launch denial. See [Stage status](docs/stages/stage-status.json) and [Stage 06E](docs/stages/stage-06e.md).
 
 ## Product direction
 
@@ -17,8 +17,8 @@ The project is intentionally visible and bounded. It will not implement hidden i
 | --- | --- | --- | --- |
 | Visible child UI | Stage 03 candidate | Planned | Planned |
 | Local policy enforcement | Stage 06 candidate | Planned | Planned through Family Controls APIs |
-| Foreground/running apps | Stage 04 candidate (names/bundle IDs only) | Planned | Not available |
-| Browser-tab metadata | Stage 05 visible Chrome/Edge/Arc extension | Visible extension planned | Not available |
+| Foreground/running apps | Stage 04 metadata plus Stage 06E signed-identity restrictions in progress | Planned | Not available |
+| Browser-tab metadata | Visible enrolled Chromium/Firefox extensions plus Stage 06E Safari local-test extension | Visible extension planned | Not available |
 | Reliable uptime or login state | Stage 04 candidate | Planned | Not available |
 | Text chat and announcements | Stage 04 candidate | Planned | While app is active in a later stage |
 | Lock/logoff/restart/shutdown | Stage 06 public macOS mechanisms with confirmation for high-impact actions | Supported APIs only | Not available to a normal app |
@@ -52,7 +52,7 @@ Stage 06D now targets browser-only domain restrictions, independent of optional 
 
 The `0.6.1-rc.5` transition build keeps the Stage-06 enforcement behavior and pairing format unchanged. Both visible apps distinguish signed schedule enforcement after a child session becomes active from managed pre-login enforcement, which remains explicitly not configured. The authenticated GUI helper marks startup, wake/unlock, and public Screen Saver termination as activation boundaries, uses a fresh public Screen Saver instance for each lock request, and performs a bounded active-session re-lock check only while a recent signed-policy evaluation remains blocked and its next allowed boundary has not arrived. The child Status view scrolls and separately reports scheduled-window time, daily active-use quota, approved bonus time, temporary allowance, effective remaining time, and the rule that limits it first. It also exposes signed-policy time zone and policy-local time so system-time mismatches are visible. The endpoint announces a versioned `session-enforcement` capability without claiming or enabling managed identity.
 
-The Stage 06A package remains one selectable clean-install and in-place-upgrade installer. It installs the Apple-silicon Parent Controller by default; on a child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. The universal `arm64`/`x86_64` endpoint has a visible read-only policy dashboard, boot daemon, login helper, authenticated XPC, protected configuration/policy/queue files, Keychain-backed identity, adaptive delta heartbeats, bounded/redacted logs, native browser host, and administrator uninstaller. Lock starts the system screen saver and preserves open applications. Logoff, restart, and shutdown use documented loginwindow confirmation dialogs and never force-terminate applications; unsaved-work prompts remain under macOS control.
+The Stage 06A package remains one selectable clean-install and in-place-upgrade installer. It installs the Apple-silicon Parent Controller by default; on a child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. The universal `arm64`/`x86_64` endpoint has a visible read-only policy dashboard, boot daemon, login helper, authenticated XPC, protected configuration/policy/queue files, Keychain-backed identity, adaptive delta heartbeats, bounded/redacted logs, native browser host, and administrator uninstaller. Secure Lock is enabled only after the child verifies that macOS requires the password immediately; it preserves open applications and reports success only after the public system screen saver activates. Logoff, restart, and shutdown use documented loginwindow confirmation dialogs and never force-terminate applications; unsaved-work prompts remain under macOS control.
 
 To test one mock after installing the developer candidate:
 
@@ -84,7 +84,7 @@ npm test
 npm run cleanup:list
 ```
 
-Building the Stage 06D browser-policy test candidate requires macOS 14 or newer with Xcode and Swift installed. Stages 06B and 06C are documentation-only. Native build work remains constrained to two workers and one project-owned output tree:
+Building the Stage 06E app-use test candidate requires macOS 14 or newer with Xcode and Swift installed. Stages 06B and 06C are documentation-only. Native build work remains constrained to two workers and one project-owned output tree:
 
 ```sh
 swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests
@@ -96,7 +96,7 @@ swift test --package-path agents/endpoint-macos --jobs 2
 ./script/package_endpoint_release.sh
 ```
 
-The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; protected XPC and enforcement require the installed daemon/helper. `package_endpoint_release.sh` creates the selectable Stage 06A `.pkg`; the already-installed browser extension does not need removal, reinstallation, or manual reload because its native host is updated in place. Builders default to ad-hoc app/helper signing for credential-free CI; a physical developer candidate can set `MACOS_SIGNING_IDENTITY` to one stable local Apple Development identity. The product package remains unsigned and not notarized.
+The endpoint build compiles Apple-silicon and Intel sequentially, combines each executable once, verifies both slices, and deletes the per-architecture trees. `build_and_run.sh` launches the uninstalled child dashboard for UI inspection; protected XPC and enforcement require the installed daemon/helper. `package_endpoint_release.sh` creates the selectable Stage 06E `.pkg` and the current browser test packages. RC3 installs Chromium source at `/Library/Application Support/ParentalControlBrowserExtension/Chromium`; an existing unpacked test profile must be moved there once, after which later installer replacements retain the same path and need only a normal browser restart. Builders default to ad-hoc app/helper signing for credential-free CI; a physical developer candidate can set `MACOS_SIGNING_IDENTITY` to one stable local Apple Development identity. The product package remains unsigned and not notarized.
 
 Install the same package on the parent Mac with its default **Parent Controller** choice. On the child Mac, choose **Customize**, deselect **Parent Controller**, and select **Child Endpoint**. Confirm the endpoint service before pairing:
 

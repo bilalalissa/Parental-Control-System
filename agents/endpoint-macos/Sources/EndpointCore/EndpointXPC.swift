@@ -9,6 +9,7 @@ public enum EndpointMachService {
   public static let helperIdentifier = "com.bilalalissa.ParentalControlAgent.user"
   public static let controlIdentifier = "com.bilalalissa.ParentalControlAgent.ctl"
   public static let browserHostIdentifier = "com.bilalalissa.ParentalControlBrowserHost"
+  public static let safariExtensionIdentifier = "com.bilalalissa.ParentalControlSafari.Extension"
 }
 
 public enum EndpointPolicyWake {
@@ -29,6 +30,8 @@ public enum EndpointPolicyWake {
   func dashboard(withReply reply: @escaping (Data?, String?) -> Void)
   func updateSession(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
   func updateActivity(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
+  func reportApplicationRestriction(
+    _ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
   func browserConfiguration(withReply reply: @escaping (Data?, String?) -> Void)
   func updateBrowser(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
   func sendChat(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void)
@@ -39,12 +42,16 @@ public enum EndpointPolicyWake {
 }
 
 public enum XPCAuthorization {
+  public static func requiresCurrentConsoleSession(_ operation: String) -> Bool {
+    operation != "status" && operation != "dashboard"
+  }
+
   public static func allows(uid: uid_t, signingIdentifier: String?, operation: String) -> Bool {
     guard
       [
         "status", "dashboard", "session-update", "activity-update", "browser-configuration",
         "browser-update", "send-chat", "mark-chat-read", "time-request", "adult-code",
-        "policy-events",
+        "policy-events", "application-restriction-event",
       ]
       .contains(operation)
     else { return false }
@@ -54,7 +61,9 @@ public enum XPCAuthorization {
         || signingIdentifier == EndpointMachService.helperIdentifier
         || signingIdentifier == EndpointMachService.controlIdentifier
     }
-    if operation == "session-update" || operation == "activity-update" {
+    if operation == "session-update" || operation == "activity-update"
+      || operation == "application-restriction-event"
+    {
       return signingIdentifier == EndpointMachService.helperIdentifier
     }
     if operation == "policy-events" {
@@ -62,6 +71,7 @@ public enum XPCAuthorization {
     }
     if operation == "browser-configuration" || operation == "browser-update" {
       return signingIdentifier == EndpointMachService.browserHostIdentifier
+        || signingIdentifier == EndpointMachService.safariExtensionIdentifier
     }
     return signingIdentifier == EndpointMachService.childIdentifier
   }
@@ -71,6 +81,7 @@ public enum XPCAuthorization {
     return [
       EndpointMachService.childIdentifier, EndpointMachService.helperIdentifier,
       EndpointMachService.controlIdentifier, EndpointMachService.browserHostIdentifier,
+      EndpointMachService.safariExtensionIdentifier,
     ].contains(signingIdentifier)
   }
 
@@ -92,6 +103,10 @@ public enum XPCAuthorization {
       expected = [
         "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost"
       ]
+    case EndpointMachService.safariExtensionIdentifier:
+      expected = [
+        "/Applications/Parental Control Safari.app/Contents/PlugIns/Parental Control Safari Extension.appex/Contents/MacOS/Parental Control Safari Extension"
+      ]
     default: expected = []
     }
     let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
@@ -99,7 +114,10 @@ public enum XPCAuthorization {
   }
 
   public static func isRootProtected(_ path: String) -> Bool {
-    let application = "/Applications/Parental Control Child.app"
+    let application =
+      path.hasPrefix("/Applications/Parental Control Safari.app/")
+      ? "/Applications/Parental Control Safari.app"
+      : "/Applications/Parental Control Child.app"
     for item in [path, application] {
       guard let attributes = try? FileManager.default.attributesOfItem(atPath: item),
         (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == 0,
@@ -144,14 +162,23 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     transform(&value)
   }
   @discardableResult
-  public func applySession(_ update: SessionUpdate) -> Bool {
+  public func applySession(
+    _ update: SessionUpdate, verifiedConsoleUser: String? = nil,
+    verifiedAccountType: EndpointConsoleAccountType = .standard
+  ) -> Bool {
     lock.lock()
     defer { lock.unlock() }
     let becameActive =
       update.state == .active
       && (value.sessionState != .active || update.activationBoundary == true)
     value.sessionState = update.state
-    value.consoleUser = update.consoleUser.map { String($0.prefix(128)) }
+    value.consoleUser = (verifiedConsoleUser ?? update.consoleUser).map {
+      String($0.prefix(128))
+    }
+    value.consoleAccountType = verifiedAccountType
+    value.secureLockReadiness = update.secureLockReadiness
+    value.secureLockConfirmation = update.secureLockConfirmation
+    value.secureLockConfirmedAt = update.secureLockConfirmedAt
     value.helperHealthy = true
     value.collectedAt = Date()
     helperLastSeen = Date()
@@ -201,11 +228,15 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     value.collectedAt = update.observedAt
   }
 
-  public func configureActivity(enabled: Bool, retentionDays: Int) {
+  public func configureActivity(
+    enabled: Bool, retentionDays: Int,
+    restrictionPolicy: ApplicationRestrictionPolicy? = nil
+  ) {
     lock.lock()
     defer { lock.unlock() }
     value.activityCollectionEnabled = enabled
     value.activityRetentionDays = max(1, min(retentionDays, 30))
+    value.applicationRestrictionPolicy = restrictionPolicy
     if !enabled { value.applications = [] }
   }
 
@@ -342,6 +373,22 @@ public final class EndpointStatusRepository: @unchecked Sendable {
     return request.id
   }
 
+  public func queueApplicationRestrictionEvent(_ event: EndpointApplicationRestrictionEvent) {
+    lock.lock()
+    defer { lock.unlock() }
+    outbound.append(
+      EndpointOutboundItem(
+        kind: .applicationRestrictionEvent,
+        payload: [
+          "bundleIdentifier": .string(event.bundleIdentifier),
+          "policyVersion": .integer(event.policyVersion),
+          "outcome": .string(event.outcome.rawValue),
+          "observedAt": .string(ISO8601DateFormatter().string(from: event.observedAt)),
+        ]))
+    trimOutbound()
+    persistLocked()
+  }
+
   @discardableResult
   public func resolveMoreTime(
     id: UUID, state: EndpointTimeRequestState, minutes: Int, resolvedAt: Date = Date()
@@ -433,8 +480,17 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
     self.identifier = identifier
   }
 
+  private func isAuthorized(_ operation: String) -> Bool {
+    guard
+      XPCAuthorization.allows(
+        uid: uid, signingIdentifier: identifier, operation: operation)
+    else { return false }
+    return !XPCAuthorization.requiresCurrentConsoleSession(operation)
+      || EndpointConsoleSession.isCurrentEndpointUser(uid: uid)
+  }
+
   func status(withReply reply: @escaping (Data?, String?) -> Void) {
-    guard XPCAuthorization.allows(uid: uid, signingIdentifier: identifier, operation: "status")
+    guard isAuthorized("status")
     else {
       reply(nil, "unauthorized")
       return
@@ -445,7 +501,7 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
   }
 
   func dashboard(withReply reply: @escaping (Data?, String?) -> Void) {
-    guard XPCAuthorization.allows(uid: uid, signingIdentifier: identifier, operation: "dashboard")
+    guard isAuthorized("dashboard")
     else {
       reply(nil, "unauthorized")
       return
@@ -457,8 +513,7 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
   }
 
   func updateSession(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void) {
-    guard
-      XPCAuthorization.allows(uid: uid, signingIdentifier: identifier, operation: "session-update")
+    guard isAuthorized("session-update")
     else {
       reply(false, "unauthorized")
       return
@@ -469,10 +524,46 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
         reply(false, "expired update")
         return
       }
-      let becameActive = repository.applySession(update)
-      if becameActive, let policyRuntime {
-        policyRuntime.rearmRestrictionForActiveSession(now: update.observedAt)
-        let events = policyRuntime.tick(now: update.observedAt, sessionActive: true)
+      guard let consoleUser = EndpointConsoleSession.currentUser(), consoleUser.uid == uid else {
+        reply(false, "session changed")
+        return
+      }
+      let becameActive = repository.applySession(
+        update, verifiedConsoleUser: consoleUser.name,
+        verifiedAccountType: EndpointConsoleSession.isAdministrator(uid: uid)
+          ? .administrator : .standard)
+      if let policyRuntime {
+        let now = Date()
+        let activeUptime = EndpointActiveUseClock.uptime()
+        policyRuntime.recordSessionActivity(
+          update.state == .active, now: now, activeUptime: activeUptime)
+        guard becameActive else {
+          reply(true, nil)
+          return
+        }
+        policyRuntime.rearmRestrictionForActiveSession(now: now)
+        let events = policyRuntime.tick(
+          now: now, activeUptime: activeUptime, sessionActive: true)
+        let snapshot = policyRuntime.snapshot(now: now)
+        let nextRestriction = policyRuntime.projectedRestrictionDate(
+          now: now, sessionActive: true)
+        let nextAllowance = policyRuntime.projectedAllowanceDate(now: now)
+        let allowanceSummary = policyRuntime.allowanceSummary(
+          now: now, sessionActive: true, nextRestrictionAt: nextRestriction)
+        repository.update {
+          $0.policyVersion = snapshot.0?.version
+          $0.policyDecision = snapshot.2?.decision
+          $0.policyDecisionSource = snapshot.2?.source
+          $0.policyAction = snapshot.2?.action
+          $0.policyReason = snapshot.2?.reason
+          $0.policyLastEvaluatedAt = now
+          $0.policyRestrictionID = snapshot.1.restrictionID
+          $0.policyNextRestrictionAt = nextRestriction
+          $0.policyNextAllowanceAt = nextAllowance
+          $0.policyAllowanceSummary = allowanceSummary
+          $0.policyClockTrusted = snapshot.1.clockTrusted
+          $0.adultOverrideUntil = snapshot.1.adultOverrideUntil
+        }
         if !events.isEmpty { EndpointPolicyWake.post() }
       }
       reply(true, nil)
@@ -480,8 +571,7 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
   }
 
   func updateActivity(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void) {
-    guard
-      XPCAuthorization.allows(uid: uid, signingIdentifier: identifier, operation: "activity-update")
+    guard isAuthorized("activity-update")
     else {
       reply(false, "unauthorized")
       return
@@ -497,10 +587,28 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
     } catch { reply(false, "invalid update") }
   }
 
+  func reportApplicationRestriction(
+    _ payload: Data, withReply reply: @escaping (Bool, String?) -> Void
+  ) {
+    guard isAuthorized("application-restriction-event")
+    else {
+      reply(false, "unauthorized")
+      return
+    }
+    do {
+      let event = try JSONDecoder.endpoint.decode(
+        EndpointApplicationRestrictionEvent.self, from: payload)
+      guard event.policyVersion > 0, abs(event.observedAt.timeIntervalSinceNow) <= 120 else {
+        reply(false, "invalid event")
+        return
+      }
+      repository.queueApplicationRestrictionEvent(event)
+      reply(true, nil)
+    } catch { reply(false, "invalid event") }
+  }
+
   func browserConfiguration(withReply reply: @escaping (Data?, String?) -> Void) {
-    guard
-      XPCAuthorization.allows(
-        uid: uid, signingIdentifier: identifier, operation: "browser-configuration")
+    guard isAuthorized("browser-configuration")
     else {
       reply(nil, "unauthorized")
       return
@@ -516,8 +624,7 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
   }
 
   func updateBrowser(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void) {
-    guard
-      XPCAuthorization.allows(uid: uid, signingIdentifier: identifier, operation: "browser-update")
+    guard isAuthorized("browser-update")
     else {
       reply(false, "unauthorized")
       return
@@ -534,7 +641,7 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
   }
 
   func sendChat(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void) {
-    guard XPCAuthorization.allows(uid: uid, signingIdentifier: identifier, operation: "send-chat")
+    guard isAuthorized("send-chat")
     else {
       reply(false, "unauthorized")
       return
@@ -548,8 +655,7 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
   }
 
   func markChatRead(withReply reply: @escaping (Bool, String?) -> Void) {
-    guard
-      XPCAuthorization.allows(uid: uid, signingIdentifier: identifier, operation: "mark-chat-read")
+    guard isAuthorized("mark-chat-read")
     else {
       reply(false, "unauthorized")
       return
@@ -559,8 +665,7 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
   }
 
   func requestMoreTime(_ payload: Data, withReply reply: @escaping (Bool, String?) -> Void) {
-    guard
-      XPCAuthorization.allows(uid: uid, signingIdentifier: identifier, operation: "time-request")
+    guard isAuthorized("time-request")
     else {
       reply(false, "unauthorized")
       return
@@ -573,9 +678,7 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
   }
 
   func submitAdultCode(_ payload: Data, withReply reply: @escaping (Data?, String?) -> Void) {
-    guard
-      XPCAuthorization.allows(
-        uid: uid, signingIdentifier: identifier, operation: "adult-code")
+    guard isAuthorized("adult-code")
     else {
       reply(nil, "unauthorized")
       return
@@ -597,9 +700,7 @@ private final class EndpointXPCObject: NSObject, EndpointXPCProtocol, @unchecked
   }
 
   func claimPolicyEvents(withReply reply: @escaping (Data?, String?) -> Void) {
-    guard
-      XPCAuthorization.allows(
-        uid: uid, signingIdentifier: identifier, operation: "policy-events")
+    guard isAuthorized("policy-events")
     else {
       reply(nil, "unauthorized")
       return
@@ -785,6 +886,21 @@ public final class EndpointXPCClient: @unchecked Sendable {
       let data = try JSONEncoder.endpoint.encode(update)
       let proxy = remoteProxy { completion(.failure($0)) }
       proxy?.updateActivity(data) { accepted, error in
+        accepted
+          ? completion(.success(()))
+          : completion(.failure(EndpointXPCError.remote(error ?? "rejected")))
+      }
+    } catch { completion(.failure(error)) }
+  }
+
+  public func reportApplicationRestriction(
+    _ event: EndpointApplicationRestrictionEvent,
+    completion: @escaping @Sendable (Result<Void, Error>) -> Void
+  ) {
+    do {
+      let data = try JSONEncoder.endpoint.encode(event)
+      let proxy = remoteProxy { completion(.failure($0)) }
+      proxy?.reportApplicationRestriction(data) { accepted, error in
         accepted
           ? completion(.success(()))
           : completion(.failure(EndpointXPCError.remote(error ?? "rejected")))

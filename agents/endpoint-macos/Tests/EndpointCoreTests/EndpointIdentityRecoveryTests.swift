@@ -56,7 +56,7 @@ struct EndpointIdentityRecoveryTests {
         root: root, now: now, expectedOwnerID: nil) == nil)
   }
 
-  @Test("XPC manifest requires the four exact installed clients")
+  @Test("XPC manifest requires the five exact installed clients")
   func xpcManifestValidation() throws {
     let hash = String(repeating: "a", count: 64)
     let clients = [
@@ -77,14 +77,20 @@ struct EndpointIdentityRecoveryTests {
         path:
           "/Applications/Parental Control Child.app/Contents/Helpers/ParentalControlBrowserHost",
         sha256: hash),
+      EndpointXPCClientRecord(
+        identifier: EndpointMachService.safariExtensionIdentifier,
+        path:
+          "/Applications/Parental Control Safari.app/Contents/PlugIns/Parental Control Safari Extension.appex/Contents/MacOS/Parental Control Safari Extension",
+        sha256: hash),
     ]
-    #expect(try EndpointXPCClientManifest(clients: clients).validatedRecords().count == 4)
+    #expect(try EndpointXPCClientManifest(clients: clients).validatedRecords().count == 5)
 
     let wrongPath =
-      clients.dropLast() + [
+      clients.dropLast(2) + [
         EndpointXPCClientRecord(
           identifier: EndpointMachService.browserHostIdentifier,
-          path: "/tmp/ParentalControlBrowserHost", sha256: hash)
+          path: "/tmp/ParentalControlBrowserHost", sha256: hash),
+        clients.last!,
       ]
     #expect(throws: EndpointXPCManifestError.invalidManifest) {
       try EndpointXPCClientManifest(clients: Array(wrongPath)).validatedRecords()

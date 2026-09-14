@@ -8,8 +8,8 @@ STAGING="$ROOT_DIR/.artifacts/package-staging/stage-06-extension"
 PACKAGE_ROOT="$STAGING/ParentalControlBrowserSharing"
 RENDER_ROOT="$STAGING/icon-render"
 RC_DIR="$ROOT_DIR/.artifacts/release-candidate"
-ZIP="$RC_DIR/ParentalControlBrowserSharing-0.6.4-rc.1.zip"
-FIREFOX="$RC_DIR/ParentalControlBrowserFirefox-0.6.4-rc.1.xpi"
+ZIP="$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.10.zip"
+FIREFOX="$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.10.xpi"
 CHECKSUM="$ZIP.sha256"
 PACKAGE_LIST="$STAGING/package-files.txt"
 
@@ -19,6 +19,7 @@ mkdir -p "$PACKAGE_ROOT/icons" "$RENDER_ROOT" "$RC_DIR"
 cp "$SOURCE/manifest.json" "$PACKAGE_ROOT/manifest.json"
 cp "$SOURCE/service-worker.js" "$PACKAGE_ROOT/service-worker.js"
 cp "$SOURCE/website-policy.js" "$PACKAGE_ROOT/website-policy.js"
+cp "$SOURCE/blocked.html" "$PACKAGE_ROOT/blocked.html"
 cp "$SOURCE/popup.html" "$PACKAGE_ROOT/popup.html"
 cp "$SOURCE/popup.js" "$PACKAGE_ROOT/popup.js"
 
@@ -39,7 +40,7 @@ node --check "$PACKAGE_ROOT/popup.js"
 )
 /usr/bin/unzip -t "$ZIP" >/dev/null
 /usr/bin/unzip -Z1 "$ZIP" > "$PACKAGE_LIST"
-test "$(/usr/bin/grep -E -c '^ParentalControlBrowserSharing/(manifest.json|service-worker.js|website-policy.js|popup.html|popup.js|icons/icon(16|32|48|128)\.png)$' "$PACKAGE_LIST")" -eq 9
+test "$(/usr/bin/grep -E -c '^ParentalControlBrowserSharing/(manifest.json|service-worker.js|website-policy.js|blocked.html|popup.html|popup.js|icons/icon(16|32|48|128)\.png)$' "$PACKAGE_LIST")" -eq 10
 if /usr/bin/grep -E -i '\.(pem|key|p12|pfx)$' "$PACKAGE_LIST" >/dev/null; then
   echo "Refusing an extension package containing signing secrets." >&2
   exit 1
@@ -49,11 +50,43 @@ node "$ROOT_DIR/script/firefox_manifest.mjs" "$SOURCE/manifest.json" "$PACKAGE_R
 rm -f -- "$FIREFOX"
 (
   cd "$PACKAGE_ROOT"
-  /usr/bin/zip -X -q -r "$FIREFOX" manifest.json service-worker.js website-policy.js popup.html popup.js icons
+  /usr/bin/zip -X -q -r "$FIREFOX" manifest.json service-worker.js website-policy.js blocked.html popup.html popup.js icons
 )
 /usr/bin/unzip -t "$FIREFOX" >/dev/null
 /usr/bin/shasum -a 256 "$FIREFOX" > "$FIREFOX.sha256"
 rm -f -- \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.9.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.9.zip.sha256" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.9.xpi" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.9.xpi.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.8.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.8.zip.sha256" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.8.xpi" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.8.xpi.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.7.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.7.zip.sha256" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.7.xpi" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.7.xpi.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.6.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.6.zip.sha256" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.6.xpi" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.6.xpi.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.5.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.5.zip.sha256" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.5.xpi" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.5.xpi.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.4.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.4.zip.sha256" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.4.xpi" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.4.xpi.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.3.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.5-rc.3.zip.sha256" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.3.xpi" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.5-rc.3.xpi.sha256" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.4-rc.1.zip" \
+  "$RC_DIR/ParentalControlBrowserSharing-0.6.4-rc.1.zip.sha256" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.4-rc.1.xpi" \
+  "$RC_DIR/ParentalControlBrowserFirefox-0.6.4-rc.1.xpi.sha256" \
   "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.8.zip" \
   "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.8.zip.sha256" \
   "$RC_DIR/ParentalControlBrowserSharing-0.6.0-rc.7.zip" \

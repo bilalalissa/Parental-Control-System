@@ -758,6 +758,26 @@ SHA-256 values; the exception must not weaken the standard-child threat model.
 
 Version: `0.6.4-rc.5`.
 
+### STAGE-06E — macOS application-use restrictions (inserted 2026-09-05)
+
+Implement a bounded application-use restriction for the standard macOS child account without claiming unavailable Endpoint Security authority. The parent selects only recently observed signed third-party apps. Rules carry exact bundle, signing and Team identifiers, are versioned, signed in transit, cached root-only, bounded, audited and independently enforceable while activity sharing or the parent connection is off.
+
+The visible per-user helper detects launches through supported workspace notifications, validates the running code identity, displays a restriction notice and requests ordinary termination. If the app remains running after a short grace period, lock the session rather than force-killing the process. Protect Apple/system, login/recovery, Finder/Dock, Parent Controller and child endpoint components unconditionally. Preserve an adult recovery administrator and state plainly that a local administrator can bypass the product.
+
+Do not claim pre-launch denial: it requires Apple's Endpoint Security entitlement and a signed system extension. Do not use mutable paths or display names as identity, arbitrary process kill, private APIs, hidden monitoring, MDM, WAN control, or later-platform work. The 2026-09-06 authorized compatibility amendment permits only hostname-based enforcement hardening for already-enrolled browsers: new navigations, restored tabs and SPA URL changes may be redirected to a bundled local block page without inspecting or transmitting paths, queries, content, requests or traffic. The later conversational `go ahead` authorizes an embedded Safari Web Extension for unsigned local developer testing under the same hostname-only boundary. It requires explicit adult enablement and per-profile website access; Developer ID/App Store distribution, managed deployment and private browsing remain excluded. Acceptance requires monotonic policy/rollback tests, identity mismatch and protected-app tests, offline/restart persistence, authenticated enforcement audit, in-place upgrade preservation, one selectable macOS test installer and physical standard-user testing.
+
+The 2026-09-07 authorized lock-compatibility amendment permits a fixed read-only `sysadminctl -screenLock status` readiness check and public `NSWorkspace` system-screen launch/activation observation. Lock is unavailable unless macOS reports an immediate password requirement, and it is not reported as confirmed until the system screen activates or the GUI session resigns active. Failure and timeout are visible and rate-limited. Private session APIs, `CGSession`, AppleScript, Accessibility keystrokes and all synthetic input remain prohibited.
+
+The 2026-09-12 authorized compatibility feedback permits the installed child endpoint to remain
+best-effort operational for its current interactive administrator session. Administrator
+membership is diagnostic, not an endpoint-role switch: exact installed-client identity,
+current-console binding, signed policies, visible disclosure, and the operation allowlist remain
+mandatory. Continue to recommend a standard child account and state that an authorized
+administrator can bypass or remove the product. The same correction includes safe same-device
+website-policy editor hydration and must not copy policy between device identities.
+
+Version: `0.6.5-rc.10`.
+
 ### STAGE-07 — Windows Child Agent foundation
 
 On Windows hardware or Windows CI, build the automatic service, visible per-user UI, authenticated named pipes, pairing, heartbeat, device/uptime/session/network data, health, bounded logs, protected configuration, icon, read-only dashboard, x64 MSI, and uninstaller.

@@ -24,6 +24,7 @@ final class ControllerStore {
   var pairingStatusMessage: String?
   var chatStatusMessage: String?
   var activityStatusMessage: String?
+  var applicationRestrictionStatusMessage: String?
   var browserStatusMessage: String?
   var resolvingTimeRequestIDs: Set<UUID> = []
   var presenceNow = Date()
@@ -257,6 +258,29 @@ final class ControllerStore {
     }
   }
 
+  func applyApplicationRestrictionPolicy(
+    configuration: ActivityConfiguration, rules: [ApplicationRestrictionRule]
+  ) {
+    Task {
+      do {
+        let version = max(
+          Int64(Date().timeIntervalSince1970 * 1000),
+          (configuration.restrictionPolicy?.version ?? 0) + 1)
+        let policy = try ApplicationRestrictionPolicy(version: version, rules: rules)
+        applyHubStatus(
+          try await hubClient.configureActivity(
+            deviceID: configuration.deviceID, enabled: configuration.enabled,
+            retentionDays: configuration.retentionDays, restrictionPolicy: policy))
+        applicationRestrictionStatusMessage =
+          rules.isEmpty
+          ? "Application restrictions removed with a newer signed policy."
+          : "App-use policy queued for authenticated delivery. Delivery does not prove a physical launch test."
+      } catch {
+        applicationRestrictionStatusMessage = "Could not apply app-use policy: \(error)"
+      }
+    }
+  }
+
   func configureBrowser(deviceID: String, enabled: Bool, retentionDays: Int) {
     Task {
       do {
@@ -273,13 +297,17 @@ final class ControllerStore {
     }
   }
 
-  func applyBrowserWebsitePolicy(configuration: BrowserConfiguration, domains: [String]) {
+  func applyBrowserWebsitePolicy(
+    configuration: BrowserConfiguration, domains: [String], retiredReportIDs: [String]? = nil
+  ) {
     Task {
       do {
         let version = max(
           Int64(Date().timeIntervalSince1970 * 1000),
           (configuration.websitePolicy?.version ?? 0) + 1)
-        let policy = try BrowserWebsitePolicy(version: version, domains: domains)
+        let policy = try BrowserWebsitePolicy(
+          version: version, domains: domains,
+          retiredReportIDs: retiredReportIDs ?? configuration.websitePolicy?.retiredReportIDs ?? [])
         applyHubStatus(
           try await hubClient.configureBrowser(
             deviceID: configuration.deviceID,
@@ -404,7 +432,7 @@ final class ControllerStore {
             deviceID: deviceID, action: action, confirmed: confirmed))
         policyActionStatusMessage =
           action == .lock
-          ? "Lock request sent. Apps remain open and unsaved work is not discarded."
+          ? "Lock request accepted; waiting for the child to confirm a password-protected screen. Apps remain open and unsaved work is not discarded."
           : "\(action.rawValue.capitalized) request sent with a macOS confirmation dialog."
       } catch {
         policyActionStatusMessage = "Action was not sent: \(error)"

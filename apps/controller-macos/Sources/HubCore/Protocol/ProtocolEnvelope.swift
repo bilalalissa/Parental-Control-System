@@ -6,6 +6,7 @@ public enum ProtocolMessageType: String, Codable, CaseIterable, Sendable {
   case snapshotRequest = "snapshot.request"
   case snapshotResponse = "snapshot.response"
   case activityUpdate = "activity.update"
+  case applicationRestrictionEvent = "application.restriction-event"
   case activityConfiguration = "activity.configuration"
   case browserUpdate = "browser.update"
   case browserConfiguration = "browser.configuration"

@@ -44,7 +44,8 @@ struct PairingAndPersistenceTests {
           publicKey: identity.publicKeyData,
           capabilities: ["presence", "chat"],
           pairedAt: pairedAt,
-          lastSeen: pairedAt
+          lastSeen: pairedAt,
+          consoleAccountType: "administrator"
         ))
       try database.updateSeen(
         deviceID: "mock-one", sequence: 7, snapshotVersion: 3, now: pairedAt.addingTimeInterval(1))
@@ -54,6 +55,10 @@ struct PairingAndPersistenceTests {
           addresses: ["192.168.1.12", "8.8.8.8", "fe80::1234%en0"],
           macAddress: "aa-bb-cc-dd-ee-ff", observedAt: pairedAt))
       try database.saveNetworkInterfaces([interface], deviceID: "mock-one")
+      try database.saveSecureLockStatus(
+        readiness: "ready", confirmation: "confirmed",
+        confirmedAt: pairedAt.addingTimeInterval(2), deviceID: "mock-one")
+      try database.saveHelperHealth(false, deviceID: "mock-one")
     }
     let reopened = try HubDatabase(path: fixture.path)
     let persistedDevice = try reopened.device(id: "mock-one")
@@ -62,6 +67,11 @@ struct PairingAndPersistenceTests {
     #expect(device.snapshotVersion == 3)
     #expect(device.networkInterfaces?.first?.addresses == ["192.168.1.12", "fe80::1234"])
     #expect(device.networkInterfaces?.first?.macAddress == "AA:BB:CC:DD:EE:FF")
+    #expect(device.secureLockReadiness == "ready")
+    #expect(device.secureLockConfirmation == "confirmed")
+    #expect(device.secureLockConfirmedAt == pairedAt.addingTimeInterval(2))
+    #expect(device.helperHealthy == false)
+    #expect(device.consoleAccountType == "administrator")
     #expect(device.state(now: pairedAt.addingTimeInterval(80)) == .offline)
     #expect(device.state(now: pairedAt.addingTimeInterval(-10)) == .offline)
   }

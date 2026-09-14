@@ -1,6 +1,6 @@
 # Capability matrix
 
-This matrix is the truthful Stage 06 capability contract and the Stage 06A–06D feasibility result.
+This matrix is the truthful Stage 06 capability contract and the Stage 06A–06E result.
 
 | Capability | Parent Controller (Apple silicon) | macOS child endpoint | Windows child endpoint | Standard iPadOS child app | Optional supervised iPad MDM |
 | --- | --- | --- | --- | --- | --- |
@@ -14,7 +14,7 @@ This matrix is the truthful Stage 06 capability contract and the Stage 06A–06D
 | Boot time / reliable uptime | Local Mac only | Stage 03+ | Planned | **Not available** | Device information only where supported |
 | Login/logout/lock state | Local Mac only | Stage 03+ session state | Planned | **Not available** | Not desktop session semantics |
 | Foreground/running applications | Controller process only | Stage 04 candidate; names/bundle IDs only | Metadata planned | **Not available** | **Not available** |
-| Browser-tab metadata | Controller browser is out of scope | Stage 05 visible Chrome/Edge/Arc extension; title/origin only | Visible Chrome/Edge extension planned | **Not available** | **Not available** |
+| Browser-tab metadata | Controller browser is out of scope | Visible enrolled Chromium/Firefox extensions and Stage 06E Safari local-test extension; title/origin only | Visible Chrome/Edge extension planned | **Not available** | **Not available** |
 | Hardware MAC metadata | Local interfaces | Optional display metadata | Optional display metadata | **Not available** | Only if a supported command returns it; never identity |
 | Text chat | Stage 05 direct/group/announcement with system-controlled sound and explicit read state | Stage 05 direct/group/announcement with system-controlled sound and explicit read state | Planned | While active; notifications best effort | Through visible child app only |
 | Request more time | Stage 04 request display; decision/enforcement later | Stage 04 candidate | Planned | Planned with Family Controls flow | Through visible child app only |
@@ -26,8 +26,8 @@ This matrix is the truthful Stage 06 capability contract and the Stage 06A–06D
 | Require live IdP authentication for a managed child at Login Window | No product integration | **Conditionally available with macOS 15 Platform SSO Password policy, MDM, IdP, and compatible extension; unverified and not implemented** | Not evaluated | Not applicable | Not applicable |
 | Evaluate the signed weekly schedule while offline at Login Window | Local policy exists but is not an authentication provider | **Not available through Platform SSO; offline grace is day-based and no-grace denies all offline login** | Not evaluated | Not applicable | Not applicable |
 | Independent offline adult recovery from managed child login policy | Parent retains lawful administration | **Architecturally possible with excluded local administrator, FileVault PRK, and recoveryOS; unverified** | Not evaluated | Not applicable | Not applicable |
-| Deny selected application launches | Policy authoring is gated | **Stage 06D design only; blocked on Apple Endpoint Security entitlement and signed physical proof** | Not evaluated | Not available to a normal app | Separately managed restrictions only |
-| Deny selected website domains | Stage 06D browser-only policy authoring | **Chromium/Firefox enrolled profiles only; local test candidate, physical validation and production signing/publication pending. Safari/guest/private/unenrolled browsers not covered** | Not evaluated | Family Controls categories/tokens only, not this rule model | Separately managed restrictions only |
+| Restrict selected application use | Stage 06E exact signed-identity policy authoring | **Stage 06E entitlement-free post-launch quit request with one lock fallback per process/policy version; not pre-launch denial and not administrator-resistant** | Not evaluated | Not available to a normal app | Separately managed restrictions only |
+| Deny selected website domains | Stage 06D browser-only policy authoring | **Enrolled Chromium/Firefox profiles plus explicitly enabled Safari local-test profiles; physical Safari validation and production signing/publication pending. Guest/private/unenrolled profiles are not covered** | Not evaluated | Family Controls categories/tokens only, not this rule model | Separately managed restrictions only |
 | Timed per-device external Internet pause | **Not implemented; current ARRIS NVG448BQ is manual-only and Stage 06D is entitlement-blocked** | **Stage 06D design only; no operational endpoint filter yet** | Not evaluated | Not evaluated | Router path is separate from MDM |
 | Preserve authenticated local controller during WAN pause | **Mandatory for any future router adapter** | Child LAN path must remain reachable on every approved interface | Same future contract | Not evaluated | Not applicable |
 
@@ -40,3 +40,5 @@ Stage 06B found that Platform SSO `RequireAuthentication` is a meaningful online
 Stage 06C found that the evaluated ARRIS NVG448BQ firmware offers an interactive Access Control UI but no documented least-privilege automation API or trustworthy hard-expiring lease. The ISP also documents its Time of Day Profiles as unreliable. The gateway is therefore manual-only: the Parent Controller must not expose a router-pause capability for it. A future documented-API adapter remains conditional on exact Wi-Fi/Ethernet identity mapping, IPv4/IPv6 parity, WAN-forwarding-only rules, preserved authenticated LAN control, router-owned expiry, and independent adult recovery.
 
 Stage 06D was amended to browser-only website blocking on 2026-09-05. The prior Network Extension and Endpoint Security design remains deferred and unimplemented. Browser policy acknowledgements mean rules were read back in one reporting profile, not that every browser is protected. Native tests are ad-hoc signed; production browser updates require supported signing/publication separately.
+
+Stage 06E adds entitlement-free macOS app-use restrictions for a standard child account and best-effort operation when the enrolled endpoint's current interactive account is an administrator. The parent can select only observed third-party apps with an exact validated bundle, signing and Team identity. The visible session helper asks a matching running app to quit after launch; if it remains running for five seconds, it locks the session once for that process and policy version. Apple/system, login/recovery and parental-control components are always protected. This does not prevent launch, force-terminate an app, protect against an administrator, or replace the deferred Endpoint Security design. A standard child account remains required for meaningful enforcement.

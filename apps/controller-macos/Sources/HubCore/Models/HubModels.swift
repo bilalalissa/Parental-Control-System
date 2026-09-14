@@ -80,6 +80,11 @@ public struct HubDeviceRecord: Codable, Equatable, Identifiable, Sendable {
   public let snapshotVersion: UInt64
   public let isRevoked: Bool
   public let networkInterfaces: [HubNetworkInterface]?
+  public let helperHealthy: Bool?
+  public let consoleAccountType: String?
+  public let secureLockReadiness: String?
+  public let secureLockConfirmation: String?
+  public let secureLockConfirmedAt: Date?
 
   public init(
     id: String,
@@ -93,7 +98,12 @@ public struct HubDeviceRecord: Codable, Equatable, Identifiable, Sendable {
     lastSequence: UInt64 = 0,
     snapshotVersion: UInt64 = 0,
     isRevoked: Bool = false,
-    networkInterfaces: [HubNetworkInterface]? = nil
+    networkInterfaces: [HubNetworkInterface]? = nil,
+    helperHealthy: Bool? = nil,
+    consoleAccountType: String? = nil,
+    secureLockReadiness: String? = nil,
+    secureLockConfirmation: String? = nil,
+    secureLockConfirmedAt: Date? = nil
   ) {
     self.id = id
     self.name = name
@@ -107,6 +117,11 @@ public struct HubDeviceRecord: Codable, Equatable, Identifiable, Sendable {
     self.snapshotVersion = snapshotVersion
     self.isRevoked = isRevoked
     self.networkInterfaces = networkInterfaces.map { Array($0.prefix(8)) }
+    self.helperHealthy = helperHealthy
+    self.consoleAccountType = consoleAccountType.map { String($0.prefix(32)) }
+    self.secureLockReadiness = secureLockReadiness.map { String($0.prefix(64)) }
+    self.secureLockConfirmation = secureLockConfirmation.map { String($0.prefix(64)) }
+    self.secureLockConfirmedAt = secureLockConfirmedAt
   }
 
   public func state(
@@ -247,16 +262,21 @@ public struct HubAppActivity: Codable, Equatable, Identifiable, Sendable {
   public let deviceID: String
   public let bundleIdentifier: String
   public let applicationName: String
+  public let signingIdentifier: String?
+  public let teamIdentifier: String?
   public let isForeground: Bool
   public let observedAt: Date
 
   public init(
     deviceID: String, bundleIdentifier: String, applicationName: String,
+    signingIdentifier: String? = nil, teamIdentifier: String? = nil,
     isForeground: Bool, observedAt: Date = Date()
   ) {
     self.deviceID = deviceID
     self.bundleIdentifier = String(bundleIdentifier.prefix(200))
     self.applicationName = String(applicationName.prefix(120))
+    self.signingIdentifier = signingIdentifier.map { String($0.prefix(200)) }
+    self.teamIdentifier = teamIdentifier.map { String($0.prefix(64)) }
     self.isForeground = isForeground
     self.observedAt = observedAt
   }
@@ -266,11 +286,16 @@ public struct ActivityConfiguration: Codable, Equatable, Sendable {
   public let deviceID: String
   public let enabled: Bool
   public let retentionDays: Int
+  public let restrictionPolicy: ApplicationRestrictionPolicy?
 
-  public init(deviceID: String, enabled: Bool = true, retentionDays: Int = 7) {
+  public init(
+    deviceID: String, enabled: Bool = true, retentionDays: Int = 7,
+    restrictionPolicy: ApplicationRestrictionPolicy? = nil
+  ) {
     self.deviceID = deviceID
     self.enabled = enabled
     self.retentionDays = max(1, min(retentionDays, 30))
+    self.restrictionPolicy = restrictionPolicy
   }
 }
 

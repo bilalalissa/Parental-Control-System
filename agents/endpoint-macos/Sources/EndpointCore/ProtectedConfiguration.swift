@@ -12,6 +12,7 @@ public struct EndpointConfiguration: Codable, Equatable, Sendable {
   public var browserCollectionEnabled: Bool
   public var browserRetentionDays: Int
   public var websitePolicy: BrowserWebsitePolicy?
+  public var applicationRestrictionPolicy: ApplicationRestrictionPolicy?
 
   public init(
     deviceID: String = UUID().uuidString.lowercased(), invitation: PairingInvitation? = nil,
@@ -34,6 +35,7 @@ public struct EndpointConfiguration: Codable, Equatable, Sendable {
     case activityCollectionEnabled, activityRetentionDays
     case browserCollectionEnabled, browserRetentionDays
     case websitePolicy
+    case applicationRestrictionPolicy
   }
 
   public init(from decoder: Decoder) throws {
@@ -50,6 +52,9 @@ public struct EndpointConfiguration: Codable, Equatable, Sendable {
       try values.decodeIfPresent(Bool.self, forKey: .browserCollectionEnabled) ?? false
     websitePolicy = try values.decodeIfPresent(BrowserWebsitePolicy.self, forKey: .websitePolicy)?
       .validated()
+    applicationRestrictionPolicy = try values.decodeIfPresent(
+      ApplicationRestrictionPolicy.self, forKey: .applicationRestrictionPolicy
+    )?.validated()
     browserRetentionDays = max(
       1, min(try values.decodeIfPresent(Int.self, forKey: .browserRetentionDays) ?? 7, 30))
   }
@@ -128,6 +133,25 @@ public final class ProtectedConfigurationStore: @unchecked Sendable {
 
   public func setActivityCollection(enabled: Bool, retentionDays: Int) throws {
     var value = try load()
+    value.activityCollectionEnabled = enabled
+    value.activityRetentionDays = max(1, min(retentionDays, 30))
+    try save(value)
+  }
+
+  public func setActivityConfiguration(
+    enabled: Bool, retentionDays: Int, restrictionPolicy: ApplicationRestrictionPolicy?
+  ) throws {
+    var value = try load()
+    if let restrictionPolicy {
+      let validated = try restrictionPolicy.validated()
+      if let previous = value.applicationRestrictionPolicy,
+        validated.version < previous.version
+          || (validated.version == previous.version && validated != previous)
+      {
+        throw ApplicationRestrictionPolicyError.invalidVersion
+      }
+      value.applicationRestrictionPolicy = validated
+    }
     value.activityCollectionEnabled = enabled
     value.activityRetentionDays = max(1, min(retentionDays, 30))
     try save(value)

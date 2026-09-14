@@ -163,6 +163,8 @@ private struct PairedDeviceDetailView: View {
         loginEnforcementSection
         immediateActionsSection
         activitySection
+        ApplicationRestrictionView(
+          device: device, configuration: configuration, applications: activity, store: store)
         browserSection
         BrowserWebsitePolicyView(
           device: device, configuration: browserConfiguration, now: now, store: store)
@@ -228,6 +230,33 @@ private struct PairedDeviceDetailView: View {
       }
       .font(.caption)
       .foregroundStyle(.secondary)
+      if device.state(now: now) == .online, device.consoleAccountType == "administrator" {
+        Label(
+          "Administrator session on this enrolled child endpoint. Controls operate while the child-session helper is reporting, but an authorized administrator can bypass or remove them. Use a standard child account for meaningful enforcement.",
+          systemImage: "exclamationmark.shield.fill"
+        )
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(ControlTheme.accentSoft)
+      }
+      if device.state(now: now) == .online, device.helperHealthy == false {
+        Label(
+          helperProtectionMessage,
+          systemImage: "exclamationmark.shield.fill"
+        )
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(ControlTheme.accentSoft)
+      }
+    }
+  }
+
+  private var helperProtectionMessage: String {
+    switch device.consoleAccountType {
+    case "none":
+      return
+        "No eligible child desktop session is active. Sign in to a child session to resume session protection."
+    default:
+      return
+        "Protection gap: the child-session enforcement helper is not reporting. An adult should repair the child installation."
     }
   }
 
@@ -329,7 +358,7 @@ private struct PairedDeviceDetailView: View {
         }
         .font(.caption.weight(.semibold))
         Text(
-          "This release applies signed schedules after the standard child session becomes active. It does not replace macOS Login Window authentication. Managed-identity support remains separately gated future work."
+          "This release applies signed schedules after a child session becomes active. An administrator session is best effort and can bypass or remove these controls. This does not replace macOS Login Window authentication; managed-identity support remains separately gated future work."
         )
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -342,14 +371,19 @@ private struct PairedDeviceDetailView: View {
       VStack(alignment: .leading, spacing: 10) {
         Text("Immediate actions").font(ControlTheme.sectionTitle)
         Text(
-          "Commands are signed, expire after two minutes, are capability-checked, and generate receipts and audit records. Lock is the safe default."
+          "Commands are signed, expire after two minutes, are capability-checked, and generate receipts and audit records. Lock is enabled only after the child verifies that macOS requires the password immediately."
         )
         .font(.caption).foregroundStyle(.secondary)
+        Label(secureLockStatusText, systemImage: secureLockReady ? "lock.fill" : "lock.slash")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(secureLockReady ? ControlTheme.success : ControlTheme.accentSoft)
         HStack {
           Button("Lock Screen") {
             store.sendImmediateAction(deviceID: device.id, action: .lock, confirmed: true)
           }
-          .disabled(device.state(now: now) != .online || !device.capabilities.contains("lock"))
+          .disabled(
+            device.state(now: now) != .online || !device.capabilities.contains("lock")
+              || !secureLockReady)
           Menu("More Actions") {
             Button("Log Out…") { pendingHighImpactAction = .logoff }
               .disabled(
@@ -371,6 +405,45 @@ private struct PairedDeviceDetailView: View {
           Text(status).font(.caption).foregroundStyle(.secondary)
         }
       }
+    }
+  }
+
+  private var secureLockReady: Bool {
+    let eligibleSession = device.consoleAccountType == nil || device.consoleAccountType != "none"
+    return device.helperHealthy == true && eligibleSession
+      && device.secureLockReadiness == "ready"
+  }
+
+  private var secureLockStatusText: String {
+    if device.consoleAccountType == "none" {
+      return "Secure Lock paused · no child session is active"
+    }
+    if device.helperHealthy == false {
+      return "Secure Lock unavailable · the child-session helper is not reporting"
+    }
+    switch device.secureLockReadiness {
+    case "ready":
+      if device.secureLockConfirmation == "confirmed", let date = device.secureLockConfirmedAt {
+        return
+          "Secure Lock ready · last confirmed \(date.formatted(date: .omitted, time: .standard))"
+      }
+      if device.secureLockConfirmation == "pending" {
+        return "Secure Lock ready · waiting for child confirmation"
+      }
+      if device.secureLockConfirmation == "timed-out"
+        || device.secureLockConfirmation == "launch-failed"
+      {
+        return "Secure Lock ready · latest request was not confirmed"
+      }
+      return "Secure Lock ready · password required immediately"
+    case "password-not-required":
+      return "Secure Lock unavailable · password requirement is off on the child Mac"
+    case "password-delayed":
+      return "Secure Lock unavailable · password requirement is delayed on the child Mac"
+    case "verification-unavailable":
+      return "Secure Lock unavailable · child could not verify the macOS setting"
+    default:
+      return "Secure Lock readiness has not been reported by the child"
     }
   }
 
@@ -458,7 +531,7 @@ private struct PairedDeviceDetailView: View {
       VStack(alignment: .leading, spacing: 10) {
         HStack {
           Toggle(
-            "Share Chrome/Edge/Arc tab titles and origins",
+            "Share enrolled browser tab titles and origins",
             isOn: Binding(
               get: { browserConfiguration.enabled },
               set: {
@@ -481,9 +554,7 @@ private struct PairedDeviceDetailView: View {
         .font(.caption).foregroundStyle(.secondary)
         if browserTabs.isEmpty {
           Text(
-            browserConfiguration.enabled
-              ? "No browser metadata received. Install and enable the extension in Chrome, Edge, or Arc."
-              : "Browser sharing is disabled."
+            browserEmptyStateMessage
           )
           .font(.caption).foregroundStyle(.secondary)
         } else {
@@ -499,6 +570,15 @@ private struct PairedDeviceDetailView: View {
         }
       }
     }
+  }
+
+  private var browserEmptyStateMessage: String {
+    guard browserConfiguration.enabled else { return "Browser sharing is disabled." }
+    if device.consoleAccountType == "none" {
+      return "Browser reporting is paused because no child session is active."
+    }
+    return
+      "No browser metadata received. Open an enrolled profile in Chrome, Edge, Arc, Brave, Firefox, or Safari and check its extension."
   }
 
   private func browserRow(_ tab: HubBrowserTab) -> some View {

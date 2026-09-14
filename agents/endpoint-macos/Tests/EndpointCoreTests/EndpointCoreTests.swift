@@ -448,6 +448,17 @@ struct EndpointCoreTests {
       !XPCAuthorization.allows(
         uid: 501, signingIdentifier: EndpointMachService.controlIdentifier,
         operation: "session-update"))
+    #expect(XPCAuthorization.requiresCurrentConsoleSession("session-update"))
+    #expect(XPCAuthorization.requiresCurrentConsoleSession("browser-update"))
+    #expect(!XPCAuthorization.requiresCurrentConsoleSession("status"))
+    #expect(
+      EndpointConsoleSession.allowsCurrentConsoleOperation(uid: 502, consoleUID: 502))
+    #expect(
+      !EndpointConsoleSession.allowsCurrentConsoleOperation(uid: 501, consoleUID: 502))
+    #expect(
+      !EndpointConsoleSession.allowsCurrentConsoleOperation(uid: 0, consoleUID: 0))
+    #expect(
+      !EndpointConsoleSession.allowsCurrentConsoleOperation(uid: 502, consoleUID: nil))
     #expect(
       XPCAuthorization.isExpectedInstalledPath(
         "/usr/local/bin/parental-control-agentctl",
@@ -514,6 +525,112 @@ struct EndpointCoreTests {
     let request = repository.drainOutbound().last
     #expect(request?.payload["minutes"] == .integer(240))
     #expect(request?.payload["note"]?.stringValue?.count == 500)
+  }
+
+  @Test("app-use restrictions match exact validated identities and survive collection changes")
+  func appUseRestrictionIdentity() throws {
+    let bundle = "com.example.LearningGame"
+    let signingIdentifier = "com.example.LearningGame.launcher"
+    let rule = try ApplicationRestrictionRule(
+      bundleIdentifier: bundle, signingIdentifier: signingIdentifier, teamIdentifier: "TEAM123456",
+      applicationName: "Learning Game")
+    let policy = try ApplicationRestrictionPolicy(version: 7, rules: [rule])
+    #expect(
+      ApplicationRestrictionEvaluator.matches(
+        bundleIdentifier: bundle,
+        identity: ApplicationCodeIdentity(
+          signingIdentifier: signingIdentifier, teamIdentifier: "TEAM123456"), policy: policy)
+        == rule)
+    #expect(
+      ApplicationRestrictionEvaluator.matches(
+        bundleIdentifier: bundle,
+        identity: ApplicationCodeIdentity(
+          signingIdentifier: signingIdentifier, teamIdentifier: "OTHERTEAM"), policy: policy) == nil
+    )
+    #expect(
+      ApplicationRestrictionEvaluator.matches(
+        bundleIdentifier: bundle,
+        identity: ApplicationCodeIdentity(
+          signingIdentifier: bundle, teamIdentifier: "TEAM123456"), policy: policy) == nil)
+    #expect(
+      ApplicationRestrictionEvaluator.matches(
+        bundleIdentifier: bundle,
+        identity: ApplicationCodeIdentity(
+          signingIdentifier: signingIdentifier, teamIdentifier: "TEAM123456"),
+        policy: policy, expectedPolicyVersion: 8) == nil)
+    let clearedPolicy = try ApplicationRestrictionPolicy(version: 8, rules: [])
+    #expect(
+      ApplicationRestrictionEvaluator.matches(
+        bundleIdentifier: bundle,
+        identity: ApplicationCodeIdentity(
+          signingIdentifier: signingIdentifier, teamIdentifier: "TEAM123456"),
+        policy: clearedPolicy, expectedPolicyVersion: 7) == nil)
+    #expect(
+      ApplicationRestrictionEvaluator.matches(
+        bundleIdentifier: "com.apple.Safari",
+        identity: ApplicationCodeIdentity(
+          signingIdentifier: "com.apple.Safari", teamIdentifier: "APPLE"), policy: policy) == nil)
+
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = ProtectedConfigurationStore(root: root)
+    try store.setActivityConfiguration(
+      enabled: false, retentionDays: 2, restrictionPolicy: policy)
+    #expect(try store.load().applicationRestrictionPolicy == policy)
+    try store.setActivityCollection(enabled: true, retentionDays: 5)
+    #expect(try store.load().applicationRestrictionPolicy == policy)
+    #expect(throws: ApplicationRestrictionPolicyError.self) {
+      try store.setActivityConfiguration(
+        enabled: true, retentionDays: 5,
+        restrictionPolicy: ApplicationRestrictionPolicy(version: 6, rules: []))
+    }
+    let repository = EndpointStatusRepository(
+      initial: DeviceSnapshotCollector.collect(deviceID: "synthetic-app-policy"))
+    repository.queueApplicationRestrictionEvent(
+      EndpointApplicationRestrictionEvent(
+        bundleIdentifier: bundle, policyVersion: policy.version, outcome: .quitRequested))
+    let queued = try #require(repository.drainOutbound().last)
+    #expect(queued.kind == .applicationRestrictionEvent)
+    #expect(queued.payload["bundleIdentifier"] == .string(bundle))
+    #expect(
+      XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.helperIdentifier,
+        operation: "application-restriction-event"))
+    #expect(
+      !XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.childIdentifier,
+        operation: "application-restriction-event"))
+
+    var gate = ApplicationRestrictionAttemptGate()
+    let firstAttempt = gate.begin(processIdentifier: 41, policyVersion: 7)
+    let repeatedAttempt = gate.begin(processIdentifier: 41, policyVersion: 7)
+    #expect(firstAttempt)
+    #expect(!repeatedAttempt)
+    #expect(gate.isCurrent(processIdentifier: 41, policyVersion: 7))
+    gate.cancel(processIdentifier: 41, policyVersion: 7)
+    let retryAfterCancellation = gate.begin(processIdentifier: 41, policyVersion: 7)
+    #expect(retryAfterCancellation)
+    let newerPolicyAttempt = gate.begin(processIdentifier: 41, policyVersion: 8)
+    #expect(newerPolicyAttempt)
+    gate.processDidTerminate(41)
+    let relaunchedProcessAttempt = gate.begin(processIdentifier: 41, policyVersion: 8)
+    #expect(relaunchedProcessAttempt)
+
+    let candidate = ApplicationRestrictionProcessCandidate(
+      processIdentifier: 41, bundleIdentifier: bundle,
+      bundleURL: URL(fileURLWithPath: "/Applications/Learning Game.app"))
+    #expect(
+      candidate.matchesLiveProcess(
+        bundleIdentifier: bundle,
+        bundleURL: URL(fileURLWithPath: "/Applications/Learning Game.app")))
+    #expect(
+      !candidate.matchesLiveProcess(
+        bundleIdentifier: "com.example.Impostor",
+        bundleURL: URL(fileURLWithPath: "/Applications/Learning Game.app")))
+    #expect(
+      !candidate.matchesLiveProcess(
+        bundleIdentifier: bundle,
+        bundleURL: URL(fileURLWithPath: "/Applications/Replacement.app")))
   }
 
   @Test("browser metadata is opt-in, bounded, sanitized, and host-authenticated")
@@ -586,6 +703,14 @@ struct EndpointCoreTests {
       XPCAuthorization.allows(
         uid: 501, signingIdentifier: EndpointMachService.browserHostIdentifier,
         operation: "browser-update"))
+    #expect(
+      XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.safariExtensionIdentifier,
+        operation: "browser-configuration"))
+    #expect(
+      !XPCAuthorization.allows(
+        uid: 501, signingIdentifier: EndpointMachService.safariExtensionIdentifier,
+        operation: "send-chat"))
     #expect(
       !XPCAuthorization.allows(
         uid: 501, signingIdentifier: EndpointMachService.browserHostIdentifier,

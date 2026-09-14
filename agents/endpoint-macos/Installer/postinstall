@@ -4,6 +4,8 @@ set -euo pipefail
 TARGET_VOLUME="${3:-/}"
 SUPPORT="$TARGET_VOLUME/Library/Application Support/ParentalControlAgent"
 INSTALLED_DAEMON="$TARGET_VOLUME/Library/PrivilegedHelperTools/com.bilalalissa.ParentalControlAgent.daemon"
+BROWSER_EXTENSION="$TARGET_VOLUME/Library/Application Support/ParentalControlBrowserExtension"
+RELAUNCH_MARKER="$SUPPORT/.installer-relaunch-child.plist"
 mkdir -p "$SUPPORT/Logs"
 chown -R root:wheel "$SUPPORT"
 chmod 700 "$SUPPORT" "$SUPPORT/Logs"
@@ -19,6 +21,10 @@ chmod 644 "$TARGET_VOLUME/Library/LaunchAgents/com.bilalalissa.ParentalControlAg
 chmod 755 "$INSTALLED_DAEMON"
 chown -R root:wheel "$TARGET_VOLUME/Applications/Parental Control Child.app"
 chmod -R go-w "$TARGET_VOLUME/Applications/Parental Control Child.app"
+chown -R root:wheel "$TARGET_VOLUME/Applications/Parental Control Safari.app"
+chmod -R go-w "$TARGET_VOLUME/Applications/Parental Control Safari.app"
+chown -R root:wheel "$BROWSER_EXTENSION"
+chmod -R a+rX,go-w "$BROWSER_EXTENSION"
 chmod 644 \
   "$TARGET_VOLUME/Library/Google/Chrome/NativeMessagingHosts/com.bilalalissa.parental_control.json" \
   "$TARGET_VOLUME/Library/Microsoft/Edge/NativeMessagingHosts/com.bilalalissa.parental_control.json"
@@ -80,5 +86,41 @@ if [[ "$TARGET_VOLUME" == "/" ]]; then
       exit 1
     fi
     /bin/launchctl kickstart -k "$USER_SERVICE"
+
+    # Launch the visible containing app once so Safari registers the bundled extension. Safari
+    # itself is not opened or modified; the adult must explicitly enable the extension/profile.
+    /bin/launchctl asuser "$CONSOLE_UID" /usr/bin/sudo -u "$CONSOLE_USER" \
+      /usr/bin/open -g "/Applications/Parental Control Safari.app" || true
+
+    # Restore the visible UI only when this installer stopped it. Validate the root-only,
+    # short-lived marker and launch the package-owned app in the console user's GUI context.
+    # This prevents an old ad-hoc process from surviving replacement and repeatedly failing XPC.
+    if [[ -f "$RELAUNCH_MARKER" ]]; then
+      marker_owner_mode="$(/usr/bin/stat -f '%u:%Lp' "$RELAUNCH_MARKER" 2>/dev/null || true)"
+      marker_uid="$(/usr/libexec/PlistBuddy -c 'Print :consoleUID' "$RELAUNCH_MARKER" 2>/dev/null || true)"
+      marker_issued="$(/usr/libexec/PlistBuddy -c 'Print :issuedAtEpoch' "$RELAUNCH_MARKER" 2>/dev/null || true)"
+      marker_now="$(/bin/date +%s)"
+      marker_age=601
+      if [[ "$marker_issued" =~ ^[0-9]+$ ]] && (( marker_now >= marker_issued )); then
+        marker_age="$((marker_now - marker_issued))"
+      fi
+      if [[ "$marker_owner_mode" == "0:600" && "$marker_uid" == "$CONSOLE_UID" ]] \
+        && (( marker_age <= 600 )); then
+        app_started=false
+        for attempt in 1 2 3; do
+          if /bin/launchctl asuser "$CONSOLE_UID" /usr/bin/sudo -u "$CONSOLE_USER" \
+            /usr/bin/open -g "/Applications/Parental Control Child.app"; then
+            app_started=true
+            break
+          fi
+          if [[ "$attempt" != 3 ]]; then /bin/sleep 2; fi
+        done
+        if [[ "$app_started" != true ]]; then
+          echo "Unable to relaunch the visible child app after upgrade." >&2
+          exit 1
+        fi
+      fi
+      /bin/rm -f "$RELAUNCH_MARKER"
+    fi
   fi
 fi

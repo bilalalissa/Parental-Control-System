@@ -216,8 +216,13 @@ private final class EndpointPolicyScheduler: @unchecked Sendable {
   private func evaluate() {
     let current = repository.status()
     let now = Date()
-    let sessionActive = current.sessionState == .active
-    let events = runtime.tick(now: now, sessionActive: sessionActive)
+    let consoleUser = EndpointConsoleSession.currentUser()
+    let sessionActive =
+      current.sessionState == .active
+      && consoleUser != nil
+      && consoleUser?.name == current.consoleUser
+    let events = runtime.tick(
+      now: now, activeUptime: EndpointActiveUseClock.uptime(), sessionActive: sessionActive)
     let snapshot = runtime.snapshot()
     let nextRestriction = runtime.projectedRestrictionDate(
       now: now, sessionActive: sessionActive)
@@ -227,9 +232,11 @@ private final class EndpointPolicyScheduler: @unchecked Sendable {
     repository.update {
       $0.policyVersion = snapshot.0?.version
       $0.policyDecision = snapshot.2?.decision
+      $0.policyDecisionSource = snapshot.2?.source
       $0.policyAction = snapshot.2?.action
       $0.policyReason = snapshot.2?.reason
       $0.policyLastEvaluatedAt = now
+      $0.policyRestrictionID = snapshot.1.restrictionID
       $0.policyNextRestrictionAt = nextRestriction
       $0.policyNextAllowanceAt = nextAllowance
       $0.policyAllowanceSummary = allowanceSummary
@@ -241,7 +248,8 @@ private final class EndpointPolicyScheduler: @unchecked Sendable {
       case .warning(let minutes, let action, _):
         log.write(
           event: "policy.warning", detail: "Warning \(minutes) minutes before \(action.rawValue)")
-      case .enforce(let action, _):
+      case .enforce(let action, _), .enforcePolicy(let action, _, _, _),
+        .enforceImmediate(let action, _, _):
         log.write(
           event: "policy.enforce", detail: "Requested allowlisted action \(action.rawValue)")
       case .clockChangeDetected:
