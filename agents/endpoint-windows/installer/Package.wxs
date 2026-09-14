@@ -4,7 +4,6 @@
            Version="0.7.0.1"
            UpgradeCode="C9225424-65E4-4F1F-A1A1-860292AD4AAF"
            Scope="perMachine"
-           Platform="x64"
            Language="1033">
     <SummaryInformation Description="Visible local-first Windows child endpoint" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of Parental Control Child is already installed."
@@ -70,8 +69,10 @@
                      Value="&quot;[INSTALLFOLDER]ParentalControl.Windows.App.exe&quot;" />
     </Component>
     <ComponentGroup Id="EndpointPayload" Directory="INSTALLFOLDER">
-      <Files Include="$(var.PayloadDir)\**"
-             Exclude="$(var.PayloadDir)\ParentalControl.Windows.Service.exe;$(var.PayloadDir)\ParentalControl.Windows.App.exe" />
+      <Files Include="$(var.PayloadDir)\**">
+        <Exclude Files="$(var.PayloadDir)\ParentalControl.Windows.Service.exe" />
+        <Exclude Files="$(var.PayloadDir)\ParentalControl.Windows.App.exe" />
+      </Files>
     </ComponentGroup>
 
     <Component Id="ProtectedDataDirectory" Directory="DATAFOLDER" Guid="*" Bitness="always64">
