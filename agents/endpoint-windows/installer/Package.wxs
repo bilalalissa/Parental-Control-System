@@ -66,6 +66,9 @@
       <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run"
                      Name="ParentalControlChild" Type="string"
                      Value="&quot;[INSTALLFOLDER]ParentalControl.Windows.App.exe&quot;" />
+      <RemoveFolder Id="RemoveProgramMenuFolder"
+                    Directory="ProgramMenuParentalControlFolder"
+                    On="uninstall" />
     </Component>
     <ComponentGroup Id="EndpointPayload" Directory="INSTALLFOLDER">
       <Files Include="$(var.PayloadDir)\**">
