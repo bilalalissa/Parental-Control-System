@@ -10,6 +10,7 @@ public sealed record EndpointDashboardStatus(
     string ProductVersion,
     bool ServiceHealthy,
     bool Paired,
+    bool PairingPending,
     string ConnectionState,
     string DeviceName,
     string DeviceId,

@@ -63,7 +63,11 @@ public partial class MainWindow : Window
     private void Render(EndpointDashboardStatus status)
     {
         ServiceValue.Text = $"Healthy · version {status.ProductVersion}";
-        ControllerValue.Text = status.Paired ? status.ConnectionState : "Not paired";
+        ControllerValue.Text = status.Paired || status.PairingPending
+            ? status.ConnectionState
+            : status.ConnectionState == "Pairing invitation expired"
+                ? status.ConnectionState
+                : "Not paired";
         DeviceValue.Text = $"{status.DeviceName} · {status.DeviceId}";
         SystemValue.Text = status.OperatingSystem;
         ArchitectureValue.Text = status.Architecture;

@@ -101,8 +101,8 @@
     {
       "id": "STAGE-07",
       "name": "Windows x64 Child Agent foundation",
-      "version": "0.7.0-rc.1",
-      "status": "READY_FOR_DEVELOPER_TEST",
+      "version": "0.7.0-rc.2",
+      "status": "CHANGES_REQUESTED",
       "branch": "stage/07-windows-endpoint-foundation",
       "document": "stage-07.md"
     }

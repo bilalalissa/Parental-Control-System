@@ -49,7 +49,8 @@ internal sealed class EndpointRuntime : IDisposable
         lock (gate) current = connectionState;
         return new EndpointDashboardStatus(
             ProductInfo.Version, true,
-            state.Controller is not null && state.Controller.PendingPairingCode is null, current,
+            state.Controller is not null && state.Controller.PendingPairingCode is null,
+            state.Controller?.PendingPairingCode is not null, current,
             snapshot.DeviceName, state.DeviceId, snapshot.OperatingSystem,
             snapshot.Architecture, snapshot.SessionState, snapshot.UptimeSeconds,
             snapshot.Networks, ProductInfo.Capabilities, ProductInfo.PrivacyDisclosure);
@@ -68,6 +69,7 @@ internal sealed class EndpointRuntime : IDisposable
             ControllerSequence = 0,
         });
         log.Write("pairing.installed", "Adult-authorized invitation accepted");
+        SetConnection("Connecting");
         lock (gate) activeSocket?.Abort();
         SignalReconnect();
         return new PipeResponse(true, null, Status());
@@ -104,7 +106,10 @@ internal sealed class EndpointRuntime : IDisposable
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
             catch (Exception error)
             {
-                SetConnection("Offline");
+                EndpointState current = store.LoadOrCreate();
+                SetConnection(current.Controller?.PendingPairingCode is null
+                    ? "Offline"
+                    : "Pairing failed · verify the parent app is open and the invitation is current");
                 log.Write("connection.failed", error.GetType().Name);
             }
 
@@ -115,13 +120,15 @@ internal sealed class EndpointRuntime : IDisposable
     private async Task ConnectOnceAsync(EndpointState initial, CancellationToken cancellationToken)
     {
         PairedController controller = initial.Controller!;
+        HubWebSocketEndpoint endpoint = PairingInvitation.CreateHubWebSocketEndpoint(
+            controller.Host, controller.Port);
         using var socket = new ClientWebSocket();
         socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
+        socket.Options.AddSubProtocol(endpoint.SubProtocol);
         socket.Options.RemoteCertificateValidationCallback = (_, certificate, _, errors) =>
             ValidatePinnedCertificate(certificate, errors, controller.CertificateFingerprint);
-        var uri = new UriBuilder(Uri.UriSchemeWss, controller.Host, controller.Port).Uri;
         SetConnection("Connecting");
-        await socket.ConnectAsync(uri, cancellationToken);
+        await socket.ConnectAsync(endpoint.Uri, cancellationToken);
         lock (gate) activeSocket = socket;
         SetConnection("Online");
         log.Write("connection.online", "Pinned TLS WebSocket established");
@@ -261,8 +268,8 @@ internal sealed class EndpointRuntime : IDisposable
         {
             ValueWebSocketReceiveResult result = await socket.ReceiveAsync(buffer.AsMemory(), token);
             if (result.MessageType == WebSocketMessageType.Close) return null;
-            if (result.MessageType != WebSocketMessageType.Text)
-                throw new InvalidDataException("Only text protocol messages are accepted.");
+            if (result.MessageType is not WebSocketMessageType.Text and not WebSocketMessageType.Binary)
+                throw new InvalidDataException("Only protocol data messages are accepted.");
             if (stream.Length + result.Count > ProductInfo.MaximumMessageBytes)
                 throw new InvalidDataException("Controller message exceeds 64 KiB.");
             stream.Write(buffer, 0, result.Count);

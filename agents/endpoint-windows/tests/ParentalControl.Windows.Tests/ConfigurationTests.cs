@@ -23,6 +23,12 @@ public sealed class ConfigurationTests
         Assert.AreEqual("314159", invitation.Code);
         Assert.AreEqual(49171, invitation.Port);
         Assert.AreEqual(new string('A', 64), invitation.CertificateFingerprint);
+        HubWebSocketEndpoint endpoint = invitation.HubWebSocketEndpoint;
+        Assert.AreEqual("wss", endpoint.Uri.Scheme);
+        Assert.AreEqual("192.168.1.20", endpoint.Uri.Host);
+        Assert.AreEqual(49171, endpoint.Uri.Port);
+        Assert.AreEqual("/hub", endpoint.Uri.AbsolutePath);
+        Assert.AreEqual("parental-control.v1", endpoint.SubProtocol);
     }
 
     [TestMethod]

@@ -1,7 +1,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="Parental Control Child"
            Manufacturer="Parental Control System"
-           Version="0.7.0.1"
+           Version="0.7.0.2"
            UpgradeCode="C9225424-65E4-4F1F-A1A1-860292AD4AAF"
            Scope="perMachine"
            Language="1033">

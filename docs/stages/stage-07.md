@@ -1,8 +1,8 @@
 # STAGE-07 — Windows x64 Child Agent foundation
 
-- Status: ready for developer test
+- Status: feedback repair in progress
 - Branch: `stage/07-windows-endpoint-foundation`
-- Candidate: `0.7.0-rc.1`
+- Candidate: `0.7.0-rc.2`
 
 ## Objective and included scope
 
@@ -43,6 +43,7 @@ Development began with 39 GiB free and a 37 MiB repository. No VM, container, si
 
 ## Implementation notes
 
+- Developer feedback on RC1 exposed a wire-upgrade mismatch: the Windows client requested `/` without the required WebSocket subprotocol, while the controller accepts only `/hub` with `parental-control.v1`. RC2 uses the canonical path and subprotocol, accepts the controller's binary receipt frames, and reports a bounded actionable pending-pairing failure instead of masking it as `Not paired`.
 - `.NET 8` WPF provides the visible UI; the service uses `ServiceBase` and event-driven session notifications.
 - Bouncy Castle provides Ed25519 interoperability with the existing Swift/CryptoKit wire identity. The exact 2.7.0 dependency is locked.
 - Local IPC is length-prefixed, limited to 16 KiB, protected by Windows pipe ACLs, and additionally checks the impersonated caller's administrator role for pairing.
@@ -56,7 +57,7 @@ Run on Windows x64 PowerShell from the repository root:
 
 ```powershell
 .\script\build_windows_release.ps1
-.\script\test_windows_installer.ps1 -MsiPath ".artifacts\release-candidate\ParentalControlWindows-0.7.0-rc.1-x64.msi"
+.\script\test_windows_installer.ps1 -MsiPath ".artifacts\release-candidate\ParentalControlWindows-0.7.0-rc.2-x64.msi"
 ```
 
 The second command intentionally installs, repairs, and removes the test endpoint and its protected local state. Use it only on the intended test PC or ephemeral Windows CI host. Physical parent/child pairing and visible UI review remain developer acceptance gates after the automated candidate passes.

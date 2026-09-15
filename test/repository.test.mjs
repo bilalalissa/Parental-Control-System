@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/07-windows-endpoint-foundation");
-  assert.equal(active[0].version, "0.7.0-rc.1");
+  assert.equal(active[0].version, "0.7.0-rc.2");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
       active[0].status,
@@ -559,20 +559,22 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /STAGE-07 Windows x64 endpoint foundation[\s\S]*0\.7\.0-rc\.1/);
+  assert.match(readme, /STAGE-07 Windows x64 endpoint foundation[\s\S]*0\.7\.0-rc\.2/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });
 
-test("Stage 07 Windows foundation is visible, bounded, and capability-honest", async () => {
-  const [stage, product, workflow, installer, service, app] = await Promise.all([
+test("Stage 07 Windows foundation is visible, bounded, interoperable, and capability-honest", async () => {
+  const [stage, product, workflow, installer, service, app, runtime, controllerTransport] = await Promise.all([
     read("docs/stages/stage-07.md"),
     read("agents/endpoint-windows/src/ParentalControl.Windows.Core/ProductInfo.cs"),
     read(".github/workflows/stage-07-windows.yml"),
     read("agents/endpoint-windows/installer/Package.wxs"),
     read("agents/endpoint-windows/src/ParentalControl.Windows.Service/NamedPipeEndpointServer.cs"),
     read("agents/endpoint-windows/src/ParentalControl.Windows.App/MainWindow.xaml"),
+    read("agents/endpoint-windows/src/ParentalControl.Windows.Service/EndpointRuntime.cs"),
+    read("apps/controller-macos/Sources/HubCore/Transport/SecureWebSocket.swift"),
   ]);
   assert.match(stage, /Application activity.*not included/i);
   assert.match(stage, /Windows x64/i);
@@ -582,6 +584,12 @@ test("Stage 07 Windows foundation is visible, bounded, and capability-honest", a
   assert.match(service, /IsAdministrator\(pipe\)/);
   assert.match(service, /PipeSecurity/);
   assert.match(app, /VISIBLE FAMILY ENDPOINT/);
+  assert.match(product, /HubWebSocketPath = "\/hub"/);
+  assert.match(product, /HubWebSocketSubProtocol = "parental-control\.v1"/);
+  assert.match(runtime, /AddSubProtocol\(endpoint\.SubProtocol\)/);
+  assert.match(runtime, /WebSocketMessageType\.Text and not WebSocketMessageType\.Binary/);
+  assert.match(controllerTransport, /GET \/hub HTTP\/1\.1/);
+  assert.match(controllerTransport, /Sec-WebSocket-Protocol: parental-control\.v1/);
   assert.match(installer, /Start="auto"/);
   assert.match(installer, /Remove="uninstall"/);
   assert.match(workflow, /runs-on: windows-2025/);

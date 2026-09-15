@@ -3,6 +3,8 @@ using System.Net;
 
 namespace ParentalControl.Windows.Core;
 
+public sealed record HubWebSocketEndpoint(Uri Uri, string SubProtocol);
+
 public sealed record PairingInvitation(
     string Code,
     DateTimeOffset ExpiresAt,
@@ -11,6 +13,20 @@ public sealed record PairingInvitation(
     string CertificateFingerprint,
     byte[] ControllerPublicKey)
 {
+    public HubWebSocketEndpoint HubWebSocketEndpoint =>
+        CreateHubWebSocketEndpoint(Host, checked((ushort)Port));
+
+    public static HubWebSocketEndpoint CreateHubWebSocketEndpoint(string host, ushort port)
+    {
+        if (!IsValidHost(host) || port == 0)
+        {
+            throw new InvalidDataException("The paired controller endpoint is invalid.");
+        }
+
+        var uri = new UriBuilder(Uri.UriSchemeWss, host, port, ProductInfo.HubWebSocketPath).Uri;
+        return new HubWebSocketEndpoint(uri, ProductInfo.HubWebSocketSubProtocol);
+    }
+
     public static bool ValidateController(
         string host, ushort port, string fingerprint, string publicKeyBase64)
     {
