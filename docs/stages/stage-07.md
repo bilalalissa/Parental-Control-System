@@ -1,6 +1,6 @@
 # STAGE-07 — Windows x64 Child Agent foundation
 
-- Status: implementing
+- Status: ready for developer test
 - Branch: `stage/07-windows-endpoint-foundation`
 - Candidate: `0.7.0-rc.1`
 
@@ -67,4 +67,10 @@ Use **Apps > Installed apps > Parental Control Child > Uninstall** and approve t
 
 ## Evidence status
 
-Local macOS cross-target compilation covers the shared core, Windows service, and WPF source with zero warnings. All 24 Windows-core tests pass, including the deterministic Swift/Windows signing vector; the dependency-free repository suite reports 75 passed and one expected platform skip. The local WiX compiler cannot execute because the development Mac has an incompatible legacy x86_64 .NET 6 host, so Windows CI is the authoritative MSI build/install environment. CI artifact hash, install/repair/uninstall result, measured resource values, and final cleanup evidence will be added before developer handoff.
+Local macOS cross-target compilation covers the shared core, Windows service, and WPF source with zero warnings. All 24 Windows-core tests pass, including the deterministic Swift/Windows signing vector; the dependency-free repository suite reports 75 passed and one expected platform skip. The local WiX compiler cannot execute because the development Mac has an incompatible legacy x86_64 .NET 6 host, so Windows CI is the authoritative MSI build/install environment.
+
+Commit `af60bba38ab7ca62f9c0bde2bfe9edaaa63bb4f1` passed the [native Windows x64 build, Authenticode inspection, install, authenticated status, repair/identity-retention, uninstall, artifact upload, and scoped cleanup](https://github.com/bilalalissa/Parental-Control-System/actions/runs/34910905386). The same commit passed [repository contracts and POSIX/Windows cleanup checks](https://github.com/bilalalissa/Parental-Control-System/actions/runs/34910905379), the [macOS cross-language signature check](https://github.com/bilalalissa/Parental-Control-System/actions/runs/34910905387), and secret scanning.
+
+The verified unsigned MSI is 62,709,022 bytes with SHA-256 `2beb0de291edd65f6dfb8e6258fac0bce5bf9a13fe884b9d8e78f7ddc0610f34`. On the disposable Windows 2025 CI host, the installed service used a 39,092,224-byte working set and 10,027,008 bytes of private memory; the self-contained installed payload was 199,303,503 bytes. Physical Windows UI, parent/child pairing, reboot/login startup, network transition, and Windows 10 testing remain developer gates.
+
+Final local cleanup removed 11 repository-owned build/dependency paths and the verified temporary download. The superseded local Stage 06E RC10 copies were removed after the Stage 07 checksum matched; RC10 remains recoverable from its published GitHub release. Cleanup left 37 GiB free, a 113 MiB repository, one 60 MiB MSI plus its checksum, no Stage 07 process, and no simulator, emulator, VM, container, duplicate checkout, or worktree.

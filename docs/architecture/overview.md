@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document records the target architecture, the merged Stage 06 macOS policy-enforcement boundary, the bounded Stage 06A–06C feasibility decisions, the Stage 06D/06E browser and app-use work, and the implementing Stage 07 Windows foundation. Delivery remains gated by [`stage-status.json`](../stages/stage-status.json).
+This document records the target architecture, the merged Stage 06 macOS policy-enforcement boundary, the bounded Stage 06A–06C feasibility decisions, the Stage 06D/06E browser and app-use work, and the Stage 07 Windows foundation candidate. Delivery remains gated by [`stage-status.json`](../stages/stage-status.json).
 
 ## Local-first topology
 

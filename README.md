@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-07 Windows x64 endpoint foundation is implementing `0.7.0-rc.1`.** It adds a visible WPF child dashboard, automatic Windows service, administrator pairing, authenticated local IPC, protected identity, and bounded device/uptime/session/network/health status. It does not yet include Windows app/browser monitoring, chat, schedules, or enforcement. Stage 06E `0.6.5-rc.10` was approved, merged, and published as a prerelease. See [Stage status](docs/stages/stage-status.json), [Stage 07](docs/stages/stage-07.md), and the [Windows installation guide](docs/installation/windows-child.md).
+> **STAGE-07 Windows x64 endpoint foundation `0.7.0-rc.1` is ready for developer testing.** It adds a visible WPF child dashboard, automatic Windows service, administrator pairing, authenticated local IPC, protected identity, and bounded device/uptime/session/network/health status. It does not yet include Windows app/browser monitoring, chat, schedules, or enforcement. Stage 06E `0.6.5-rc.10` was approved, merged, and published as a prerelease. See [Stage status](docs/stages/stage-status.json), [Stage 07](docs/stages/stage-07.md), and the [Windows installation guide](docs/installation/windows-child.md).
 
 ## Product direction
 
@@ -15,11 +15,11 @@ The project is intentionally visible and bounded. It will not implement hidden i
 
 | Capability | macOS endpoint | Windows endpoint | Standard iPadOS app |
 | --- | --- | --- | --- |
-| Visible child UI | Stage 03 candidate | Stage 07 in progress | Planned |
+| Visible child UI | Stage 03 candidate | Stage 07 candidate | Planned |
 | Local policy enforcement | Stage 06 candidate | Planned | Planned through Family Controls APIs |
 | Foreground/running apps | Stage 04 metadata plus Stage 06E signed-identity restrictions in progress | Planned | Not available |
 | Browser-tab metadata | Visible enrolled Chromium/Firefox extensions plus Stage 06E Safari local-test extension | Visible extension planned | Not available |
-| Reliable uptime or login state | Stage 04 candidate | Stage 07 in progress | Not available |
+| Reliable uptime or login state | Stage 04 candidate | Stage 07 candidate | Not available |
 | Text chat and announcements | Stage 04 candidate | Planned | While app is active in a later stage |
 | Lock/logoff/restart/shutdown | Stage 06 public macOS mechanisms with confirmation for high-impact actions | Supported APIs only | Not available to a normal app |
 | Presence | Authenticated heartbeat | Stage 07 authenticated heartbeat | Approximate/best effort |
