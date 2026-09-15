@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-07 Windows x64 endpoint foundation `0.7.0-rc.2` is in feedback repair.** It adds a visible WPF child dashboard, automatic Windows service, administrator pairing, authenticated local IPC, protected identity, and bounded device/uptime/session/network/health status. It does not yet include Windows app/browser monitoring, chat, schedules, or enforcement. Stage 06E `0.6.5-rc.10` was approved, merged, and published as a prerelease. See [Stage status](docs/stages/stage-status.json), [Stage 07](docs/stages/stage-07.md), and the [Windows installation guide](docs/installation/windows-child.md).
+> **STAGE-07 Windows x64 endpoint foundation `0.7.0-rc.2` is ready for developer retesting.** It adds a visible WPF child dashboard, automatic Windows service, administrator pairing, authenticated local IPC, protected identity, and bounded device/uptime/session/network/health status. It does not yet include Windows app/browser monitoring, chat, schedules, or enforcement. Stage 06E `0.6.5-rc.10` was approved, merged, and published as a prerelease. See [Stage status](docs/stages/stage-status.json), [Stage 07](docs/stages/stage-07.md), and the [Windows installation guide](docs/installation/windows-child.md).
 
 ## Product direction
 

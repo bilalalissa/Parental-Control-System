@@ -1,6 +1,6 @@
 # STAGE-07 — Windows x64 Child Agent foundation
 
-- Status: feedback repair in progress
+- Status: ready for developer retest
 - Branch: `stage/07-windows-endpoint-foundation`
 - Candidate: `0.7.0-rc.2`
 
@@ -68,10 +68,10 @@ Use **Apps > Installed apps > Parental Control Child > Uninstall** and approve t
 
 ## Evidence status
 
-Local macOS cross-target compilation covers the shared core, Windows service, and WPF source with zero warnings. All 24 Windows-core tests pass, including the deterministic Swift/Windows signing vector; the dependency-free repository suite reports 75 passed and one expected platform skip. The local WiX compiler cannot execute because the development Mac has an incompatible legacy x86_64 .NET 6 host, so Windows CI is the authoritative MSI build/install environment.
+Local macOS cross-target compilation covers the shared core, Windows service, and WPF source with zero warnings. All 24 Windows-core tests pass, including endpoint construction, required WebSocket subprotocol negotiation, text/binary receipt handling, and bounded pending-pairing failures. The dependency-free repository suite reports 75 passed and one expected Windows cleanup platform skip. The local WiX compiler cannot execute because the development Mac has an incompatible legacy x86_64 .NET 6 host, so Windows CI is the authoritative MSI build/install environment.
 
-Commit `2fffa4820418355a51000c511405db40d76c4304` passed the [native Windows x64 build, Authenticode inspection, install, authenticated status, repair/identity-retention, uninstall, artifact upload, and scoped cleanup](https://github.com/bilalalissa/Parental-Control-System/actions/runs/34911829035). The same commit passed [repository contracts and POSIX/Windows cleanup checks](https://github.com/bilalalissa/Parental-Control-System/actions/runs/34911829007), the [macOS cross-language signature check](https://github.com/bilalalissa/Parental-Control-System/actions/runs/34911829011), and secret scanning.
+Commit `640431b8d7d0840e400e2fbd5bddfb8c1dd6e8cf` passed the [native Windows x64 build, Authenticode inspection, install, authenticated status, repair/identity-retention, uninstall, artifact upload, and scoped cleanup](https://github.com/bilalalissa/Parental-Control-System/actions/runs/34998104032). It also passed [repository contracts and POSIX/Windows cleanup checks](https://github.com/bilalalissa/Parental-Control-System/actions/runs/34998104042). The macOS controller/hub CI test verifies the fixed Windows Bouncy Castle signature over the shared canonical signing data with CryptoKit; valid signatures are not incorrectly required to have byte-identical output across implementations.
 
-The verified unsigned MSI is 62,713,118 bytes with SHA-256 `0dff66db9e10d4b7b7458099a3cc6bb3f7a541ca0f8e9c6555fcfab3e6f13ecd`. On the disposable Windows 2025 CI host, the installed service used a 39,100,416-byte working set and 10,002,432 bytes of private memory; the self-contained installed payload was 199,303,503 bytes. Physical Windows UI, parent/child pairing, reboot/login startup, network transition, and Windows 10 testing remain developer gates.
+The verified unsigned MSI is 62,737,694 bytes with SHA-256 `a23ad4aaed5d85407828e1296d40fbb9e45a07108dc578ac30f7f7d73cc2a753`. On the disposable Windows 2025 CI host, the installed service used a 39,366,656-byte working set and 10,383,360 bytes of private memory; the self-contained installed payload was 199,306,063 bytes. Physical Windows UI, parent/child pairing, reboot/login startup, network transition, and Windows 10 testing remain developer gates.
 
-Final local cleanup removed 11 repository-owned build/dependency paths and the verified temporary download. The superseded local Stage 06E RC10 copies were removed after the Stage 07 checksum matched; RC10 remains recoverable from its published GitHub release. Cleanup left 37 GiB free, a 113 MiB repository, one 60 MiB MSI plus its checksum, no Stage 07 process, and no simulator, emulator, VM, container, duplicate checkout, or worktree.
+The superseded RC1 was removed locally only after RC2 passed native Windows CI and its downloaded checksum was verified. Final scoped local cleanup removed 10 repository-owned build and dependency-cache paths and retained one RC2 MSI plus its checksum. Cleanup left 34 GiB free and a 113 MiB repository. No Stage 07 process, simulator, emulator, VM, container, duplicate checkout, or worktree is retained; the unrelated pre-existing `Cleaner.bat` in the release-candidate directory was preserved.
