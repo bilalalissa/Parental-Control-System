@@ -28,10 +28,14 @@ struct ProtocolSecurityTests {
       now: date,
       lifetime: 120,
       id: UUID(uuidString: "77777777-0000-4000-8000-000000000001")!)
-    #expect(
-      envelope.auth.signature
-        == "DgNlYb3nMg+KhxdQwx+6agrEj5PSkIcxVth5NDppnnrWVpRy0tEaM9I3LUKTJiuxFNXpChUqYQn7dhbDVnQnDA=="
-    )
+    let signingData = try ProtocolCodec.signingData(for: envelope)
+    let windowsSignature = try #require(
+      Data(
+        base64Encoded:
+          "DgNlYb3nMg+KhxdQwx+6agrEj5PSkIcxVth5NDppnnrWVpRy0tEaM9I3LUKTJiuxFNXpChUqYQn7dhbDVnQnDA=="
+      ))
+    let publicKey = try Curve25519.Signing.PublicKey(rawRepresentation: identity.publicKeyData)
+    #expect(publicKey.isValidSignature(windowsSignature, for: signingData))
   }
 
   @Test("signed envelopes round-trip and verify")
