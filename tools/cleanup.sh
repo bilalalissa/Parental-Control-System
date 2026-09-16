@@ -47,6 +47,7 @@ direct_targets=(
   "coverage"
   "TestResults"
   ".artifacts/build"
+  ".artifacts/nuget"
   ".artifacts/derived-data"
   ".artifacts/test-results"
   ".artifacts/tmp"

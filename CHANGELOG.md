@@ -2,6 +2,17 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.7.0-rc.2 — 2026-09-15
+
+Status: **STAGE-07 approved and merged on 2026-09-15; unreleased**
+
+- Adds the visible Windows x64 child dashboard, automatic service, administrator pairing, authenticated named-pipe IPC, protected machine identity, and bounded device, uptime, session, network, and health status.
+- Corrects the initial pairing handshake to use the controller's `/hub` path and `parental-control.v1` WebSocket subprotocol, accepts binary controller receipts, and reports pairing progress accurately.
+- Passed native Windows x64 build, install, authenticated status, repair with identity retention, uninstall, Authenticode inspection, resource measurement, checksum, and scoped-cleanup checks.
+- Developer physical installation and pairing retest passed, followed by the exact approval command `APPROVED: STAGE-07 0.7.0-rc.2` on 2026-09-15.
+- The later exact `MERGE` command authorized merging the Stage 07 pull request on 2026-09-15; release and Stage 08 remain separately gated.
+- Windows application/browser monitoring, chat, schedules, and enforcement remain deferred to later separately approved stages.
+
 ## 0.6.5-rc.10 — 2026-09-12
 
 Status: **STAGE-06E approved on 2026-09-14; unmerged and unreleased**

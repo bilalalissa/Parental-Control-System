@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-06E macOS application-use restrictions RC5 with Safari local-test coverage is ready for developer retest; STAGE-07 has not begun.** RC5 retains signed-identity app restrictions and hostname-only enforcement for new, restored and SPA browser navigation. It never inspects page content or network traffic. Chromium/Firefox remain manually enrolled; Safari uses an ad-hoc companion extension that an adult must explicitly enable per profile. Production Safari distribution is not claimed. Without Apple's Endpoint Security entitlement, Stage 06E can visibly close a selected signed third-party app after launch but cannot claim pre-launch denial. See [Stage status](docs/stages/stage-status.json) and [Stage 06E](docs/stages/stage-06e.md).
+> **STAGE-07 Windows x64 endpoint foundation `0.7.0-rc.2` is approved and merged; it is not yet released.** It adds a visible WPF child dashboard, automatic Windows service, administrator pairing, authenticated local IPC, protected identity, and bounded device/uptime/session/network/health status. It does not yet include Windows app/browser monitoring, chat, schedules, or enforcement. Stage 06E `0.6.5-rc.10` was approved, merged, and published as a prerelease. See [Stage status](docs/stages/stage-status.json), [Stage 07](docs/stages/stage-07.md), and the [Windows installation guide](docs/installation/windows-child.md).
 
 ## Product direction
 
@@ -15,14 +15,14 @@ The project is intentionally visible and bounded. It will not implement hidden i
 
 | Capability | macOS endpoint | Windows endpoint | Standard iPadOS app |
 | --- | --- | --- | --- |
-| Visible child UI | Stage 03 candidate | Planned | Planned |
+| Visible child UI | Stage 03 candidate | Stage 07 candidate | Planned |
 | Local policy enforcement | Stage 06 candidate | Planned | Planned through Family Controls APIs |
 | Foreground/running apps | Stage 04 metadata plus Stage 06E signed-identity restrictions in progress | Planned | Not available |
 | Browser-tab metadata | Visible enrolled Chromium/Firefox extensions plus Stage 06E Safari local-test extension | Visible extension planned | Not available |
-| Reliable uptime or login state | Stage 04 candidate | Planned | Not available |
+| Reliable uptime or login state | Stage 04 candidate | Stage 07 candidate | Not available |
 | Text chat and announcements | Stage 04 candidate | Planned | While app is active in a later stage |
 | Lock/logoff/restart/shutdown | Stage 06 public macOS mechanisms with confirmation for high-impact actions | Supported APIs only | Not available to a normal app |
-| Presence | Authenticated heartbeat | Authenticated heartbeat | Approximate/best effort |
+| Presence | Authenticated heartbeat | Stage 07 authenticated heartbeat | Approximate/best effort |
 
 The full capability contract is in [the capability matrix](docs/architecture/capability-matrix.md).
 
