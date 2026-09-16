@@ -37,7 +37,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active[0].branch, "stage/07-windows-endpoint-foundation");
   assert.equal(active[0].version, "0.7.0-rc.2");
   assert.ok(
-    ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "BLOCKED"].includes(
+    ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "MERGED", "BLOCKED"].includes(
       active[0].status,
     ),
   );

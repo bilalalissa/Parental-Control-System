@@ -1,6 +1,6 @@
 # STAGE-07 — Windows x64 Child Agent foundation
 
-- Status: approved
+- Status: merged
 - Branch: `stage/07-windows-endpoint-foundation`
 - Candidate: `0.7.0-rc.2`
 
@@ -76,4 +76,4 @@ The verified unsigned MSI is 62,737,694 bytes with SHA-256 `a23ad4aaed5d85407828
 
 The superseded RC1 was removed locally only after RC2 passed native Windows CI and its downloaded checksum was verified. Final scoped local cleanup removed 10 repository-owned build and dependency-cache paths and retained one RC2 MSI plus its checksum. Cleanup left 34 GiB free and a 113 MiB repository. No Stage 07 process, simulator, emulator, VM, container, duplicate checkout, or worktree is retained; the unrelated pre-existing `Cleaner.bat` in the release-candidate directory was preserved.
 
-The developer completed the physical Windows installation and pairing retest, confirmed that the reported connection issue was resolved, and approved this candidate with the exact command `APPROVED: STAGE-07 0.7.0-rc.2` on 2026-09-15. Approval does not merge the draft pull request, create a release, or authorize Stage 08.
+The developer completed the physical Windows installation and pairing retest, confirmed that the reported connection issue was resolved, and approved this candidate with the exact command `APPROVED: STAGE-07 0.7.0-rc.2` on 2026-09-15. The later exact command `MERGE` authorized merging the draft pull request on 2026-09-15. No release was created and Stage 08 remains separately gated.
