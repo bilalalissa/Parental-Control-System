@@ -172,12 +172,13 @@ test("macOS packages can use one stable signing identity without requiring CI cr
 });
 
 test("shared Chromium extension remains opt-in, bounded, and content-minimal", async () => {
-  const [manifest, nativeManifest, worker, popup, packager, postinstall, authorization, browserHost] = await Promise.all([
+  const [manifest, nativeManifest, worker, popup, packager, endpointPackager, postinstall, authorization, browserHost] = await Promise.all([
     readJson("browser-extensions/webextension/manifest.json"),
     readJson("browser-extensions/webextension/native-host-manifest.json"),
     read("browser-extensions/webextension/service-worker.js"),
     read("browser-extensions/webextension/popup.html"),
     read("script/package_browser_extension.sh"),
+    read("script/package_endpoint_release.sh"),
     read("agents/endpoint-macos/Installer/postinstall"),
     read("agents/endpoint-macos/Sources/EndpointCore/BrowserNativeMessaging.swift"),
     read("agents/endpoint-macos/Sources/ParentalControlBrowserHost/main.swift"),
@@ -203,6 +204,8 @@ test("shared Chromium extension remains opt-in, bounded, and content-minimal", a
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
   assert.match(packager, /VERSION="\$\{BROWSER_PACKAGE_VERSION:-0\.8\.0-rc\.1\}"/);
   assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-\$VERSION\.zip"/);
+  assert.match(packager, /manifest\.version = process\.env\.BROWSER_MANIFEST_VERSION/);
+  assert.match(endpointPackager, /BROWSER_MANIFEST_VERSION="0\.6\.5\.10"/);
   assert.match(packager, /blocked\.html/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);

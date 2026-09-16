@@ -23,6 +23,17 @@ cp "$SOURCE/blocked.html" "$PACKAGE_ROOT/blocked.html"
 cp "$SOURCE/popup.html" "$PACKAGE_ROOT/popup.html"
 cp "$SOURCE/popup.js" "$PACKAGE_ROOT/popup.js"
 
+if [[ -n "${BROWSER_MANIFEST_VERSION:-}" ]]; then
+  node -e '
+    const fs = require("node:fs");
+    const path = process.argv[1];
+    const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
+    manifest.version = process.env.BROWSER_MANIFEST_VERSION;
+    manifest.version_name = process.env.BROWSER_MANIFEST_VERSION_NAME ?? process.env.BROWSER_PACKAGE_VERSION;
+    fs.writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+  ' "$PACKAGE_ROOT/manifest.json"
+fi
+
 /usr/bin/qlmanage -t -s 1024 -o "$RENDER_ROOT" "$ICON_SOURCE" >/dev/null 2>&1
 RENDERED="$RENDER_ROOT/$(basename "$ICON_SOURCE").png"
 test -f "$RENDERED"
