@@ -23,7 +23,8 @@ public sealed record EndpointState(
     ulong Sequence,
     ulong SnapshotVersion,
     ulong ControllerSequence,
-    PairedController? Controller)
+    PairedController? Controller,
+    EndpointRuntimeData? Runtime = null)
 {
     public static EndpointState Create()
     {
@@ -33,7 +34,7 @@ public sealed record EndpointState(
         {
             return new EndpointState(
                 Guid.NewGuid().ToString("D").ToLowerInvariant(),
-                Convert.ToBase64String(privateKey), 0, 0, 0, null);
+                Convert.ToBase64String(privateKey), 0, 0, 0, null, new EndpointRuntimeData());
         }
         finally { CryptographicOperations.ZeroMemory(privateKey); }
     }
@@ -191,6 +192,16 @@ public sealed class EndpointStateStore
             {
                 throw new InvalidDataException("Pending pairing metadata is invalid.");
             }
+        }
+        EndpointRuntimeData runtime = state.Runtime ?? new EndpointRuntimeData();
+        if (runtime.ActivityRetentionDays is < 1 or > 30
+            || runtime.BrowserRetentionDays is < 1 or > 30
+            || runtime.Applications.Count > 64
+            || runtime.BrowserTabs.Count > 128
+            || runtime.Messages.Count > 200
+            || runtime.Outbound.Count > 100)
+        {
+            throw new InvalidDataException("Endpoint runtime state exceeds its bounds.");
         }
     }
 }

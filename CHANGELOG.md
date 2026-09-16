@@ -2,6 +2,16 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.8.0-rc.1 — 2026-09-15
+
+Status: **STAGE-08 implementing; not approved, merged, or released**
+
+- Adds event-driven, bounded Windows application identity/foreground metadata without window titles, command lines, file access, or process termination.
+- Reuses the visible shared Chromium extension through an origin-bound Chrome/Edge native-messaging host installed and registered by the MSI; only enrolled tab titles and query-free HTTP(S) origins are eligible.
+- Adds bounded protected text chat, content-free notifications, read state, parent message mutations, and request-more-time to the Windows child UI and authenticated LAN transport.
+- Adds parent-controlled collection switches and 1–30-day activity/browser retention while keeping Windows policy enforcement and administrator resistance explicitly out of scope.
+- Candidate verification and native Windows CI are still in progress.
+
 ## 0.7.0-rc.2 — 2026-09-15
 
 Status: **STAGE-07 approved and merged on 2026-09-15; unreleased**

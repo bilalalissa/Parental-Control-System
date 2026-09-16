@@ -1,0 +1,73 @@
+name: Stage 08 controller and extension
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/stage-08-macos.yml"
+      - "apps/controller-macos/**"
+      - "browser-extensions/webextension/**"
+      - "packages/design-assets/**"
+      - "script/build_app.sh"
+      - "script/package_release.sh"
+      - "script/package_browser_extension.sh"
+      - "test/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage-08-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Run repository contracts
+        run: npm test
+
+      - name: Lint and test controller
+        run: |
+          swift format lint --recursive apps/controller-macos/Sources apps/controller-macos/Tests
+          swift test --package-path apps/controller-macos --scratch-path .artifacts/derived-data/stage-08-tests --jobs 2
+
+      - name: Package one extension and one controller installer
+        run: |
+          ./script/package_browser_extension.sh
+          ./script/package_release.sh
+
+      - name: Verify artifacts and honest signing
+        run: |
+          unzip -t .artifacts/release-candidate/ParentalControlBrowserSharing-0.8.0-rc.1.zip >/dev/null
+          hdiutil verify .artifacts/release-candidate/ParentalControlController-0.8.0-rc.1-arm64.dmg >/dev/null
+          codesign --verify --deep --strict dist/ParentalControlController.app
+          codesign -dv --verbose=2 dist/ParentalControlController.app 2>&1 | grep -F "Signature=adhoc"
+
+      - name: Upload verified controller and extension
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stage-08-macos-candidates
+          path: |
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.8.0-rc.1.zip
+            .artifacts/release-candidate/ParentalControlBrowserSharing-0.8.0-rc.1.zip.sha256
+            .artifacts/release-candidate/ParentalControlController-0.8.0-rc.1-arm64.dmg
+            .artifacts/release-candidate/ParentalControlController-0.8.0-rc.1-arm64.dmg.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Clean project-owned output
+        if: always()
+        run: ./tools/cleanup.sh --apply

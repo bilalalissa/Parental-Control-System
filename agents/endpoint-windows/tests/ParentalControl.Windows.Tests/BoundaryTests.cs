@@ -30,11 +30,37 @@ public sealed class BoundaryTests
     }
 
     [TestMethod]
-    public void StageSevenCapabilitiesDoNotClaimMonitoringOrEnforcement()
+    public void StageEightCapabilitiesClaimOnlyImplementedMetadataAndCommunication()
     {
-        string[] forbidden = ["app-activity", "browser-tabs", "chat", "signed-policy", "lock", "shutdown"];
-        CollectionAssert.DoesNotContain(ProductInfo.Capabilities, forbidden[0]);
+        string[] expected = ["app-activity", "browser-tabs", "chat", "notifications",
+            "request-more-time", "time-request-resolution"];
+        string[] forbidden = ["app-use-restrictions", "browser-website-policy", "signed-policy",
+            "lock", "shutdown"];
+        foreach (string capability in expected)
+            CollectionAssert.Contains(ProductInfo.Capabilities, capability);
         Assert.IsFalse(ProductInfo.Capabilities.Intersect(forbidden, StringComparer.Ordinal).Any());
+    }
+
+    [TestMethod]
+    public void BrowserMetadataKeepsOnlyBoundedTitleAndOrigin()
+    {
+        var source = new BrowserNativeTab(
+            new string('x', 400), "https://example.test/private/path?q=secret#fragment",
+            true, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        WindowsBrowserTab value = Stage08Validation.Validate("Chrome", "Default", source);
+
+        Assert.AreEqual(300, value.Title.Length);
+        Assert.AreEqual("https://example.test", value.Origin);
+        Assert.AreEqual("chrome", value.Browser);
+        Assert.IsTrue(value.IsActive);
+    }
+
+    [TestMethod]
+    public void BrowserMetadataRejectsNonWebSchemes()
+    {
+        var source = new BrowserNativeTab("Local file", "file:///private/secret", false, 0);
+        Assert.ThrowsException<InvalidDataException>(() =>
+            Stage08Validation.Validate("edge", "Default", source));
     }
 
     [DataTestMethod]

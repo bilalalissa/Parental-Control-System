@@ -1,0 +1,9 @@
+{
+  "name": "com.bilalalissa.parental_control",
+  "description": "Visible Parental Control Windows browser metadata bridge",
+  "path": "C:\\Program Files\\Parental Control System\\Windows Child Endpoint\\ParentalControl.Windows.BrowserHost.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://pdcjgejgdjomjjemejhjhmdkcabkidmi/"
+  ]
+}

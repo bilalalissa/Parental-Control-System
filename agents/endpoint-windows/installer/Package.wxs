@@ -1,7 +1,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="Parental Control Child"
            Manufacturer="Parental Control System"
-           Version="0.7.0.2"
+           Version="0.8.0.1"
            UpgradeCode="C9225424-65E4-4F1F-A1A1-860292AD4AAF"
            Scope="perMachine"
            Language="1033">
@@ -19,6 +19,7 @@
       <ComponentRef Id="AppExecutable" />
       <ComponentGroupRef Id="EndpointPayload" />
       <ComponentRef Id="ProtectedDataDirectory" />
+      <ComponentRef Id="BrowserNativeHostRegistration" />
     </Feature>
   </Package>
 
@@ -88,6 +89,15 @@
       <RemoveFolder Id="RemoveDataDirectory" On="uninstall" />
       <RegistryValue Root="HKLM" Key="Software\Parental Control System\Windows Endpoint"
                      Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+    <Component Id="BrowserNativeHostRegistration" Directory="INSTALLFOLDER" Guid="*" Bitness="always64">
+      <RegistryValue Root="HKLM"
+                     Key="Software\Google\Chrome\NativeMessagingHosts\com.bilalalissa.parental_control"
+                     Type="string" Value="[INSTALLFOLDER]windows-native-host-manifest.json"
+                     KeyPath="yes" />
+      <RegistryValue Root="HKLM"
+                     Key="Software\Microsoft\Edge\NativeMessagingHosts\com.bilalalissa.parental_control"
+                     Type="string" Value="[INSTALLFOLDER]windows-native-host-manifest.json" />
     </Component>
   </Fragment>
 </Wix>

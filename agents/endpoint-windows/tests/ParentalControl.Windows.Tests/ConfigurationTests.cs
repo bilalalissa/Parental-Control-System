@@ -69,6 +69,73 @@ public sealed class ConfigurationTests
         }
     }
 
+    [TestMethod]
+    public void ProtectedStatePersistsBoundedStageEightRuntimeData()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "parental-control-windows-test-" + Guid.NewGuid());
+        try
+        {
+            var store = new EndpointStateStore(Path.Combine(root, "endpoint.dat"), new TestProtector());
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            store.Update(state => state with
+            {
+                Runtime = new EndpointRuntimeData
+                {
+                    ActivityCollectionEnabled = false,
+                    BrowserCollectionEnabled = true,
+                    BrowserRetentionDays = 14,
+                    BrowserTabs =
+                    [
+                        new WindowsBrowserTab(
+                            "edge", "Default", "Example", "https://example.test", true, now),
+                    ],
+                    Messages =
+                    [
+                        new WindowsChatMessage(
+                            Guid.NewGuid(), Guid.NewGuid(), now, "Parent", "Hello", "delivered",
+                            "direct", true),
+                    ],
+                },
+            });
+
+            EndpointRuntimeData runtime = store.LoadOrCreate().Runtime!;
+            Assert.IsFalse(runtime.ActivityCollectionEnabled);
+            Assert.IsTrue(runtime.BrowserCollectionEnabled);
+            Assert.AreEqual(14, runtime.BrowserRetentionDays);
+            Assert.AreEqual("https://example.test", runtime.BrowserTabs.Single().Origin);
+            Assert.AreEqual("Hello", runtime.Messages.Single().Text);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void ProtectedStateRejectsRuntimeCollectionsBeyondTheirLimits()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "parental-control-windows-test-" + Guid.NewGuid());
+        try
+        {
+            var store = new EndpointStateStore(Path.Combine(root, "endpoint.dat"), new TestProtector());
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            Assert.ThrowsException<InvalidDataException>(() => store.Update(state => state with
+            {
+                Runtime = new EndpointRuntimeData
+                {
+                    Applications = Enumerable.Range(0, 65).Select(index =>
+                        new WindowsApplicationActivity(
+                            $"win32.app-{index}.exe", $"App {index}", null, null, false, now))
+                        .ToArray(),
+                },
+            }));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
     private sealed class TestProtector : ISecretProtector
     {
         public byte[] Protect(ReadOnlySpan<byte> cleartext) => cleartext.ToArray().Reverse().ToArray();

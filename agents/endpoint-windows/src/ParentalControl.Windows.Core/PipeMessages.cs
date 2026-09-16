@@ -2,9 +2,22 @@ using System.Text.Json;
 
 namespace ParentalControl.Windows.Core;
 
-public sealed record PipeRequest(string Operation, string? Invitation = null);
+public sealed record PipeRequest(
+    string Operation,
+    string? Invitation = null,
+    IReadOnlyList<WindowsApplicationActivity>? Applications = null,
+    BrowserNativeRequest? Browser = null,
+    string? Text = null,
+    string? Audience = null,
+    Guid? ThreadId = null,
+    int? Minutes = null,
+    string? Note = null);
 
-public sealed record PipeResponse(bool Success, string? Error, EndpointDashboardStatus? Status = null);
+public sealed record PipeResponse(
+    bool Success,
+    string? Error,
+    EndpointDashboardStatus? Status = null,
+    BrowserNativeResponse? Browser = null);
 
 public sealed record EndpointDashboardStatus(
     string ProductVersion,
@@ -20,7 +33,15 @@ public sealed record EndpointDashboardStatus(
     long UptimeSeconds,
     IReadOnlyList<NetworkSnapshot> Networks,
     IReadOnlyList<string> Capabilities,
-    string PrivacyDisclosure);
+    string PrivacyDisclosure,
+    bool ActivityCollectionEnabled,
+    int ActivityRetentionDays,
+    bool BrowserCollectionEnabled,
+    int BrowserRetentionDays,
+    IReadOnlyList<WindowsApplicationActivity> Applications,
+    IReadOnlyList<WindowsBrowserTab> BrowserTabs,
+    IReadOnlyList<WindowsChatMessage> Messages,
+    WindowsTimeRequest? LatestTimeRequest);
 
 public static class PipeCodec
 {

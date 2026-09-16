@@ -1,4 +1,6 @@
 using System.IO.Pipes;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using ParentalControl.Windows.Core;
@@ -70,12 +72,29 @@ internal sealed class NamedPipeEndpointServer
         try
         {
             PipeRequest request = PipeCodec.Decode<PipeRequest>(buffer);
+            bool activeConsoleClient = IsActiveConsoleClient(pipe);
+            bool childApplicationClient = activeConsoleClient && IsExpectedClient(
+                pipe, "ParentalControl.Windows.App.exe");
+            bool browserHostClient = activeConsoleClient && IsExpectedClient(
+                pipe, "ParentalControl.Windows.BrowserHost.exe");
             response = request.Operation switch
             {
-                "status" => new PipeResponse(true, null, runtime.Status()),
-                "pair" when IsAdministrator(pipe) && request.Invitation is not null =>
+                "health" => new PipeResponse(true, null),
+                "status" when childApplicationClient => new PipeResponse(true, null, runtime.Status()),
+                "pair" when childApplicationClient && IsAdministrator(pipe) && request.Invitation is not null =>
                     runtime.Pair(request.Invitation),
                 "pair" => new PipeResponse(false, "Pairing requires an elevated adult administrator session."),
+                "activity.update" when childApplicationClient =>
+                    runtime.UpdateApplications(request.Applications),
+                "browser.native" when browserHostClient => runtime.HandleBrowser(request.Browser),
+                "chat.send" when childApplicationClient =>
+                    runtime.QueueChat(request.Text, request.Audience, request.ThreadId),
+                "chat.read" when childApplicationClient => runtime.MarkChatRead(),
+                "time.request" when childApplicationClient =>
+                    runtime.RequestMoreTime(request.Minutes, request.Note),
+                "status" or "activity.update" or "browser.native" or "chat.send" or "chat.read"
+                    or "time.request" =>
+                    new PipeResponse(false, "The request must come from an authorized installed client in the active interactive session."),
                 _ => new PipeResponse(false, "Unsupported local operation."),
             };
         }
@@ -113,4 +132,50 @@ internal sealed class NamedPipeEndpointServer
         });
         return administrator;
     }
+
+    private static bool IsActiveConsoleClient(NamedPipeServerStream pipe)
+    {
+        if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle.DangerousGetHandle(), out uint processId))
+            return false;
+        uint activeSession = WTSGetActiveConsoleSessionId();
+        if (activeSession == uint.MaxValue) return false;
+        try
+        {
+            using Process process = Process.GetProcessById(checked((int)processId));
+            return process.SessionId == activeSession;
+        }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException
+            or System.ComponentModel.Win32Exception or OverflowException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsExpectedClient(NamedPipeServerStream pipe, string executableName)
+    {
+        if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle.DangerousGetHandle(), out uint processId))
+            return false;
+        try
+        {
+            using Process process = Process.GetProcessById(checked((int)processId));
+            string? clientPath = process.MainModule?.FileName;
+            if (string.IsNullOrWhiteSpace(clientPath)) return false;
+            string expectedPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, executableName));
+            return string.Equals(Path.GetFullPath(clientPath), expectedPath,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException
+            or System.ComponentModel.Win32Exception or OverflowException
+            or NotSupportedException or IOException)
+        {
+            return false;
+        }
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetNamedPipeClientProcessId(IntPtr pipe, out uint clientProcessId);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint WTSGetActiveConsoleSessionId();
 }
