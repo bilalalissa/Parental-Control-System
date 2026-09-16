@@ -201,7 +201,8 @@ test("shared Chromium extension remains opt-in, bounded, and content-minimal", a
   assert.match(worker, /runtime\.onStartup/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.8\.0-rc\.1\.zip"/);
+  assert.match(packager, /VERSION="\$\{BROWSER_PACKAGE_VERSION:-0\.8\.0-rc\.1\}"/);
+  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-\$VERSION\.zip"/);
   assert.match(packager, /blocked\.html/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);

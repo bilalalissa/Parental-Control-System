@@ -38,7 +38,7 @@ retry() {
 "$ROOT_DIR/script/build_app.sh" Release >/dev/null
 "$ROOT_DIR/script/build_endpoint_app.sh" Release >/dev/null
 "$ROOT_DIR/script/build_safari_extension.sh" >/dev/null
-"$ROOT_DIR/script/package_browser_extension.sh" >/dev/null
+BROWSER_PACKAGE_VERSION="$VERSION" "$ROOT_DIR/script/package_browser_extension.sh" >/dev/null
 rm -rf -- "$STAGING"
 rm -f -- "$PKG" "$CHECKSUM"
 mkdir -p \

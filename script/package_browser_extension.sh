@@ -2,13 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+VERSION="${BROWSER_PACKAGE_VERSION:-0.8.0-rc.1}"
 SOURCE="$ROOT_DIR/browser-extensions/webextension"
 ICON_SOURCE="$ROOT_DIR/packages/design-assets/browser-extension-icon.svg"
 STAGING="$ROOT_DIR/.artifacts/package-staging/stage-08-extension"
 PACKAGE_ROOT="$STAGING/ParentalControlBrowserSharing"
 RENDER_ROOT="$STAGING/icon-render"
 RC_DIR="$ROOT_DIR/.artifacts/release-candidate"
-ZIP="$RC_DIR/ParentalControlBrowserSharing-0.8.0-rc.1.zip"
+ZIP="$RC_DIR/ParentalControlBrowserSharing-$VERSION.zip"
 CHECKSUM="$ZIP.sha256"
 PACKAGE_LIST="$STAGING/package-files.txt"
 
