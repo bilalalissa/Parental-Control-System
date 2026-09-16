@@ -10,7 +10,9 @@ struct ChatShellView: View {
   @State private var editingMessage: HubChatMessage?
   @State private var deletingMessage: HubChatMessage?
 
-  private var devices: [HubDeviceRecord] { store.pairedDevices }
+  private var devices: [HubDeviceRecord] {
+    store.pairedDevices.filter { $0.capabilities.contains("chat") }
+  }
   private var recipients: [HubDeviceRecord] {
     switch audience {
     case .direct: devices.filter { $0.id == selectedDeviceID }
@@ -116,7 +118,7 @@ struct ChatShellView: View {
             systemImage: audience.systemImage,
             description: Text(
               devices.isEmpty
-                ? "Pair a macOS child device before sending a message."
+                ? "Pair a chat-capable child device before sending a message."
                 : "Messages will appear here with queued, sent, delivered, read, or failed state.")
           )
           .padding(.top, 60)

@@ -1,11 +1,12 @@
-name: Stage 07 Windows endpoint
+name: Stage 08 Windows activity, browser, and communication
 
 on:
   pull_request:
     paths:
-      - ".github/workflows/stage-07-windows.yml"
+      - ".github/workflows/stage-08-windows.yml"
       - ".gitignore"
       - "agents/endpoint-windows/**"
+      - "browser-extensions/webextension/**"
       - "packages/protocol/**"
       - "packages/design-assets/**"
       - "script/build_windows_release.ps1"
@@ -19,12 +20,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: stage-07-windows-${{ github.ref }}
+  group: stage-08-windows-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   verify:
-    name: x64 service, UI, and MSI
+    name: x64 service, visible UI, browser host, and MSI
     runs-on: windows-2025
     timeout-minutes: 25
     steps:
@@ -57,21 +58,21 @@ jobs:
       - name: Verify Authenticode status is honestly reported
         shell: powershell
         run: |
-          $candidate = ".artifacts\release-candidate\ParentalControlWindows-0.7.0-rc.2-x64.msi"
+          $candidate = ".artifacts\release-candidate\ParentalControlWindows-0.8.0-rc.1-x64.msi"
           $signature = Get-AuthenticodeSignature -LiteralPath $candidate
           if ($signature.Status -ne "NotSigned") { throw "Unexpected signature state: $($signature.Status)" }
 
       - name: Install, query, repair, and uninstall MSI
         shell: powershell
-        run: .\script\test_windows_installer.ps1 -MsiPath ".artifacts\release-candidate\ParentalControlWindows-0.7.0-rc.2-x64.msi"
+        run: .\script\test_windows_installer.ps1 -MsiPath ".artifacts\release-candidate\ParentalControlWindows-0.8.0-rc.1-x64.msi"
 
       - name: Upload one verified release candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ParentalControlWindows-0.7.0-rc.2-x64
+          name: ParentalControlWindows-0.8.0-rc.1-x64
           path: |
-            .artifacts/release-candidate/ParentalControlWindows-0.7.0-rc.2-x64.msi
-            .artifacts/release-candidate/ParentalControlWindows-0.7.0-rc.2-x64.msi.sha256
+            .artifacts/release-candidate/ParentalControlWindows-0.8.0-rc.1-x64.msi
+            .artifacts/release-candidate/ParentalControlWindows-0.8.0-rc.1-x64.msi.sha256
           if-no-files-found: error
           retention-days: 7
 
@@ -79,8 +80,8 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: stage-07-windows-failure
-          path: .artifacts/test-results/stage-07
+          name: stage-08-windows-failure
+          path: .artifacts/test-results/stage-08
           if-no-files-found: ignore
           retention-days: 7
 

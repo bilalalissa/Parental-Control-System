@@ -1,15 +1,15 @@
 using System.Buffers.Binary;
-using System.IO;
 using System.IO.Pipes;
-using ParentalControl.Windows.Core;
 
-namespace ParentalControl.Windows.App;
+namespace ParentalControl.Windows.Core;
 
-internal sealed class EndpointPipeClient
+public sealed class EndpointPipeClient
 {
-    internal async Task<PipeResponse> SendAsync(PipeRequest request)
+    public async Task<PipeResponse> SendAsync(
+        PipeRequest request, CancellationToken cancellationToken = default)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
         await using var pipe = new NamedPipeClientStream(
             ".", ProductInfo.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
         await pipe.ConnectAsync(timeout.Token);
@@ -28,7 +28,8 @@ internal sealed class EndpointPipeClient
         return PipeCodec.Decode<PipeResponse>(body);
     }
 
-    private static async Task ReadExactlyAsync(Stream stream, Memory<byte> destination, CancellationToken token)
+    private static async Task ReadExactlyAsync(
+        Stream stream, Memory<byte> destination, CancellationToken token)
     {
         int offset = 0;
         while (offset < destination.Length)

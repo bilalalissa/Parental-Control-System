@@ -1,6 +1,6 @@
 # Capability matrix
 
-This matrix is the truthful Stage 06 capability contract, the Stage 06A–06E result, and the Stage 07 Windows foundation boundary.
+This matrix is the truthful Stage 06 capability contract, the Stage 06A–06E result, and the Stage 08 Windows metadata/communication boundary.
 
 | Capability | Parent Controller (Apple silicon) | macOS child endpoint | Windows child endpoint | Standard iPadOS child app | Optional supervised iPad MDM |
 | --- | --- | --- | --- | --- | --- |
@@ -13,11 +13,11 @@ This matrix is the truthful Stage 06 capability contract, the Stage 06A–06E re
 | Continuous presence | Controller itself | Heartbeat-based | Heartbeat-based | **No; approximate only** | Management check-in is not continuous app presence |
 | Boot time / reliable uptime | Local Mac only | Stage 03+ | Stage 07 bounded status | **Not available** | Device information only where supported |
 | Login/logout/lock state | Local Mac only | Stage 03+ session state | Stage 07 coarse WTS session state | **Not available** | Not desktop session semantics |
-| Foreground/running applications | Controller process only | Stage 04 candidate; names/bundle IDs only | Metadata planned | **Not available** | **Not available** |
-| Browser-tab metadata | Controller browser is out of scope | Visible enrolled Chromium/Firefox extensions and Stage 06E Safari local-test extension; title/origin only | Visible Chrome/Edge extension planned | **Not available** | **Not available** |
+| Foreground/running applications | Controller process only | Stage 04 candidate; names/bundle IDs only | Stage 08 event-driven names/executable identities/foreground state only | **Not available** | **Not available** |
+| Browser-tab metadata | Controller browser is out of scope | Visible enrolled Chromium/Firefox extensions and Stage 06E Safari local-test extension; title/origin only | Stage 08 visible enrolled Chrome/Edge extension; title/query-free origin only | **Not available** | **Not available** |
 | Hardware MAC metadata | Local interfaces | Optional display metadata | Optional display metadata | **Not available** | Only if a supported command returns it; never identity |
-| Text chat | Stage 05 direct/group/announcement with system-controlled sound and explicit read state | Stage 05 direct/group/announcement with system-controlled sound and explicit read state | Planned | While active; notifications best effort | Through visible child app only |
-| Request more time | Stage 04 request display; decision/enforcement later | Stage 04 candidate | Planned | Planned with Family Controls flow | Through visible child app only |
+| Text chat | Stage 05 direct/group/announcement with system-controlled sound and explicit read state | Stage 05 direct/group/announcement with system-controlled sound and explicit read state | Stage 08 text chat, content-free notification, and read state | While active; notifications best effort | Through visible child app only |
+| Request more time | Stage 04 request display; decision/enforcement later | Stage 04 candidate | Stage 08 request and resolution display; no enforcement | Planned with Family Controls flow | Through visible child app only |
 | Lock | Sends authenticated typed request | Stage 06 system screen-saver lock path; open apps preserved | Supported API planned | Shielding only; not global device lock | Supported command only after approval |
 | Logoff | Explicit confirmation required | Stage 06 documented loginwindow confirmation; never forced | Planned | **Not available** | **Not available as desktop logoff** |
 | Restart/shutdown | Explicit confirmation required | Stage 06 documented loginwindow confirmation; never forced | Explicit supported action | **Not available** | Supported supervised commands only |
@@ -44,3 +44,5 @@ Stage 06D was amended to browser-only website blocking on 2026-09-05. The prior 
 Stage 06E adds entitlement-free macOS app-use restrictions for a standard child account and best-effort operation when the enrolled endpoint's current interactive account is an administrator. The parent can select only observed third-party apps with an exact validated bundle, signing and Team identity. The visible session helper asks a matching running app to quit after launch; if it remains running for five seconds, it locks the session once for that process and policy version. Apple/system, login/recovery and parental-control components are always protected. This does not prevent launch, force-terminate an app, protect against an administrator, or replace the deferred Endpoint Security design. A standard child account remains required for meaningful enforcement.
 
 Stage 07 adds only the Windows x64 foundation: an automatic service, visible dashboard, administrator pairing, authenticated named pipe, pinned/signed LAN status, protected identity, and bounded device/uptime/session/network/health metadata. Application/browser monitoring, chat, schedules, and enforcement remain unavailable and are not advertised. An authorized local administrator can repair or remove the endpoint.
+
+Stage 08 adds only Windows metadata and communication. It observes visible top-level application processes through documented window events, shares only bounded names/executable identities and foreground state, and reconciles at a bounded interval. Its separately loaded Chrome/Edge extension shares only enrolled non-private tab titles and query-free HTTP(S) origins through one origin-bound installed native host. Text chat, content-free notifications, and request-more-time use the authenticated LAN protocol and protected bounded queues. Collection can be disabled remotely and retained observations are then cleared. Windows schedules, app/website restrictions, signed-policy enforcement, high-impact actions, pre-login controls, and administrator resistance remain unavailable and unadvertised.

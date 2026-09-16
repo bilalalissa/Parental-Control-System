@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 $msi = (Resolve-Path $MsiPath).Path
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$evidenceRoot = Join-Path $repoRoot ".artifacts\test-results\stage-07"
+$evidenceRoot = Join-Path $repoRoot ".artifacts\test-results\stage-08"
 $installLog = Join-Path $evidenceRoot "install.log"
 $repairLog = Join-Path $evidenceRoot "repair.log"
 $uninstallLog = Join-Path $evidenceRoot "uninstall.log"
@@ -30,11 +30,11 @@ function Read-Exactly([IO.Stream]$stream, [byte[]]$buffer) {
     }
 }
 
-function Get-EndpointStatus {
+function Invoke-EndpointRequest([string]$bodyText) {
     $pipe = [IO.Pipes.NamedPipeClientStream]::new(".", "ParentalControl.Windows.Endpoint.v1", [IO.Pipes.PipeDirection]::InOut)
     try {
         $pipe.Connect(5000)
-        $body = [Text.Encoding]::UTF8.GetBytes('{"operation":"status","invitation":null}')
+        $body = [Text.Encoding]::UTF8.GetBytes($bodyText)
         $prefix = [BitConverter]::GetBytes([Net.IPAddress]::HostToNetworkOrder([int]$body.Length))
         $pipe.Write($prefix, 0, $prefix.Length)
         $pipe.Write($body, 0, $body.Length)
@@ -58,13 +58,25 @@ try {
     $service.WaitForStatus("Running", [TimeSpan]::FromSeconds(20))
     if (-not (Test-Path (Join-Path $installRoot "ParentalControl.Windows.Service.exe"))) { throw "Service payload missing." }
     if (-not (Test-Path (Join-Path $installRoot "ParentalControl.Windows.App.exe"))) { throw "Visible app payload missing." }
-
-    $status = Get-EndpointStatus
-    if (-not $status.success -or -not $status.status.serviceHealthy) { throw "Authenticated local status failed." }
-    if ($status.status.sessionState -eq "unknown") { throw "Initial Windows session state is unknown." }
-    if ($status.status.capabilities -contains "app-activity" -or $status.status.capabilities -contains "browser-tabs") {
-        throw "Stage 07 claimed a later-stage capability."
+    if (-not (Test-Path (Join-Path $installRoot "ParentalControl.Windows.BrowserHost.exe"))) { throw "Browser host payload missing." }
+    $nativeManifestPath = Join-Path $installRoot "windows-native-host-manifest.json"
+    if (-not (Test-Path $nativeManifestPath)) { throw "Browser native-host manifest missing." }
+    $nativeManifest = Get-Content -LiteralPath $nativeManifestPath -Raw | ConvertFrom-Json
+    if ($nativeManifest.name -ne "com.bilalalissa.parental_control") { throw "Unexpected browser native-host name." }
+    if ($nativeManifest.allowed_origins.Count -ne 1 -or
+        $nativeManifest.allowed_origins[0] -ne "chrome-extension://pdcjgejgdjomjjemejhjhmdkcabkidmi/") {
+        throw "Browser native-host origin is not narrowly bound."
     }
+    foreach ($browserKey in @(
+        "HKLM:\Software\Google\Chrome\NativeMessagingHosts\com.bilalalissa.parental_control",
+        "HKLM:\Software\Microsoft\Edge\NativeMessagingHosts\com.bilalalissa.parental_control")) {
+        if ((Get-Item -LiteralPath $browserKey).GetValue("") -ne $nativeManifestPath) {
+            throw "Browser native-host registration is missing or incorrect: $browserKey"
+        }
+    }
+
+    $health = Invoke-EndpointRequest '{"operation":"health"}'
+    if (-not $health.success) { throw "Local service health request failed." }
     $identityHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $dataRoot "endpoint.dat")).Hash
     $dataAcl = Get-Acl -LiteralPath $dataRoot
     if (-not $dataAcl.AreAccessRulesProtected) { throw "Protected data inherits an unbounded ACL." }
@@ -82,20 +94,20 @@ try {
     }
     $resourceJson = $resourceEvidence | ConvertTo-Json
     $resourceJson | Set-Content -LiteralPath (Join-Path $evidenceRoot "resources.json") -Encoding utf8
-    Write-Host "Stage 07 resource evidence: $($resourceJson -replace '\r?\n', ' ')"
+    Write-Host "Stage 08 resource evidence: $($resourceJson -replace '\r?\n', ' ')"
 
     Invoke-Msi "/fa `"$msi`" /qn /norestart /l*v `"$repairLog`""
     (Get-Service -Name $serviceName).WaitForStatus("Running", [TimeSpan]::FromSeconds(20))
     $repairedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $dataRoot "endpoint.dat")).Hash
     if ($identityHash -ne $repairedHash) { throw "Repair replaced protected endpoint identity." }
-    $repairedStatus = Get-EndpointStatus
-    if (-not $repairedStatus.success) { throw "Status failed after repair." }
+    $repairedHealth = Invoke-EndpointRequest '{"operation":"health"}'
+    if (-not $repairedHealth.success) { throw "Health request failed after repair." }
 
     Invoke-Msi "/x `"$msi`" /qn /norestart /l*v `"$uninstallLog`""
     if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) { throw "Service remains after uninstall." }
     if (Test-Path $installRoot) { throw "Program files remain after uninstall." }
     if (Test-Path $dataRoot) { throw "Protected endpoint data remains after uninstall." }
-    Write-Host "Windows MSI install, status, repair, identity retention, and uninstall passed."
+    Write-Host "Windows MSI install, health, browser-host registration, repair, identity retention, and uninstall passed."
 } finally {
     if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
         Start-Process -FilePath msiexec.exe -ArgumentList "/x `"$msi`" /qn /norestart" -Wait | Out-Null
