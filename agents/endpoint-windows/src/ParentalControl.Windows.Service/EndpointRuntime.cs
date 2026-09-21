@@ -32,7 +32,13 @@ internal sealed class EndpointRuntime : IDisposable
 
     internal void Start()
     {
-        _ = store.LoadOrCreate();
+        EndpointStateLoadResult initialState = store.LoadOrCreateRecoveringUnreadable();
+        if (initialState.RecoveredUnreadableState)
+        {
+            log.Write(
+                "configuration.recovered",
+                "Unreadable protected state preserved; fresh pairing is required");
+        }
         pipeTask = new NamedPipeEndpointServer(this, log).RunAsync(stopping.Token);
         connectionTask = RunConnectionLoopAsync(stopping.Token);
         log.Write("service.started", ProductInfo.Version);

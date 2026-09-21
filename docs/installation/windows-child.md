@@ -1,6 +1,6 @@
 # Windows Child Endpoint installation
 
-`ParentalControlWindows-0.8.0-rc.1-x64.msi` is a visible Stage 08 test candidate for Windows 10 version 2004 or newer and Windows 11 on x64 hardware.
+`ParentalControlWindows-0.8.0-rc.2-x64.msi` is a visible Stage 08 test candidate for Windows 10 version 2004 or newer and Windows 11 on x64 hardware.
 
 1. Verify the SHA-256 value supplied beside the MSI.
 2. Sign in with the intended standard child account, then have an adult administrator run the MSI and approve Windows Installer.

@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/08-windows-activity-browser-chat");
-  assert.equal(active[0].version, "0.8.0-rc.1");
+  assert.equal(active[0].version, "0.8.0-rc.2");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "MERGED", "BLOCKED"].includes(
       active[0].status,
@@ -564,17 +564,19 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /STAGE-08 Windows activity, browser sharing, and communication[\s\S]*0\.8\.0-rc\.1/);
+  assert.match(readme, /STAGE-08 Windows activity, browser sharing, and communication[\s\S]*0\.8\.0-rc\.2/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });
 
 test("Stage 08 Windows metadata and communication are visible, bounded, and capability-honest", async () => {
-  const [product, workflow, installer, nativeManifest, service, browserCaller, app, runtime, controllerTransport] = await Promise.all([
+  const [product, workflow, installer, installerTest, stateStore, nativeManifest, service, browserCaller, app, runtime, controllerTransport] = await Promise.all([
     read("agents/endpoint-windows/src/ParentalControl.Windows.Core/ProductInfo.cs"),
     read(".github/workflows/stage-08-windows.yml"),
     read("agents/endpoint-windows/installer/Package.wxs"),
+    read("script/test_windows_installer.ps1"),
+    read("agents/endpoint-windows/src/ParentalControl.Windows.Core/EndpointState.cs"),
     readJson("agents/endpoint-windows/installer/windows-native-host-manifest.json"),
     read("agents/endpoint-windows/src/ParentalControl.Windows.Service/NamedPipeEndpointServer.cs"),
     read("agents/endpoint-windows/src/ParentalControl.Windows.BrowserHost/BrowserCallerPolicy.cs"),
@@ -606,6 +608,11 @@ test("Stage 08 Windows metadata and communication are visible, bounded, and capa
   assert.match(controllerTransport, /Sec-WebSocket-Protocol: parental-control\.v1/);
   assert.match(installer, /Start="auto"/);
   assert.match(installer, /Remove="uninstall"/);
+  assert.match(installer, /Name="endpoint\.dat\.unreadable" On="uninstall"/);
+  assert.match(stateStore, /catch \(CryptographicException\) when \(File\.Exists\(path\)\)/);
+  assert.match(stateStore, /File\.Move\(path, unreadablePath\)/);
+  assert.match(installerTest, /configuration\\\.recovered/);
+  assert.match(installerTest, /Unreadable state was not preserved/);
   assert.match(installer, /Chrome\\NativeMessagingHosts\\com\.bilalalissa\.parental_control/);
   assert.match(installer, /Edge\\NativeMessagingHosts\\com\.bilalalissa\.parental_control/);
   assert.equal(nativeManifest.allowed_origins[0], "chrome-extension://pdcjgejgdjomjjemejhjhmdkcabkidmi/");

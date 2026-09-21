@@ -14,6 +14,9 @@ $uninstallLog = Join-Path $evidenceRoot "uninstall.log"
 $installRoot = Join-Path $env:ProgramFiles "Parental Control System\Windows Child Endpoint"
 $dataRoot = Join-Path $env:ProgramData "Parental Control\Windows Endpoint"
 $serviceName = "ParentalControlWindowsEndpoint"
+$unreadableFixture = [byte[]](0x01, 0x02, 0x03, 0x04)
+$fixtureCreated = $false
+$installAttempted = $false
 New-Item -ItemType Directory -Force -Path $evidenceRoot | Out-Null
 
 function Invoke-Msi([string]$arguments) {
@@ -49,6 +52,16 @@ function Invoke-EndpointRequest([string]$bodyText) {
 }
 
 try {
+    if (Test-Path $dataRoot) {
+        throw "Recovery fixture requires an otherwise clean Windows endpoint data directory."
+    }
+    New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
+    [IO.File]::WriteAllBytes((Join-Path $dataRoot "endpoint.dat"), $unreadableFixture)
+    $fixtureCreated = $true
+    $unreadableFixtureHash = (Get-FileHash -Algorithm SHA256 -LiteralPath `
+        (Join-Path $dataRoot "endpoint.dat")).Hash
+
+    $installAttempted = $true
     Invoke-Msi "/i `"$msi`" /qn /norestart /l*v `"$installLog`""
     $service = Get-Service -Name $serviceName
     if ($service.StartType -ne "Automatic") { throw "Endpoint service is not automatic." }
@@ -77,7 +90,18 @@ try {
 
     $health = Invoke-EndpointRequest '{"operation":"health"}'
     if (-not $health.success) { throw "Local service health request failed." }
-    $identityHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $dataRoot "endpoint.dat")).Hash
+    $identityPath = Join-Path $dataRoot "endpoint.dat"
+    $unreadablePath = "$identityPath.unreadable"
+    if (-not (Test-Path $unreadablePath)) { throw "Unreadable state was not preserved." }
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $unreadablePath).Hash -ne $unreadableFixtureHash) {
+        throw "Preserved unreadable state does not match the recovery fixture."
+    }
+    $identityHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $identityPath).Hash
+    if ($identityHash -eq $unreadableFixtureHash) { throw "Unreadable state was not replaced." }
+    $serviceLog = Get-Content -LiteralPath (Join-Path $dataRoot "endpoint.log") -Raw
+    if ($serviceLog -notmatch "configuration\.recovered") {
+        throw "Service did not record bounded unreadable-state recovery."
+    }
     $dataAcl = Get-Acl -LiteralPath $dataRoot
     if (-not $dataAcl.AreAccessRulesProtected) { throw "Protected data inherits an unbounded ACL." }
     $untrustedRules = $dataAcl.Access | Where-Object {
@@ -109,7 +133,16 @@ try {
     if (Test-Path $dataRoot) { throw "Protected endpoint data remains after uninstall." }
     Write-Host "Windows MSI install, health, browser-host registration, repair, identity retention, and uninstall passed."
 } finally {
-    if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+    if ($installAttempted -and (Get-Service -Name $serviceName -ErrorAction SilentlyContinue)) {
         Start-Process -FilePath msiexec.exe -ArgumentList "/x `"$msi`" /qn /norestart" -Wait | Out-Null
+    }
+    if ($fixtureCreated -and (Test-Path $dataRoot)) {
+        foreach ($name in @("endpoint.dat", "endpoint.dat.new", "endpoint.dat.unreadable", "endpoint.log", "endpoint.log.1")) {
+            $candidate = Join-Path $dataRoot $name
+            if (Test-Path $candidate) { Remove-Item -LiteralPath $candidate -Force }
+        }
+        if (-not (Get-ChildItem -LiteralPath $dataRoot -Force)) {
+            Remove-Item -LiteralPath $dataRoot -Force
+        }
     }
 }

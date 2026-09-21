@@ -109,8 +109,8 @@
     {
       "id": "STAGE-08",
       "name": "Windows activity, browser extension, and chat",
-      "version": "0.8.0-rc.1",
-      "status": "IMPLEMENTING",
+      "version": "0.8.0-rc.2",
+      "status": "CHANGES_REQUESTED",
       "branch": "stage/08-windows-activity-browser-chat",
       "document": "stage-08.md"
     }

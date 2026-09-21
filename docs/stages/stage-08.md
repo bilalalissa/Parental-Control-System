@@ -1,8 +1,8 @@
 # STAGE-08 — Windows activity, browser extension, and chat
 
-- Status: implementing
+- Status: changes requested
 - Branch: `stage/08-windows-activity-browser-chat`
-- Candidate: `0.8.0-rc.1`
+- Candidate: `0.8.0-rc.2` for Windows; unchanged RC1 controller and browser artifacts
 
 ## Objective and included scope
 
@@ -44,7 +44,7 @@ Windows x64 PowerShell:
 
 ```powershell
 .\script\build_windows_release.ps1
-.\script\test_windows_installer.ps1 -MsiPath ".artifacts\release-candidate\ParentalControlWindows-0.8.0-rc.1-x64.msi"
+.\script\test_windows_installer.ps1 -MsiPath ".artifacts\release-candidate\ParentalControlWindows-0.8.0-rc.2-x64.msi"
 ```
 
 On macOS, run the repository and Swift tests, package `ParentalControlBrowserSharing-0.8.0-rc.1.zip`, and package `ParentalControlController-0.8.0-rc.1-arm64.dmg`. Physical testing must verify a standard Windows child account, application foreground transitions including Steam, Chrome and Edge profiles with private mode disabled, collection disable/clear, parent/child chat and notifications, request resolution, reconnect/reboot behavior, MSI repair, and uninstall.
@@ -55,4 +55,22 @@ Use **Apps > Installed apps > Parental Control Child > Uninstall** with administ
 
 ## Evidence status
 
-Implementation and automated verification are in progress. Developer physical testing has not started, and no approval, merge, or release is claimed.
+The initial automated verification passed, but developer physical testing reported two failures.
+The supplied Windows verbose installer log proves that the x64 MSI was elevated on Windows 11 Pro
+x64 and installed the automatic LocalSystem service. The service then failed during startup because
+an existing machine state could not be decrypted by DPAPI (`CryptographicException: The data is
+invalid` in `DpapiSecretProtector.Unprotect`), so Windows Installer displayed its generic error 1920
+privileges text. RC2 limits recovery to that DPAPI failure: it preserves one unreadable ciphertext
+as `endpoint.dat.unreadable` under the existing SYSTEM/Administrators-only data directory, creates
+a fresh unpaired device identity, records a redacted recovery event, and requires fresh explicit
+pairing. Valid state remains unchanged, decryptable malformed state still fails closed, and a failed
+replacement restores the original unreadable file. Windows CI must reproduce this exact preseeded
+state during native MSI install/repair/uninstall before RC2 is ready for retest.
+
+On an Intel macOS child, the fixed readiness command reports `screenLock delay is immediate`, which
+satisfies that prerequisite, but the child status evidence for app version, helper/session health,
+signed-policy decision/action, Secure Lock readiness and the last lock result is still required.
+The Stage 08 macOS artifact is the Parent Controller only; Stage 08 neither changed nor packages the
+previously approved `0.6.5-rc.10` macOS child endpoint, so a child-side correction requires concrete
+child status evidence and an explicit scope amendment before producing another macOS child package.
+No approval, merge, release, or retest readiness is claimed.

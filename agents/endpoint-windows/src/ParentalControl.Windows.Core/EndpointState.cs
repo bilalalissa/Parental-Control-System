@@ -40,6 +40,10 @@ public sealed record EndpointState(
     }
 }
 
+public sealed record EndpointStateLoadResult(
+    EndpointState State,
+    bool RecoveredUnreadableState);
+
 public sealed class EndpointStateStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -62,31 +66,37 @@ public sealed class EndpointStateStore
     {
         lock (gate)
         {
-            if (!File.Exists(path))
-            {
-                EndpointState initial = EndpointState.Create();
-                WriteLocked(initial);
-                return initial;
-            }
+            return LoadOrCreateLocked();
+        }
+    }
 
-            FileInfo info = new(path);
-            if (info.Length is <= 0 or > ProductInfo.MaximumConfigurationBytes)
-            {
-                throw new InvalidDataException("Protected endpoint configuration has an invalid size.");
-            }
-
-            byte[] protectedBytes = File.ReadAllBytes(path);
-            byte[] cleartext = protector.Unprotect(protectedBytes);
+    public EndpointStateLoadResult LoadOrCreateRecoveringUnreadable()
+    {
+        lock (gate)
+        {
             try
             {
-                EndpointState state = JsonSerializer.Deserialize<EndpointState>(cleartext, JsonOptions)
-                    ?? throw new InvalidDataException("Protected endpoint configuration is empty.");
-                Validate(state);
-                return state;
+                return new EndpointStateLoadResult(LoadOrCreateLocked(), false);
             }
-            finally
+            catch (CryptographicException) when (File.Exists(path))
             {
-                CryptographicOperations.ZeroMemory(cleartext);
+                string unreadablePath = path + ".unreadable";
+                if (File.Exists(unreadablePath)) File.Delete(unreadablePath);
+                File.Move(path, unreadablePath);
+                try
+                {
+                    EndpointState replacement = EndpointState.Create();
+                    WriteLocked(replacement);
+                    return new EndpointStateLoadResult(replacement, true);
+                }
+                catch
+                {
+                    if (!File.Exists(path) && File.Exists(unreadablePath))
+                    {
+                        File.Move(unreadablePath, path);
+                    }
+                    throw;
+                }
             }
         }
     }
@@ -122,11 +132,12 @@ public sealed class EndpointStateStore
             return initial;
         }
 
-        byte[] protectedBytes = File.ReadAllBytes(path);
-        if (protectedBytes.Length is <= 0 or > ProductInfo.MaximumConfigurationBytes)
+        FileInfo info = new(path);
+        if (info.Length is <= 0 or > ProductInfo.MaximumConfigurationBytes)
         {
             throw new InvalidDataException("Protected endpoint configuration has an invalid size.");
         }
+        byte[] protectedBytes = File.ReadAllBytes(path);
         byte[] cleartext = protector.Unprotect(protectedBytes);
         try
         {

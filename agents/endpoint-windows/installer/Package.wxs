@@ -1,7 +1,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="Parental Control Child"
            Manufacturer="Parental Control System"
-           Version="0.8.0.1"
+           Version="0.8.0.2"
            UpgradeCode="C9225424-65E4-4F1F-A1A1-860292AD4AAF"
            Scope="perMachine"
            Language="1033">
@@ -84,6 +84,7 @@
       </CreateFolder>
       <RemoveFile Id="RemoveProtectedConfig" Name="endpoint.dat" On="uninstall" />
       <RemoveFile Id="RemovePendingProtectedConfig" Name="endpoint.dat.new" On="uninstall" />
+      <RemoveFile Id="RemoveUnreadableProtectedConfig" Name="endpoint.dat.unreadable" On="uninstall" />
       <RemoveFile Id="RemoveCurrentLog" Name="endpoint.log" On="uninstall" />
       <RemoveFile Id="RemoveRotatedLog" Name="endpoint.log.1" On="uninstall" />
       <RemoveFolder Id="RemoveDataDirectory" On="uninstall" />
