@@ -1,6 +1,6 @@
 # STAGE-08 — Windows activity, browser extension, and chat
 
-- Status: changes requested
+- Status: ready for developer retest
 - Branch: `stage/08-windows-activity-browser-chat`
 - Candidate: `0.8.0-rc.2` for Windows; unchanged RC1 controller and browser artifacts
 
@@ -64,8 +64,35 @@ privileges text. RC2 limits recovery to that DPAPI failure: it preserves one unr
 as `endpoint.dat.unreadable` under the existing SYSTEM/Administrators-only data directory, creates
 a fresh unpaired device identity, records a redacted recovery event, and requires fresh explicit
 pairing. Valid state remains unchanged, decryptable malformed state still fails closed, and a failed
-replacement restores the original unreadable file. Windows CI must reproduce this exact preseeded
-state during native MSI install/repair/uninstall before RC2 is ready for retest.
+replacement restores the original unreadable file.
+
+RC2 passed the native Windows gate in GitHub Actions run
+[`35648697762`](https://github.com/bilalalissa/Parental-Control-System/actions/runs/35648697762).
+The Windows Server 2025 x64 runner reproduced the exact preseeded unreadable state, installed and
+started the automatic LocalSystem service, verified the protected backup and fresh identity,
+confirmed the SYSTEM/Administrators-only ACL and local health endpoint, retained the new identity
+through MSI repair, removed the service/data on uninstall, and uploaded the single verified MSI.
+The service used 37,388,288 bytes working set and 10,280,960 bytes private memory; the installed
+payload measured 199,599,387 bytes. All PR checks passed, including repository/cleanup contracts,
+the Stage 06E regression workflow, controller/extension verification, GitGuardian, and the Stage 08
+Windows workflow. Focused Windows unit tests passed 32/32, the local repository suite passed 75/75
+runnable tests with one PowerShell-only cleanup test skipped on macOS, and the Windows service build
+completed with zero warnings. The final security diff review found no reportable issue in the
+protected-state recovery.
+
+Retained release candidates are:
+
+- `ParentalControlWindows-0.8.0-rc.2-x64.msi` — 62,841,104 bytes — SHA-256
+  `9645b27b62113010deeab0bdd1e086e7129b3724d945de213943a77f7e6f200f` — Authenticode unsigned.
+- `ParentalControlBrowserSharing-0.8.0-rc.1.zip` — 26,080 bytes — SHA-256
+  `7f7dcaadd0f74af5beb2622f6a299a50738603db5c2d926258e130fb9c18202a` — unchanged.
+- `ParentalControlController-0.8.0-rc.1-arm64.dmg` — 3,958,778 bytes — SHA-256
+  `4e6de3ba27cc40f368bcb8390db719a25c2fcbc524c4e4a79146c2ac1eadcbbd` — unchanged ad-hoc test build.
+
+The superseded Windows RC1 and temporary download copy were removed after RC2 checksum verification.
+Repository-owned build and test output was removed; the repository is 102 MiB, retained candidates
+are 73 MiB, 19 GiB remains free, and no project-started service, test host, watcher, simulator, VM,
+container, or build process remains. Pre-existing editor build-host processes were left untouched.
 
 On an Intel macOS child, the fixed readiness command reports `screenLock delay is immediate`, which
 satisfies that prerequisite, but the child status evidence for app version, helper/session health,
@@ -73,4 +100,5 @@ signed-policy decision/action, Secure Lock readiness and the last lock result is
 The Stage 08 macOS artifact is the Parent Controller only; Stage 08 neither changed nor packages the
 previously approved `0.6.5-rc.10` macOS child endpoint, so a child-side correction requires concrete
 child status evidence and an explicit scope amendment before producing another macOS child package.
-No approval, merge, release, or retest readiness is claimed.
+RC2 is ready for the Windows developer retest; no approval, merge, release, or later-stage progress
+is claimed.
