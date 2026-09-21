@@ -3,7 +3,7 @@
 A transparent, local-first parental-control system for families managing devices they own or lawfully administer.
 
 > [!IMPORTANT]
-> **STAGE-08 Windows activity, browser sharing, and communication `0.8.0-rc.3` is being corrected for developer retest.** It adds bounded application identity/foreground metadata, the shared visible Chrome/Edge extension through an installed native host, text chat/notifications, and request-more-time. It does not add Windows schedules, app/website blocking, lock, shutdown, or other enforcement. See [Stage status](docs/stages/stage-status.json), [Stage 08](docs/stages/stage-08.md), and the [Windows installation guide](docs/installation/windows-child.md).
+> **STAGE-08 Windows activity, browser sharing, and communication `0.8.0-rc.3` is ready for developer retest.** It adds bounded application identity/foreground metadata, the shared visible Chrome/Edge extension through an installed native host, text chat/notifications, and request-more-time. It does not add Windows schedules, app/website blocking, lock, shutdown, or other enforcement. See [Stage status](docs/stages/stage-status.json), [Stage 08](docs/stages/stage-08.md), and the [Windows installation guide](docs/installation/windows-child.md).
 
 ## Product direction
 

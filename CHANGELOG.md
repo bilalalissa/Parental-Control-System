@@ -2,6 +2,16 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.8.0-rc.3 — 2026-09-21
+
+Status: **STAGE-08 ready for developer retest; not approved, merged, or released**
+
+- Makes controller presence follow the current authenticated Windows socket and makes the Windows service reconnect promptly after network changes and restart.
+- Enforces one visible Windows UI instance across ordinary and adult-authorized elevated pairing flows.
+- Restores MSI Repair registration and verifies install, health, identity-preserving repair, and uninstall on a native Windows x64 runner.
+- Hides unsupported Windows schedule, lock, app-policy, and website-policy editors and labels those enforcement features as Stage 09 work.
+- Keeps Windows browser support honest and opt-in: enrolled machine-wide Chrome/Edge profiles may share bounded tab titles and origins, while website blocking remains unavailable in Stage 08.
+
 ## 0.8.0-rc.1 — 2026-09-15
 
 Status: **STAGE-08 implementing; not approved, merged, or released**

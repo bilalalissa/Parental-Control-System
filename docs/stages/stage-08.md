@@ -1,6 +1,6 @@
 # STAGE-08 — Windows activity, browser extension, and chat
 
-- Status: implementing RC3 feedback corrections
+- Status: ready for developer retest
 - Branch: `stage/08-windows-activity-browser-chat`
 - Candidate: `0.8.0-rc.3` for Windows; RC2 controller and browser artifacts
 
@@ -55,66 +55,60 @@ Use **Apps > Installed apps > Parental Control Child > Uninstall** with administ
 
 ## Evidence status
 
-The RC3 feedback correction addresses five physical-test observations without entering Stage 09.
-The controller now derives Online from a current authenticated socket rather than a recent stale
-heartbeat, while the Windows service also reacts immediately to network-availability changes and
-continues bounded retry after restart. The visible Windows app holds one per-session instance; its
-standard pairing window closes while the adult-authorized elevated copy waits to take ownership.
-Removing the mistakenly present `ARPNOREPAIR` property makes Repair available through classic
-Programs and Features, while the documented elevated `msiexec /fa` path remains deterministic.
-The controller hides macOS-only enforcement editors for Windows and explicitly identifies schedules,
-website/application restrictions and lock actions as Stage 09 work. Chrome/Edge report tab metadata
-only after the parent enables sharing; the updated extension now states that Windows website blocking
-is unavailable instead of presenting a nonfunctional policy prompt. Windows request approval now
-delivers an acknowledgement without falsely claiming that Stage 08 grants enforced usage time.
+RC3 addresses the reported restart, presence, duplicate-window, repair, and misleading enforcement
+UI behavior without entering Stage 09. The controller now derives Online from a current authenticated
+socket rather than a recent stale heartbeat. The Windows service reacts to network-availability and
+address changes and continues bounded reconnect attempts after restart. The visible Windows app owns
+one per-session mutex; its ordinary pairing window closes before the adult-authorized elevated copy
+waits to acquire that ownership. Removing `ARPNOREPAIR` exposes Repair through classic Programs and
+Features, while the documented elevated `msiexec /fa` path remains deterministic.
 
-RC3 native Windows and controller packaging evidence is pending CI. The locally packaged RC2 browser
-ZIP passed archive validation with SHA-256
-`49d1b91e0edfdf5c2c9b7646924af06bbefa0ad4866b0dcb2f650a51be198edb`.
+The controller now hides macOS-only schedule, immediate-action, application-policy, and website-policy
+editors for a Windows endpoint and explains that enforcement starts in Stage 09. Stage 08 Windows
+browser support remains opt-in tab-title/origin sharing for enrolled machine-wide Chrome or Edge
+profiles. The extension and native host state clearly that website blocking is unavailable on Windows,
+and Windows request approval delivers an acknowledgement without claiming enforced usage time.
 
-The initial automated verification passed, but developer physical testing reported two failures.
-The supplied Windows verbose installer log proves that the x64 MSI was elevated on Windows 11 Pro
-x64 and installed the automatic LocalSystem service. The service then failed during startup because
-an existing machine state could not be decrypted by DPAPI (`CryptographicException: The data is
-invalid` in `DpapiSecretProtector.Unprotect`), so Windows Installer displayed its generic error 1920
-privileges text. RC2 limits recovery to that DPAPI failure: it preserves one unreadable ciphertext
-as `endpoint.dat.unreadable` under the existing SYSTEM/Administrators-only data directory, creates
-a fresh unpaired device identity, records a redacted recovery event, and requires fresh explicit
-pairing. Valid state remains unchanged, decryptable malformed state still fails closed, and a failed
-replacement restores the original unreadable file.
+RC3 passed the native Windows gate in GitHub Actions run
+[`35665097245`](https://github.com/bilalalissa/Parental-Control-System/actions/runs/35665097245).
+The Windows Server x64 runner passed 33/33 focused tests, built the service, visible UI and browser
+host with zero errors, confirmed the MSI is Authenticode unsigned, then installed, queried, health-
+checked, repaired and uninstalled it. Repair remained visibly registered and preserved the endpoint
+identity. The service used 42,156,032 bytes working set and 11,423,744 bytes private memory; the
+installed payload measured 199,601,947 bytes.
 
-RC2 passed the native Windows gate in GitHub Actions run
-[`35648697762`](https://github.com/bilalalissa/Parental-Control-System/actions/runs/35648697762).
-The Windows Server 2025 x64 runner reproduced the exact preseeded unreadable state, installed and
-started the automatic LocalSystem service, verified the protected backup and fresh identity,
-confirmed the SYSTEM/Administrators-only ACL and local health endpoint, retained the new identity
-through MSI repair, removed the service/data on uninstall, and uploaded the single verified MSI.
-The service used 37,388,288 bytes working set and 10,280,960 bytes private memory; the installed
-payload measured 199,599,387 bytes. All PR checks passed, including repository/cleanup contracts,
-the Stage 06E regression workflow, controller/extension verification, GitGuardian, and the Stage 08
-Windows workflow. Focused Windows unit tests passed 32/32, the local repository suite passed 75/75
-runnable tests with one PowerShell-only cleanup test skipped on macOS, and the Windows service build
-completed with zero warnings. The final security diff review found no reportable issue in the
-protected-state recovery.
+The controller/extension gate passed in GitHub Actions run
+[`35665097431`](https://github.com/bilalalissa/Parental-Control-System/actions/runs/35665097431):
+55 Swift Testing tests plus four XCTest tests passed, the extension archive validated, the controller
+DMG checksum validated, and the app passed strict bundle verification with an honest ad-hoc signature.
+The Stage 06E regression gate also passed in run
+[`35665097301`](https://github.com/bilalalissa/Parental-Control-System/actions/runs/35665097301).
+Repository/cleanup contracts and GitGuardian passed. Locally, 75/75 runnable repository tests passed
+with one PowerShell-only test skipped; 33/33 Windows tests and targeted Windows App, Service and
+BrowserHost builds passed. The local Command Line Tools Swift compiler/SDK versions are mismatched,
+so local Swift compilation could not start; the clean native macOS CI result is the compile/test
+evidence for this candidate.
 
 Retained release candidates are:
 
-- `ParentalControlWindows-0.8.0-rc.2-x64.msi` — 62,841,104 bytes — SHA-256
-  `9645b27b62113010deeab0bdd1e086e7129b3724d945de213943a77f7e6f200f` — Authenticode unsigned.
-- `ParentalControlBrowserSharing-0.8.0-rc.1.zip` — 26,080 bytes — SHA-256
-  `7f7dcaadd0f74af5beb2622f6a299a50738603db5c2d926258e130fb9c18202a` — unchanged.
-- `ParentalControlController-0.8.0-rc.1-arm64.dmg` — 3,958,778 bytes — SHA-256
-  `4e6de3ba27cc40f368bcb8390db719a25c2fcbc524c4e4a79146c2ac1eadcbbd` — unchanged ad-hoc test build.
+- `ParentalControlWindows-0.8.0-rc.3-x64.msi` — 62,841,093 bytes — SHA-256
+  `d383683b7565b15e00f55917b60bc8f909011cca6b39a388f0ee0aee0a84920f` — Authenticode unsigned.
+- `ParentalControlBrowserSharing-0.8.0-rc.2.zip` — 26,199 bytes — SHA-256
+  `6c41d778ae4ddc3f0cd79fcb8f535c592a418e8eb7f43004bdc1766b473fb77c` — unsigned archive.
+- `ParentalControlController-0.8.0-rc.2-arm64.dmg` — 3,971,779 bytes — SHA-256
+  `e67eee831f003dea1017be5d13cb6c0e478455006d3b21bc4deca59f0ac69886` — ad-hoc test build.
 
-The superseded Windows RC1 and temporary download copy were removed after RC2 checksum verification.
-Repository-owned build and test output was removed; the repository is 102 MiB, retained candidates
-are 73 MiB, 19 GiB remains free, and no project-started service, test host, watcher, simulator, VM,
-container, or build process remains. Pre-existing editor build-host processes were left untouched.
+The superseded Windows RC2, controller RC1, locally packaged extension copy, stale extracted app and
+temporary CI downloads were removed only after the new candidates passed verification. The unrelated
+user `Cleaner.bat` remains untouched. This retest started with 18 GiB free, a 102 MiB repository and
+73 MiB of retained files. Project-owned temporary output peaked at 526 MiB. After cleanup, 18 GiB
+remains free, the repository is 94 MiB, and the release-candidate directory is 64 MiB including the
+unrelated file. No project-started build, test, watcher or CI-watch process remains; the user's
+pre-existing installed Parent Controller and editor language/build hosts were left untouched. No VM,
+container, simulator or emulator was used. No approval, merge, release, or later-stage progress is
+claimed.
 
 On an Intel macOS child, the fixed readiness command reports `screenLock delay is immediate`, which
-satisfies that prerequisite, but the child status evidence for app version, helper/session health,
-signed-policy decision/action, Secure Lock readiness and the last lock result is still required.
-The Stage 08 macOS artifact is the Parent Controller only; Stage 08 neither changed nor packages the
-previously approved `0.6.5-rc.10` macOS child endpoint, so a child-side correction requires concrete
-child status evidence and an explicit scope amendment before producing another macOS child package.
-RC3 remains under verification; no approval, merge, release, or later-stage progress is claimed.
+satisfies that prerequisite, but Stage 08 does not change or package the previously approved
+`0.6.5-rc.10` macOS child endpoint. Any child-side correction still requires concrete child status
+evidence and an explicit scope amendment.
