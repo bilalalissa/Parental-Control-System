@@ -75,7 +75,8 @@ public sealed record BrowserNativeResponse(
     bool Accepted,
     bool Enabled,
     string Browser,
-    string? Error = null);
+    string? Error = null,
+    bool WebsitePolicySupported = false);
 
 public static class Stage08Validation
 {

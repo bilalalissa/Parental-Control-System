@@ -1,7 +1,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="Parental Control Child"
            Manufacturer="Parental Control System"
-           Version="0.8.0.2"
+           Version="0.8.0.3"
            UpgradeCode="C9225424-65E4-4F1F-A1A1-860292AD4AAF"
            Scope="perMachine"
            Language="1033">
@@ -12,7 +12,6 @@
 
     <Icon Id="ProductIcon" SourceFile="..\assets\ParentalControlChild.ico" />
     <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
-    <Property Id="ARPNOREPAIR" Value="0" />
 
     <Feature Id="Complete" Title="Parental Control Child" Level="1">
       <ComponentRef Id="ServiceExecutable" />

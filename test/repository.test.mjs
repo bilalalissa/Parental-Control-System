@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/08-windows-activity-browser-chat");
-  assert.equal(active[0].version, "0.8.0-rc.2");
+  assert.equal(active[0].version, "0.8.0-rc.3");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "MERGED", "BLOCKED"].includes(
       active[0].status,
@@ -184,8 +184,8 @@ test("shared Chromium extension remains opt-in, bounded, and content-minimal", a
     read("agents/endpoint-macos/Sources/ParentalControlBrowserHost/main.swift"),
   ]);
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.8.0.1");
-  assert.equal(manifest.version_name, "0.8.0-rc.1");
+  assert.equal(manifest.version, "0.8.0.2");
+  assert.equal(manifest.version_name, "0.8.0-rc.2");
   assert.deepEqual(manifest.permissions.sort(), ["alarms", "declarativeNetRequest", "nativeMessaging", "storage", "tabs"]);
   for (const forbidden of ["history", "webRequest", "cookies", "downloads", "debugger"])
     assert.ok(!manifest.permissions.includes(forbidden));
@@ -202,7 +202,7 @@ test("shared Chromium extension remains opt-in, bounded, and content-minimal", a
   assert.match(worker, /runtime\.onStartup/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /VERSION="\$\{BROWSER_PACKAGE_VERSION:-0\.8\.0-rc\.1\}"/);
+  assert.match(packager, /VERSION="\$\{BROWSER_PACKAGE_VERSION:-0\.8\.0-rc\.2\}"/);
   assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-\$VERSION\.zip"/);
   assert.match(packager, /manifest\.version = process\.env\.BROWSER_MANIFEST_VERSION/);
   assert.match(endpointPackager, /BROWSER_MANIFEST_VERSION="0\.6\.5\.10"/);
@@ -564,14 +564,14 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /STAGE-08 Windows activity, browser sharing, and communication[\s\S]*0\.8\.0-rc\.2/);
+  assert.match(readme, /STAGE-08 Windows activity, browser sharing, and communication[\s\S]*0\.8\.0-rc\.3/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });
 
 test("Stage 08 Windows metadata and communication are visible, bounded, and capability-honest", async () => {
-  const [product, workflow, installer, installerTest, stateStore, nativeManifest, service, browserCaller, app, runtime, controllerTransport] = await Promise.all([
+  const [product, workflow, installer, installerTest, stateStore, nativeManifest, service, browserCaller, app, appStartup, runtime, controllerTransport, popup] = await Promise.all([
     read("agents/endpoint-windows/src/ParentalControl.Windows.Core/ProductInfo.cs"),
     read(".github/workflows/stage-08-windows.yml"),
     read("agents/endpoint-windows/installer/Package.wxs"),
@@ -581,8 +581,10 @@ test("Stage 08 Windows metadata and communication are visible, bounded, and capa
     read("agents/endpoint-windows/src/ParentalControl.Windows.Service/NamedPipeEndpointServer.cs"),
     read("agents/endpoint-windows/src/ParentalControl.Windows.BrowserHost/BrowserCallerPolicy.cs"),
     read("agents/endpoint-windows/src/ParentalControl.Windows.App/MainWindow.xaml"),
+    read("agents/endpoint-windows/src/ParentalControl.Windows.App/App.xaml.cs"),
     read("agents/endpoint-windows/src/ParentalControl.Windows.Service/EndpointRuntime.cs"),
     read("apps/controller-macos/Sources/HubCore/Transport/SecureWebSocket.swift"),
+    read("browser-extensions/webextension/popup.js"),
   ]);
   assert.match(product, /MaximumMessageBytes = 64 \* 1024/);
   const capabilities = product.match(/Capabilities\s*=\s*\[([\s\S]*?)\];/)?.[1] ?? "";
@@ -600,6 +602,8 @@ test("Stage 08 Windows metadata and communication are visible, bounded, and capa
   assert.match(app, /VISIBLE FAMILY ENDPOINT/);
   assert.match(app, /Application activity/);
   assert.match(app, /Request more time/);
+  assert.match(appStartup, /ParentalControl\.Windows\.App\.v1/);
+  assert.match(appStartup, /wait-for-previous-instance/);
   assert.match(product, /HubWebSocketPath = "\/hub"/);
   assert.match(product, /HubWebSocketSubProtocol = "parental-control\.v1"/);
   assert.match(runtime, /AddSubProtocol\(endpoint\.SubProtocol\)/);
@@ -608,6 +612,8 @@ test("Stage 08 Windows metadata and communication are visible, bounded, and capa
   assert.match(controllerTransport, /Sec-WebSocket-Protocol: parental-control\.v1/);
   assert.match(installer, /Start="auto"/);
   assert.match(installer, /Remove="uninstall"/);
+  assert.doesNotMatch(installer, /ARPNOREPAIR/);
+  assert.match(installerTest, /NoRepair/);
   assert.match(installer, /Name="endpoint\.dat\.unreadable" On="uninstall"/);
   assert.match(stateStore, /catch \(CryptographicException\) when \(File\.Exists\(path\)\)/);
   assert.match(stateStore, /File\.Move\(path, unreadablePath\)/);
@@ -619,4 +625,5 @@ test("Stage 08 Windows metadata and communication are visible, bounded, and capa
   assert.match(nativeManifest.path, /ParentalControl\.Windows\.BrowserHost\.exe$/);
   assert.match(workflow, /runs-on: windows-2025/);
   assert.match(workflow, /retention-days: 7/);
+  assert.match(popup, /Website restrictions are not available on the Windows Stage 08 endpoint/);
 });

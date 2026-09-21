@@ -18,6 +18,10 @@ chrome.storage.local.get("profileID").then(({ profileID }) => {
     status.textContent = response?.enabled
       ? `Sharing is enabled by your parent (${response.browser || browser})`
       : "Sharing is disabled";
+    if (response?.websitePolicySupported === false) {
+      document.querySelector("#protection").textContent =
+        "Website restrictions are not available on the Windows Stage 08 endpoint. Tab sharing remains available when enabled by your parent.";
+    }
   }).catch((error) => {
     const detail = String(error?.message || "");
     status.textContent = detail.includes("native messaging host")

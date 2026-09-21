@@ -3,6 +3,10 @@ import SwiftUI
 struct ScheduleEditorView: View {
   let store: ControllerStore
 
+  private var selectedDeviceSupportsSchedule: Bool {
+    store.selectedPairedDevice?.capabilities.contains("signed-policy") == true
+  }
+
   var body: some View {
     @Bindable var store = store
 
@@ -10,12 +14,21 @@ struct ScheduleEditorView: View {
       VStack(alignment: .leading, spacing: 20) {
         ScreenHeader(
           title: "Signed family schedule",
-          subtitle: "The selected Mac verifies, stores, and enforces this policy while offline."
+          subtitle:
+            "A selected endpoint can receive this policy only when it advertises signed schedule enforcement."
         )
 
         if let device = store.selectedPairedDevice {
           Label("Target: \(device.name)", systemImage: "checkmark.shield")
             .foregroundStyle(.secondary)
+          if !selectedDeviceSupportsSchedule {
+            Label(
+              "This selected \(device.platform) endpoint does not support schedule enforcement in the current release. Windows enforcement begins in Stage 09.",
+              systemImage: "info.circle.fill"
+            )
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+          }
         } else {
           Label(
             "Pair and select a macOS child device first", systemImage: "exclamationmark.triangle"
@@ -134,7 +147,7 @@ struct ScheduleEditorView: View {
           Button("Sign and Apply Policy") {
             store.validateAndSaveSchedule()
           }
-          .disabled(store.selectedPairedDevice == nil)
+          .disabled(!selectedDeviceSupportsSchedule)
           .buttonStyle(.borderedProminent)
           .accessibilityIdentifier(AccessibilityID.scheduleSave.rawValue)
         }

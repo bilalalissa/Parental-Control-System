@@ -1,8 +1,8 @@
 # STAGE-08 — Windows activity, browser extension, and chat
 
-- Status: ready for developer retest
+- Status: implementing RC3 feedback corrections
 - Branch: `stage/08-windows-activity-browser-chat`
-- Candidate: `0.8.0-rc.2` for Windows; unchanged RC1 controller and browser artifacts
+- Candidate: `0.8.0-rc.3` for Windows; RC2 controller and browser artifacts
 
 ## Objective and included scope
 
@@ -44,16 +44,33 @@ Windows x64 PowerShell:
 
 ```powershell
 .\script\build_windows_release.ps1
-.\script\test_windows_installer.ps1 -MsiPath ".artifacts\release-candidate\ParentalControlWindows-0.8.0-rc.2-x64.msi"
+.\script\test_windows_installer.ps1 -MsiPath ".artifacts\release-candidate\ParentalControlWindows-0.8.0-rc.3-x64.msi"
 ```
 
-On macOS, run the repository and Swift tests, package `ParentalControlBrowserSharing-0.8.0-rc.1.zip`, and package `ParentalControlController-0.8.0-rc.1-arm64.dmg`. Physical testing must verify a standard Windows child account, application foreground transitions including Steam, Chrome and Edge profiles with private mode disabled, collection disable/clear, parent/child chat and notifications, request resolution, reconnect/reboot behavior, MSI repair, and uninstall.
+On macOS, run the repository and Swift tests, package `ParentalControlBrowserSharing-0.8.0-rc.2.zip`, and package `ParentalControlController-0.8.0-rc.2-arm64.dmg`. Physical testing must verify a standard Windows child account, application foreground transitions including Steam, Chrome and Edge profiles with private mode disabled, collection disable/clear, parent/child chat and notifications, request resolution, reconnect/reboot behavior, single-instance UI behavior, MSI repair, and uninstall.
 
 ## Rollback
 
 Use **Apps > Installed apps > Parental Control Child > Uninstall** with administrator approval. This removes the service, visible UI, browser native host/registrations, startup entry, protected state, and bounded logs. Remove the visible extension from each tested browser profile separately. Reinstall the approved Stage 07 MSI only if a foundation-only rollback is required; uninstall creates a new endpoint identity, so fresh pairing is then required.
 
 ## Evidence status
+
+The RC3 feedback correction addresses five physical-test observations without entering Stage 09.
+The controller now derives Online from a current authenticated socket rather than a recent stale
+heartbeat, while the Windows service also reacts immediately to network-availability changes and
+continues bounded retry after restart. The visible Windows app holds one per-session instance; its
+standard pairing window closes while the adult-authorized elevated copy waits to take ownership.
+Removing the mistakenly present `ARPNOREPAIR` property makes Repair available through classic
+Programs and Features, while the documented elevated `msiexec /fa` path remains deterministic.
+The controller hides macOS-only enforcement editors for Windows and explicitly identifies schedules,
+website/application restrictions and lock actions as Stage 09 work. Chrome/Edge report tab metadata
+only after the parent enables sharing; the updated extension now states that Windows website blocking
+is unavailable instead of presenting a nonfunctional policy prompt. Windows request approval now
+delivers an acknowledgement without falsely claiming that Stage 08 grants enforced usage time.
+
+RC3 native Windows and controller packaging evidence is pending CI. The locally packaged RC2 browser
+ZIP passed archive validation with SHA-256
+`49d1b91e0edfdf5c2c9b7646924af06bbefa0ad4866b0dcb2f650a51be198edb`.
 
 The initial automated verification passed, but developer physical testing reported two failures.
 The supplied Windows verbose installer log proves that the x64 MSI was elevated on Windows 11 Pro
@@ -100,5 +117,4 @@ signed-policy decision/action, Secure Lock readiness and the last lock result is
 The Stage 08 macOS artifact is the Parent Controller only; Stage 08 neither changed nor packages the
 previously approved `0.6.5-rc.10` macOS child endpoint, so a child-side correction requires concrete
 child status evidence and an explicit scope amendment before producing another macOS child package.
-RC2 is ready for the Windows developer retest; no approval, merge, release, or later-stage progress
-is claimed.
+RC3 remains under verification; no approval, merge, release, or later-stage progress is claimed.

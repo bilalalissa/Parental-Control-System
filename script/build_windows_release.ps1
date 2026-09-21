@@ -7,7 +7,7 @@ $stageRoot = Join-Path $repoRoot ".artifacts\build\stage-08"
 $payload = Join-Path $stageRoot "payload"
 $installerOutput = Join-Path $stageRoot "installer"
 $candidateRoot = Join-Path $repoRoot ".artifacts\release-candidate"
-$candidate = Join-Path $candidateRoot "ParentalControlWindows-0.8.0-rc.2-x64.msi"
+$candidate = Join-Path $candidateRoot "ParentalControlWindows-0.8.0-rc.3-x64.msi"
 $solution = Join-Path $repoRoot "agents\endpoint-windows\ParentalControl.Windows.sln"
 $installerProject = Join-Path $repoRoot "agents\endpoint-windows\installer\ParentalControl.Windows.Installer.wixproj"
 

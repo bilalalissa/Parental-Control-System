@@ -17,9 +17,14 @@ public partial class MainWindow : Window
     private bool firstRefresh = true;
     private bool refreshing;
 
-    public MainWindow()
+    public MainWindow(bool resumedElevatedPairing = false)
     {
         InitializeComponent();
+        if (resumedElevatedPairing)
+        {
+            PairingResult.Text =
+                "Administrator authorization approved. Paste the current invitation again to finish pairing.";
+        }
         activityMonitor = new WindowsActivityMonitor(client);
         notificationIcon = new System.Windows.Forms.NotifyIcon
         {
@@ -59,11 +64,13 @@ public partial class MainWindow : Window
             PairingResult.Text = "Approve the Windows prompt, then paste the invitation again in the elevated window.";
             try
             {
-                Process.Start(new ProcessStartInfo(Environment.ProcessPath!)
+                Process.Start(new ProcessStartInfo(Environment.ProcessPath!,
+                    "--wait-for-previous-instance")
                 {
                     UseShellExecute = true,
                     Verb = "runas",
                 });
+                Close();
             }
             catch { PairingResult.Text = "Administrator authorization was cancelled."; }
             return;

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-VERSION="${BROWSER_PACKAGE_VERSION:-0.8.0-rc.1}"
+VERSION="${BROWSER_PACKAGE_VERSION:-0.8.0-rc.2}"
 SOURCE="$ROOT_DIR/browser-extensions/webextension"
 ICON_SOURCE="$ROOT_DIR/packages/design-assets/browser-extension-icon.svg"
 STAGING="$ROOT_DIR/.artifacts/package-staging/stage-08-extension"

@@ -7,20 +7,19 @@ import Testing
 @Suite("Controller derived state")
 @MainActor
 struct ControllerDerivedStateTests {
-  @Test("presence ages offline on the observable controller clock")
-  func presenceAgesOffline() throws {
+  @Test("presence follows the current authenticated socket rather than stale last-seen time")
+  func presenceUsesAuthenticatedConnection() throws {
     let fixture = try TemporaryControllerDatabase()
     defer { fixture.remove() }
     let store = try ControllerStore(database: ControllerDatabase(path: fixture.path))
     let lastSeen = Date(timeIntervalSince1970: 1_800_000_000)
-    store.hubStatus = status(
-      devices: [device(id: "active", lastSeen: lastSeen)], requests: [])
-
-    store.presenceNow = lastSeen.addingTimeInterval(30)
+    let active = device(id: "active", lastSeen: lastSeen.addingTimeInterval(-600))
+    store.hubStatus = status(devices: [active], connectedDeviceIDs: [active.id], requests: [])
     #expect(store.onlineDeviceCount == 1)
     #expect(store.offlineDeviceCount == 0)
 
-    store.presenceNow = lastSeen.addingTimeInterval(76)
+    store.hubStatus = status(
+      devices: [device(id: "active", lastSeen: lastSeen)], connectedDeviceIDs: [], requests: [])
     #expect(store.onlineDeviceCount == 0)
     #expect(store.offlineDeviceCount == 1)
   }
@@ -58,10 +57,12 @@ struct ControllerDerivedStateTests {
   }
 
   private func status(
-    devices: [HubDeviceRecord], requests: [MoreTimeRequestRecord]
+    devices: [HubDeviceRecord], connectedDeviceIDs: [String] = [],
+    requests: [MoreTimeRequestRecord]
   ) -> LocalHubStatus {
     LocalHubStatus(
-      port: 0, certificateFingerprint: "synthetic", devices: devices, invitation: nil,
+      port: 0, certificateFingerprint: "synthetic", devices: devices,
+      connectedDeviceIDs: connectedDeviceIDs, invitation: nil,
       moreTimeRequests: requests)
   }
 

@@ -1,6 +1,6 @@
 <Project Sdk="WixToolset.Sdk/5.0.2">
   <PropertyGroup>
-    <OutputName>ParentalControlWindows-0.8.0-rc.2-x64</OutputName>
+    <OutputName>ParentalControlWindows-0.8.0-rc.3-x64</OutputName>
     <InstallerPlatform>x64</InstallerPlatform>
     <Cultures>en-US</Cultures>
     <DefineConstants>PayloadDir=$(PayloadDir)</DefineConstants>

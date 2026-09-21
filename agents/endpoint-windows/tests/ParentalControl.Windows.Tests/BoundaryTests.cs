@@ -63,6 +63,13 @@ public sealed class BoundaryTests
             Stage08Validation.Validate("edge", "Default", source));
     }
 
+    [TestMethod]
+    public void WindowsBrowserHostDoesNotClaimWebsitePolicySupport()
+    {
+        var response = new BrowserNativeResponse(true, true, "edge");
+        Assert.IsFalse(response.WebsitePolicySupported);
+    }
+
     [DataTestMethod]
     [DataRow("SessionLogon", "signed-in")]
     [DataRow("SessionUnlock", "signed-in")]

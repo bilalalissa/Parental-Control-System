@@ -87,6 +87,13 @@ try {
             throw "Browser native-host registration is missing or incorrect: $browserKey"
         }
     }
+    $uninstallEntry = Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall" |
+        Get-ItemProperty | Where-Object { $_.DisplayName -eq "Parental Control Child" } |
+        Select-Object -First 1
+    if (-not $uninstallEntry) { throw "Windows Installer registration is missing." }
+    if ($uninstallEntry.PSObject.Properties.Name -contains "NoRepair") {
+        throw "Windows Installer repair is incorrectly hidden from Programs and Features."
+    }
 
     $health = Invoke-EndpointRequest '{"operation":"health"}'
     if (-not $health.success) { throw "Local service health request failed." }
@@ -131,7 +138,7 @@ try {
     if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) { throw "Service remains after uninstall." }
     if (Test-Path $installRoot) { throw "Program files remain after uninstall." }
     if (Test-Path $dataRoot) { throw "Protected endpoint data remains after uninstall." }
-    Write-Host "Windows MSI install, health, browser-host registration, repair, identity retention, and uninstall passed."
+    Write-Host "Windows MSI install, visible repair registration, health, browser-host registration, repair, identity retention, and uninstall passed."
 } finally {
     if ($installAttempted -and (Get-Service -Name $serviceName -ErrorAction SilentlyContinue)) {
         Start-Process -FilePath msiexec.exe -ArgumentList "/x `"$msi`" /qn /norestart" -Wait | Out-Null

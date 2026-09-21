@@ -68,10 +68,14 @@ final class ControllerStore {
   }
 
   var onlineDeviceCount: Int {
-    pairedDevices.filter { $0.state(now: presenceNow) == .online }.count
+    pairedDevices.filter(isDeviceOnline).count
   }
   var offlineDeviceCount: Int {
-    pairedDevices.filter { $0.state(now: presenceNow) == .offline }.count
+    pairedDevices.filter { !isDeviceOnline($0) }.count
+  }
+
+  func isDeviceOnline(_ device: HubDeviceRecord) -> Bool {
+    hubStatus?.connectedDeviceIDs.contains(device.id) == true
   }
 
   var unreadChatCount: Int {
@@ -388,6 +392,11 @@ final class ControllerStore {
         scheduleStatusMessage = "Saved locally. Pair and select a macOS child device to apply it."
         return
       }
+      guard device.capabilities.contains("signed-policy") else {
+        scheduleStatusMessage =
+          "Saved locally, but \(device.name) does not support schedule enforcement in this release."
+        return
+      }
       scheduleStatusMessage = "Signing policy for \(device.name)…"
       publishPolicy(to: device.id)
     } catch {
@@ -398,6 +407,23 @@ final class ControllerStore {
   func grantBonus(request: MoreTimeRequestRecord) {
     guard request.state == .pending, !resolvingTimeRequestIDs.contains(request.id) else { return }
     resolvingTimeRequestIDs.insert(request.id)
+    if let device = pairedDevices.first(where: { $0.id == request.deviceID }),
+      !device.capabilities.contains("signed-policy")
+    {
+      Task {
+        do {
+          applyHubStatus(
+            try await hubClient.resolveTimeRequest(
+              requestID: request.id, deviceID: request.deviceID, decision: .approved))
+          scheduleStatusMessage =
+            "The request was approved and the child was notified. This Windows release does not enforce usage time."
+        } catch {
+          scheduleStatusMessage = "The time request could not be approved: \(error)"
+        }
+        resolvingTimeRequestIDs.remove(request.id)
+      }
+      return
+    }
     schedule.approveRequestedTime(minutes: request.requestedMinutes)
     do { try database.saveSchedule(schedule) } catch {
       resolvingTimeRequestIDs.remove(request.id)

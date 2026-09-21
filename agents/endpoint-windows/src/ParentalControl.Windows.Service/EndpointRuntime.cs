@@ -1,4 +1,5 @@
 using System.Net.Security;
+using System.Net.NetworkInformation;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -40,6 +41,8 @@ internal sealed class EndpointRuntime : IDisposable
                 "Unreadable protected state preserved; fresh pairing is required");
         }
         pipeTask = new NamedPipeEndpointServer(this, log).RunAsync(stopping.Token);
+        NetworkChange.NetworkAvailabilityChanged += NetworkAvailabilityChanged;
+        NetworkChange.NetworkAddressChanged += NetworkAddressChanged;
         connectionTask = RunConnectionLoopAsync(stopping.Token);
         log.Write("service.started", ProductInfo.Version);
     }
@@ -249,6 +252,11 @@ internal sealed class EndpointRuntime : IDisposable
         if (reconnect.CurrentCount == 0) reconnect.Release();
     }
 
+    private void NetworkAvailabilityChanged(object? sender, NetworkAvailabilityEventArgs eventArgs) =>
+        SignalReconnect();
+
+    private void NetworkAddressChanged(object? sender, EventArgs eventArgs) => SignalReconnect();
+
     private void SignalOutbound()
     {
         if (outboundSignal.CurrentCount == 0) outboundSignal.Release();
@@ -282,7 +290,7 @@ internal sealed class EndpointRuntime : IDisposable
             {
                 EndpointState current = store.LoadOrCreate();
                 SetConnection(current.Controller?.PendingPairingCode is null
-                    ? "Offline"
+                    ? "Offline · retrying automatically"
                     : "Pairing failed · verify the parent app is open and the invitation is current");
                 log.Write("connection.failed", error.GetType().Name);
             }
@@ -777,6 +785,8 @@ internal sealed class EndpointRuntime : IDisposable
 
     public void Dispose()
     {
+        NetworkChange.NetworkAvailabilityChanged -= NetworkAvailabilityChanged;
+        NetworkChange.NetworkAddressChanged -= NetworkAddressChanged;
         stopping.Cancel();
         Task[] tasks = new[] { pipeTask, connectionTask }.OfType<Task>().ToArray();
         try { Task.WaitAll(tasks, TimeSpan.FromSeconds(5)); }

@@ -58,21 +58,21 @@ jobs:
       - name: Verify Authenticode status is honestly reported
         shell: powershell
         run: |
-          $candidate = ".artifacts\release-candidate\ParentalControlWindows-0.8.0-rc.2-x64.msi"
+          $candidate = ".artifacts\release-candidate\ParentalControlWindows-0.8.0-rc.3-x64.msi"
           $signature = Get-AuthenticodeSignature -LiteralPath $candidate
           if ($signature.Status -ne "NotSigned") { throw "Unexpected signature state: $($signature.Status)" }
 
       - name: Install, query, repair, and uninstall MSI
         shell: powershell
-        run: .\script\test_windows_installer.ps1 -MsiPath ".artifacts\release-candidate\ParentalControlWindows-0.8.0-rc.2-x64.msi"
+        run: .\script\test_windows_installer.ps1 -MsiPath ".artifacts\release-candidate\ParentalControlWindows-0.8.0-rc.3-x64.msi"
 
       - name: Upload one verified release candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ParentalControlWindows-0.8.0-rc.2-x64
+          name: ParentalControlWindows-0.8.0-rc.3-x64
           path: |
-            .artifacts/release-candidate/ParentalControlWindows-0.8.0-rc.2-x64.msi
-            .artifacts/release-candidate/ParentalControlWindows-0.8.0-rc.2-x64.msi.sha256
+            .artifacts/release-candidate/ParentalControlWindows-0.8.0-rc.3-x64.msi
+            .artifacts/release-candidate/ParentalControlWindows-0.8.0-rc.3-x64.msi.sha256
           if-no-files-found: error
           retention-days: 7
 

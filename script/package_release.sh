@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 APP_NAME="ParentalControlController"
 DISPLAY_NAME="Parental Control"
-VERSION="0.8.0-rc.1"
+VERSION="0.8.0-rc.2"
 APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
 STAGING_DIR="$ROOT_DIR/.artifacts/package-staging/stage-08-controller"
 RC_DIR="$ROOT_DIR/.artifacts/release-candidate"
@@ -47,7 +47,7 @@ verify_dmg() {
 }
 
 CONTROLLER_VERSION="$VERSION" \
-CONTROLLER_BUILD_NUMBER=8001 \
+CONTROLLER_BUILD_NUMBER=8002 \
 CONTROLLER_DERIVED_DIR="$ROOT_DIR/.artifacts/derived-data/stage-08" \
   "$ROOT_DIR/script/build_app.sh" Release >/dev/null
 

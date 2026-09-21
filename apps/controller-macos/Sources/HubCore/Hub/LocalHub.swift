@@ -25,6 +25,7 @@ public struct LocalHubStatus: Codable, Equatable, Sendable {
   public let port: UInt16
   public let certificateFingerprint: String
   public let devices: [HubDeviceRecord]
+  public let connectedDeviceIDs: [String]
   public let invitation: PairingInvitation?
   public let chatMessages: [HubChatMessage]
   public let activity: [HubAppActivity]
@@ -39,6 +40,7 @@ public struct LocalHubStatus: Codable, Equatable, Sendable {
     port: UInt16,
     certificateFingerprint: String,
     devices: [HubDeviceRecord],
+    connectedDeviceIDs: [String] = [],
     invitation: PairingInvitation?,
     chatMessages: [HubChatMessage] = [],
     activity: [HubAppActivity] = [],
@@ -53,6 +55,7 @@ public struct LocalHubStatus: Codable, Equatable, Sendable {
     self.port = port
     self.certificateFingerprint = certificateFingerprint
     self.devices = devices
+    self.connectedDeviceIDs = connectedDeviceIDs
     self.invitation = invitation
     self.chatMessages = chatMessages
     self.activity = activity
@@ -185,11 +188,13 @@ public final class LocalHub: @unchecked Sendable {
     lock.lock()
     let currentPort = port
     let currentInvitation = invitation?.expiresAt ?? .distantPast > now ? invitation : nil
+    let connectedDeviceIDs = devicePeers.keys.sorted()
     lock.unlock()
     return LocalHubStatus(
       port: currentPort,
       certificateFingerprint: tlsIdentity.fingerprint,
       devices: try database.devices(includeRevoked: true),
+      connectedDeviceIDs: connectedDeviceIDs,
       invitation: currentInvitation,
       chatMessages: try database.chatMessages(),
       activity: try database.activity(),
