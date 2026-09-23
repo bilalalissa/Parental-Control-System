@@ -35,7 +35,7 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
   assert.equal(active[0].branch, "stage/08-windows-activity-browser-chat");
-  assert.equal(active[0].version, "0.8.0-rc.3");
+  assert.equal(active[0].version, "0.8.0-rc.4");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "MERGED", "BLOCKED"].includes(
       active[0].status,
@@ -564,7 +564,7 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /STAGE-08 Windows activity, browser sharing, and communication[\s\S]*0\.8\.0-rc\.3/);
+  assert.match(readme, /STAGE-08 Windows activity, browser sharing, and communication[\s\S]*0\.8\.0-rc\.4/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
@@ -607,6 +607,8 @@ test("Stage 08 Windows metadata and communication are visible, bounded, and capa
   assert.match(product, /HubWebSocketPath = "\/hub"/);
   assert.match(product, /HubWebSocketSubProtocol = "parental-control\.v1"/);
   assert.match(runtime, /AddSubProtocol\(endpoint\.SubProtocol\)/);
+  assert.match(runtime, /attempt\.CancelAfter\(TimeSpan\.FromSeconds\(10\)\)/);
+  assert.match(runtime, /socket\?\.Abort\(\)/);
   assert.match(runtime, /WebSocketMessageType\.Text and not WebSocketMessageType\.Binary/);
   assert.match(controllerTransport, /GET \/hub HTTP\/1\.1/);
   assert.match(controllerTransport, /Sec-WebSocket-Protocol: parental-control\.v1/);
@@ -626,4 +628,16 @@ test("Stage 08 Windows metadata and communication are visible, bounded, and capa
   assert.match(workflow, /runs-on: windows-2025/);
   assert.match(workflow, /retention-days: 7/);
   assert.match(popup, /Website restrictions are not available on the Windows Stage 08 endpoint/);
+});
+
+test("controller signing sequence survives restart and bridges older in-memory counters", async () => {
+  const [database, hub] = await Promise.all([
+    read("apps/controller-macos/Sources/HubCore/Persistence/HubDatabase.swift"),
+    read("apps/controller-macos/Sources/HubCore/Hub/LocalHub.swift"),
+  ]);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS hub_state/);
+  assert.match(database, /func nextControllerSequence\(now: Date = Date\(\)\) throws -> UInt64/);
+  assert.match(database, /now\.timeIntervalSince1970 \* 1_000/);
+  assert.match(hub, /try database\.nextControllerSequence\(\)/);
+  assert.doesNotMatch(hub, /private var controllerSequence: UInt64 = 0/);
 });

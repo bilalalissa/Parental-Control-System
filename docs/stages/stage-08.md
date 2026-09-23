@@ -1,8 +1,8 @@
 # STAGE-08 — Windows activity, browser extension, and chat
 
-- Status: ready for developer retest
+- Status: implementing RC4 feedback corrections
 - Branch: `stage/08-windows-activity-browser-chat`
-- Candidate: `0.8.0-rc.3` for Windows; RC2 controller and browser artifacts
+- Candidate: `0.8.0-rc.4` for Windows; RC3 controller and RC2 browser artifacts
 
 ## Objective and included scope
 
@@ -44,16 +44,35 @@ Windows x64 PowerShell:
 
 ```powershell
 .\script\build_windows_release.ps1
-.\script\test_windows_installer.ps1 -MsiPath ".artifacts\release-candidate\ParentalControlWindows-0.8.0-rc.3-x64.msi"
+.\script\test_windows_installer.ps1 -MsiPath ".artifacts\release-candidate\ParentalControlWindows-0.8.0-rc.4-x64.msi"
 ```
 
-On macOS, run the repository and Swift tests, package `ParentalControlBrowserSharing-0.8.0-rc.2.zip`, and package `ParentalControlController-0.8.0-rc.2-arm64.dmg`. Physical testing must verify a standard Windows child account, application foreground transitions including Steam, Chrome and Edge profiles with private mode disabled, collection disable/clear, parent/child chat and notifications, request resolution, reconnect/reboot behavior, single-instance UI behavior, MSI repair, and uninstall.
+On macOS, run the repository and Swift tests, package `ParentalControlBrowserSharing-0.8.0-rc.2.zip`, and package `ParentalControlController-0.8.0-rc.3-arm64.dmg`. Physical testing must verify a standard Windows child account, application foreground transitions including Steam, Chrome and Edge profiles with private mode disabled, collection disable/clear, parent/child chat and notifications, request resolution, controller and child restarts without re-pairing, reconnect/reboot behavior, single-instance UI behavior, MSI repair, and uninstall.
 
 ## Rollback
 
 Use **Apps > Installed apps > Parental Control Child > Uninstall** with administrator approval. This removes the service, visible UI, browser native host/registrations, startup entry, protected state, and bounded logs. Remove the visible extension from each tested browser profile separately. Reinstall the approved Stage 07 MSI only if a foundation-only rollback is required; uninstall creates a new endpoint identity, so fresh pairing is then required.
 
 ## Evidence status
+
+RC4 feedback verification is in progress. The reported mixed state—both UIs eventually showing
+Offline while some child-originated chat, application metadata, and a delayed time request still
+reached the controller—was reproduced at the protocol boundary. Controller signing sequences were
+held only in memory and restarted at one whenever the Parent Controller relaunched, while the
+Windows child correctly persisted the highest accepted controller sequence. The child therefore
+rejected the controller's post-restart receipts and configuration as replayed messages, disconnected,
+and retried; child-originated data could still reach the parent briefly before each rejection. This
+also prevented the browser-sharing configuration from reaching Windows even though retained
+application sharing continued.
+
+The controller now stores its signing sequence transactionally in local SQLite and uses Unix
+milliseconds as a one-time migration floor above the short-lived counters produced by older builds.
+The persisted value remains authoritative across restarts and clock rollback. The Windows service
+now bounds each connection attempt to ten seconds and aborts an active or stalled socket on network
+availability/address changes before retrying. Existing pairing identity is preserved. The shared
+browser extension has no source change and remains RC2; the affected controller advances to RC3 and
+the affected Windows endpoint advances to RC4. Native CI artifacts and final physical-retest evidence
+are pending.
 
 RC3 addresses the reported restart, presence, duplicate-window, repair, and misleading enforcement
 UI behavior without entering Stage 09. The controller now derives Online from a current authenticated

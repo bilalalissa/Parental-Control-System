@@ -1,6 +1,6 @@
 # Windows Child Endpoint installation
 
-`ParentalControlWindows-0.8.0-rc.3-x64.msi` is a visible Stage 08 test candidate for Windows 10 version 2004 or newer and Windows 11 on x64 hardware.
+`ParentalControlWindows-0.8.0-rc.4-x64.msi` is a visible Stage 08 test candidate for Windows 10 version 2004 or newer and Windows 11 on x64 hardware.
 
 1. Verify the SHA-256 value supplied beside the MSI.
 2. Sign in with the intended standard child account, then have an adult administrator run the MSI and approve Windows Installer.
@@ -19,7 +19,7 @@ Stage 08 additionally shares bounded application names/executable identities/for
 If installed files or startup registration need repair, open the classic **Control Panel > Programs and Features**, select **Parental Control Child**, and choose **Repair**. Windows Settings may expose only Uninstall. The equivalent command from an elevated PowerShell window is:
 
 ```powershell
-msiexec.exe /fa "C:\full\path\ParentalControlWindows-0.8.0-rc.3-x64.msi" /norestart
+msiexec.exe /fa "C:\full\path\ParentalControlWindows-0.8.0-rc.4-x64.msi" /norestart
 ```
 
 Repair preserves a valid protected device identity and pairing. It cannot repair a removed browser extension; reload the extension separately in each intended Chrome or Edge profile.

@@ -2,6 +2,15 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.8.0-rc.4 — 2026-09-22
+
+Status: **STAGE-08 implementing; not approved, merged, or released**
+
+- Persists the Parent Controller's signed-message sequence in local SQLite so restarting the controller no longer causes an already-paired Windows endpoint to reject new receipts, chat, or browser-sharing configuration as replayed traffic.
+- Seeds upgraded databases with a monotonic Unix-millisecond floor, preserving existing pairing without trusting a rolled-back wall clock after the first persisted value.
+- Bounds Windows connection attempts to ten seconds and restarts an active or stalled socket immediately after network availability or address changes.
+- Keeps the shared Chrome/Edge extension at RC2 because the missing browser activity was caused by rejected controller configuration rather than an extension change.
+
 ## 0.8.0-rc.3 — 2026-09-21
 
 Status: **STAGE-08 ready for developer retest; not approved, merged, or released**

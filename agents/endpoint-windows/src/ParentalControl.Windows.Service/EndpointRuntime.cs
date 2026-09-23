@@ -253,9 +253,18 @@ internal sealed class EndpointRuntime : IDisposable
     }
 
     private void NetworkAvailabilityChanged(object? sender, NetworkAvailabilityEventArgs eventArgs) =>
-        SignalReconnect();
+        RestartConnection();
 
-    private void NetworkAddressChanged(object? sender, EventArgs eventArgs) => SignalReconnect();
+    private void NetworkAddressChanged(object? sender, EventArgs eventArgs) => RestartConnection();
+
+    private void RestartConnection()
+    {
+        ClientWebSocket? socket;
+        lock (gate) socket = activeSocket;
+        try { socket?.Abort(); }
+        catch (ObjectDisposedException) { }
+        SignalReconnect();
+    }
 
     private void SignalOutbound()
     {
@@ -309,31 +318,39 @@ internal sealed class EndpointRuntime : IDisposable
         socket.Options.AddSubProtocol(endpoint.SubProtocol);
         socket.Options.RemoteCertificateValidationCallback = (_, certificate, _, errors) =>
             ValidatePinnedCertificate(certificate, errors, controller.CertificateFingerprint);
-        SetConnection("Connecting");
-        await socket.ConnectAsync(endpoint.Uri, cancellationToken);
         lock (gate) activeSocket = socket;
-        SetConnection("Online");
-        lastActivityDigest = null;
-        lastBrowserDigest = null;
-        log.Write("connection.online", "Pinned TLS WebSocket established");
-
-        var replay = new ReplayProtector(initial.ControllerSequence);
-        var delta = new SnapshotDelta();
-        Guid announceId = await SendAnnouncementAsync(socket, cancellationToken);
-        await SendSnapshotAsync(socket, delta, "connected", cancellationToken);
-        await FlushOutboundAsync(socket, cancellationToken);
-        await SendActivityIfChangedAsync(socket, cancellationToken);
-        await SendBrowserIfChangedAsync(socket, cancellationToken);
-
-        TimeSpan activeHeartbeat = TimeSpan.FromSeconds(15);
-        TimeSpan idleHeartbeat = TimeSpan.FromSeconds(60);
-        TimeSpan heartbeat = activeHeartbeat;
-        int heartbeatCount = 0;
-        Task<byte[]?> receiveTask = ReceiveMessageAsync(socket, cancellationToken);
-        Task outboundTask = outboundSignal.WaitAsync(cancellationToken);
-        Task heartbeatTask = Task.Delay(heartbeat, cancellationToken);
         try
         {
+            SetConnection("Connecting");
+            using (var attempt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                attempt.CancelAfter(TimeSpan.FromSeconds(10));
+                try { await socket.ConnectAsync(endpoint.Uri, attempt.Token); }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new System.TimeoutException("The controller connection attempt timed out.");
+                }
+            }
+            SetConnection("Online");
+            lastActivityDigest = null;
+            lastBrowserDigest = null;
+            log.Write("connection.online", "Pinned TLS WebSocket established");
+
+            var replay = new ReplayProtector(initial.ControllerSequence);
+            var delta = new SnapshotDelta();
+            Guid announceId = await SendAnnouncementAsync(socket, cancellationToken);
+            await SendSnapshotAsync(socket, delta, "connected", cancellationToken);
+            await FlushOutboundAsync(socket, cancellationToken);
+            await SendActivityIfChangedAsync(socket, cancellationToken);
+            await SendBrowserIfChangedAsync(socket, cancellationToken);
+
+            TimeSpan activeHeartbeat = TimeSpan.FromSeconds(15);
+            TimeSpan idleHeartbeat = TimeSpan.FromSeconds(60);
+            TimeSpan heartbeat = activeHeartbeat;
+            int heartbeatCount = 0;
+            Task<byte[]?> receiveTask = ReceiveMessageAsync(socket, cancellationToken);
+            Task outboundTask = outboundSignal.WaitAsync(cancellationToken);
+            Task heartbeatTask = Task.Delay(heartbeat, cancellationToken);
             while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
             {
                 Task completed = await Task.WhenAny(receiveTask, outboundTask, heartbeatTask);

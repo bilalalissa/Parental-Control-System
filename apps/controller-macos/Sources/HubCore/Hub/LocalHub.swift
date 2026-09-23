@@ -84,7 +84,6 @@ public final class LocalHub: @unchecked Sendable {
   private var invitation: PairingInvitation?
   private var devicePeers: [String: SecureWebSocketPeer] = [:]
   private var peerDevices: [UUID: String] = [:]
-  private var controllerSequence: UInt64 = 0
 
   public var onStatusChange: (@Sendable (LocalHubStatus) -> Void)?
   public var onError: (@Sendable (Error) -> Void)?
@@ -1048,12 +1047,8 @@ public final class LocalHub: @unchecked Sendable {
     publishStatus()
   }
 
-  private func nextControllerSequence() -> UInt64 {
-    lock.lock()
-    controllerSequence += 1
-    let value = controllerSequence
-    lock.unlock()
-    return value
+  private func nextControllerSequence() throws -> UInt64 {
+    try database.nextControllerSequence()
   }
 
   private func publishStatus() {

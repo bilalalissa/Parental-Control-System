@@ -2,7 +2,7 @@ namespace ParentalControl.Windows.Core;
 
 public static class ProductInfo
 {
-    public const string Version = "0.8.0-rc.3";
+    public const string Version = "0.8.0-rc.4";
     public const string ProtocolVersion = "1.0";
     public const int MaximumMessageBytes = 64 * 1024;
     public const int MaximumPipeMessageBytes = 64 * 1024;

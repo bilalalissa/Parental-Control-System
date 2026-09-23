@@ -52,7 +52,7 @@ jobs:
       - name: Verify artifacts and honest signing
         run: |
           unzip -t .artifacts/release-candidate/ParentalControlBrowserSharing-0.8.0-rc.2.zip >/dev/null
-          hdiutil verify .artifacts/release-candidate/ParentalControlController-0.8.0-rc.2-arm64.dmg >/dev/null
+          hdiutil verify .artifacts/release-candidate/ParentalControlController-0.8.0-rc.3-arm64.dmg >/dev/null
           codesign --verify --deep --strict dist/ParentalControlController.app
           codesign -dv --verbose=2 dist/ParentalControlController.app 2>&1 | grep -F "Signature=adhoc"
 
@@ -63,8 +63,8 @@ jobs:
           path: |
             .artifacts/release-candidate/ParentalControlBrowserSharing-0.8.0-rc.2.zip
             .artifacts/release-candidate/ParentalControlBrowserSharing-0.8.0-rc.2.zip.sha256
-            .artifacts/release-candidate/ParentalControlController-0.8.0-rc.2-arm64.dmg
-            .artifacts/release-candidate/ParentalControlController-0.8.0-rc.2-arm64.dmg.sha256
+            .artifacts/release-candidate/ParentalControlController-0.8.0-rc.3-arm64.dmg
+            .artifacts/release-candidate/ParentalControlController-0.8.0-rc.3-arm64.dmg.sha256
           if-no-files-found: error
           retention-days: 7
 
