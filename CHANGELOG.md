@@ -4,7 +4,7 @@ All notable approved stage deliverables are recorded here. The project uses stag
 
 ## 0.8.0-rc.4 — 2026-09-22
 
-Status: **STAGE-08 implementing; not approved, merged, or released**
+Status: **STAGE-08 ready for developer retest; not approved, merged, or released**
 
 - Persists the Parent Controller's signed-message sequence in local SQLite so restarting the controller no longer causes an already-paired Windows endpoint to reject new receipts, chat, or browser-sharing configuration as replayed traffic.
 - Seeds upgraded databases with a monotonic Unix-millisecond floor, preserving existing pairing without trusting a rolled-back wall clock after the first persisted value.

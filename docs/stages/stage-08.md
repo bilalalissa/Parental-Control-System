@@ -1,6 +1,6 @@
 # STAGE-08 — Windows activity, browser extension, and chat
 
-- Status: implementing RC4 feedback corrections
+- Status: ready for developer retest
 - Branch: `stage/08-windows-activity-browser-chat`
 - Candidate: `0.8.0-rc.4` for Windows; RC3 controller and RC2 browser artifacts
 
@@ -55,7 +55,7 @@ Use **Apps > Installed apps > Parental Control Child > Uninstall** with administ
 
 ## Evidence status
 
-RC4 feedback verification is in progress. The reported mixed state—both UIs eventually showing
+RC4 addresses the reported mixed state—both UIs eventually showing
 Offline while some child-originated chat, application metadata, and a delayed time request still
 reached the controller—was reproduced at the protocol boundary. Controller signing sequences were
 held only in memory and restarted at one whenever the Parent Controller relaunched, while the
@@ -71,8 +71,29 @@ The persisted value remains authoritative across restarts and clock rollback. Th
 now bounds each connection attempt to ten seconds and aborts an active or stalled socket on network
 availability/address changes before retrying. Existing pairing identity is preserved. The shared
 browser extension has no source change and remains RC2; the affected controller advances to RC3 and
-the affected Windows endpoint advances to RC4. Native CI artifacts and final physical-retest evidence
-are pending.
+the affected Windows endpoint advances to RC4.
+
+RC4 passed the native Windows gate in GitHub Actions run
+[`35807988695`](https://github.com/bilalalissa/Parental-Control-System/actions/runs/35807988695).
+The Windows Server x64 runner passed 33/33 focused tests, built the service, visible UI and browser
+host with zero errors, confirmed the MSI is Authenticode unsigned, then installed, queried, health-
+checked, repaired and uninstalled it. Repair remained visibly registered and preserved endpoint
+identity. The service used 42,127,360 bytes working set and 11,341,824 bytes private memory; the
+installed payload measured 199,602,971 bytes.
+
+The RC3 controller and unchanged RC2 extension passed the macOS gate in GitHub Actions run
+[`35807988922`](https://github.com/bilalalissa/Parental-Control-System/actions/runs/35807988922):
+56 Swift Testing tests plus four XCTest tests passed, including the new persisted-sequence restart
+and clock-rollback regression. The extension archive validated, the DMG checksum validated, and the
+controller passed strict bundle verification with an honest ad-hoc signature. The Stage 06E
+regression gate passed in run
+[`35807988755`](https://github.com/bilalalissa/Parental-Control-System/actions/runs/35807988755).
+Repository/cleanup contracts and GitGuardian also passed. Locally, 76/76 runnable repository tests
+passed with one PowerShell-only test skipped, 33/33 Windows tests passed, the Windows service cross-
+target build completed with zero warnings, and all 60 controller tests passed with Keychain and local
+TLS access. The downloaded CI artifacts were independently hashed; the browser ZIP and controller
+DMG validated, and the mounted controller reported version `0.8.0-rc.3` build `8003` with an ad-hoc
+signature.
 
 RC3 addresses the reported restart, presence, duplicate-window, repair, and misleading enforcement
 UI behavior without entering Stage 09. The controller now derives Online from a current authenticated
@@ -110,21 +131,21 @@ evidence for this candidate.
 
 Retained release candidates are:
 
-- `ParentalControlWindows-0.8.0-rc.3-x64.msi` — 62,841,093 bytes — SHA-256
-  `d383683b7565b15e00f55917b60bc8f909011cca6b39a388f0ee0aee0a84920f` — Authenticode unsigned.
+- `ParentalControlWindows-0.8.0-rc.4-x64.msi` — 62,841,093 bytes — SHA-256
+  `b778a297f241e1c109fa298aeb736f7dab6698aa361ab9bf211615e2d03f7dde` — Authenticode unsigned.
 - `ParentalControlBrowserSharing-0.8.0-rc.2.zip` — 26,199 bytes — SHA-256
-  `6c41d778ae4ddc3f0cd79fcb8f535c592a418e8eb7f43004bdc1766b473fb77c` — unsigned archive.
-- `ParentalControlController-0.8.0-rc.2-arm64.dmg` — 3,971,779 bytes — SHA-256
-  `e67eee831f003dea1017be5d13cb6c0e478455006d3b21bc4deca59f0ac69886` — ad-hoc test build.
+  `72489d617fc13fdd5523f6c85fd34625293006ac320779d86b5ff0212b733236` — unsigned archive.
+- `ParentalControlController-0.8.0-rc.3-arm64.dmg` — 3,974,711 bytes — SHA-256
+  `be7960dc42d9582417c15cd5e3855632565c9a55216e5a9a2e0ef39437bcfeb6` — ad-hoc test build.
 
-The superseded Windows RC2, controller RC1, locally packaged extension copy, stale extracted app and
-temporary CI downloads were removed only after the new candidates passed verification. The unrelated
-user `Cleaner.bat` remains untouched. This retest started with 18 GiB free, a 102 MiB repository and
-73 MiB of retained files. Project-owned temporary output peaked at 526 MiB. After cleanup, 18 GiB
-remains free, the repository is 94 MiB, and the release-candidate directory is 64 MiB including the
-unrelated file. No project-started build, test, watcher or CI-watch process remains; the user's
-pre-existing installed Parent Controller and editor language/build hosts were left untouched. No VM,
-container, simulator or emulator was used. No approval, merge, release, or later-stage progress is
+The superseded Windows RC3 and controller RC2 were removed only after the replacement candidates
+passed verification; temporary CI downloads, local controller packaging, Swift scratch data, and
+Windows `bin`/`obj` output were also removed. The unrelated user `Cleaner.bat` remains untouched.
+This retest started with 57 GiB free, a 94 MiB repository and 64 MiB of retained release files. After
+cleanup, 56 GiB remains free, the repository is 94 MiB, and the release-candidate directory is 64 MiB
+including the unrelated file. No project-started build, test, watcher or CI-watch process remains;
+the user's pre-existing installed Parent Controller and hub were left untouched. No VM, container,
+simulator or emulator was created or used. No approval, merge, release, or later-stage progress is
 claimed.
 
 On an Intel macOS child, the fixed readiness command reports `screenLock delay is immediate`, which
