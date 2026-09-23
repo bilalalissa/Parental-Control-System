@@ -1,6 +1,6 @@
 {
   "$schema": "./stage-status.schema.json",
-  "activeStage": "STAGE-07",
+  "activeStage": "STAGE-08",
   "stages": [
     {
       "id": "STAGE-00",
@@ -105,6 +105,14 @@
       "status": "MERGED",
       "branch": "stage/07-windows-endpoint-foundation",
       "document": "stage-07.md"
+    },
+    {
+      "id": "STAGE-08",
+      "name": "Windows activity, browser extension, and chat",
+      "version": "0.8.0-rc.4",
+      "status": "READY_FOR_RETEST",
+      "branch": "stage/08-windows-activity-browser-chat",
+      "document": "stage-08.md"
     }
   ]
 }

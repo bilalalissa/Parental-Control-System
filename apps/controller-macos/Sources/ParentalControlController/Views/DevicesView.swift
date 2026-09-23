@@ -12,7 +12,7 @@ struct DevicesView: View {
           ForEach(store.pairedDevices) { device in
             PairedDeviceSidebarRow(
               device: device,
-              now: store.presenceNow,
+              isOnline: store.isDeviceOnline(device),
               pendingRequestCount: store.pendingTimeRequestCount(deviceID: device.id)
             )
             .tag(device.id)
@@ -47,7 +47,7 @@ struct DevicesView: View {
             } ?? BrowserConfiguration(deviceID: device.id),
             browserTabs: store.hubStatus?.browserTabs.filter { $0.deviceID == device.id } ?? [],
             requests: store.hubStatus?.moreTimeRequests.filter { $0.deviceID == device.id } ?? [],
-            now: store.presenceNow,
+            now: store.presenceNow, isOnline: store.isDeviceOnline(device),
             store: store
           )
           .id(device.id)
@@ -72,7 +72,7 @@ struct DevicesView: View {
 
 private struct PairedDeviceSidebarRow: View {
   let device: HubDeviceRecord
-  let now: Date
+  let isOnline: Bool
   let pendingRequestCount: Int
 
   var body: some View {
@@ -84,9 +84,9 @@ private struct PairedDeviceSidebarRow: View {
         Text(device.name).lineLimit(1)
         HStack(spacing: 5) {
           Circle()
-            .fill(device.state(now: now) == .online ? ControlTheme.success : ControlTheme.textMuted)
+            .fill(isOnline ? ControlTheme.success : ControlTheme.textMuted)
             .frame(width: 6, height: 6)
-          Text(device.state(now: now) == .online ? "Online" : "Offline")
+          Text(isOnline ? "Online" : "Offline")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
@@ -124,6 +124,7 @@ private struct PairedDeviceDetailView: View {
   let browserTabs: [HubBrowserTab]
   let requests: [MoreTimeRequestRecord]
   let now: Date
+  let isOnline: Bool
   let store: ControllerStore
 
   @State private var retentionDays: Int
@@ -134,7 +135,7 @@ private struct PairedDeviceDetailView: View {
     device: HubDeviceRecord, configuration: ActivityConfiguration,
     activity: [HubAppActivity], browserConfiguration: BrowserConfiguration,
     browserTabs: [HubBrowserTab], requests: [MoreTimeRequestRecord], now: Date,
-    store: ControllerStore
+    isOnline: Bool, store: ControllerStore
   ) {
     self.device = device
     self.configuration = configuration
@@ -143,6 +144,7 @@ private struct PairedDeviceDetailView: View {
     self.browserTabs = browserTabs
     self.requests = requests
     self.now = now
+    self.isOnline = isOnline
     self.store = store
     _retentionDays = State(initialValue: configuration.retentionDays)
     _browserRetentionDays = State(initialValue: browserConfiguration.retentionDays)
@@ -160,14 +162,23 @@ private struct PairedDeviceDetailView: View {
         deviceHeader
         networkSection
         capabilitySection
-        loginEnforcementSection
-        immediateActionsSection
+        if isWindows {
+          windowsStageBoundarySection
+        } else {
+          loginEnforcementSection
+          immediateActionsSection
+        }
         activitySection
-        ApplicationRestrictionView(
-          device: device, configuration: configuration, applications: activity, store: store)
+        if device.capabilities.contains("app-use-restrictions") {
+          ApplicationRestrictionView(
+            device: device, configuration: configuration, applications: activity, store: store)
+        }
         browserSection
-        BrowserWebsitePolicyView(
-          device: device, configuration: browserConfiguration, now: now, store: store)
+        if device.capabilities.contains("browser-website-policy") {
+          BrowserWebsitePolicyView(
+            device: device, configuration: browserConfiguration, now: now,
+            online: isOnline, store: store)
+        }
         requestSection
         statusMessages
       }
@@ -230,7 +241,7 @@ private struct PairedDeviceDetailView: View {
       }
       .font(.caption)
       .foregroundStyle(.secondary)
-      if device.state(now: now) == .online, device.consoleAccountType == "administrator" {
+      if isOnline, device.consoleAccountType == "administrator" {
         Label(
           "Administrator session on this enrolled child endpoint. Controls operate while the child-session helper is reporting, but an authorized administrator can bypass or remove them. Use a standard child account for meaningful enforcement.",
           systemImage: "exclamationmark.shield.fill"
@@ -238,7 +249,7 @@ private struct PairedDeviceDetailView: View {
         .font(.caption.weight(.semibold))
         .foregroundStyle(ControlTheme.accentSoft)
       }
-      if device.state(now: now) == .online, device.helperHealthy == false {
+      if isOnline, device.helperHealthy == false {
         Label(
           helperProtectionMessage,
           systemImage: "exclamationmark.shield.fill"
@@ -261,17 +272,41 @@ private struct PairedDeviceDetailView: View {
   }
 
   private var connectionBadge: some View {
-    let online = device.state(now: now) == .online
-    let color = online ? ControlTheme.success : ControlTheme.textMuted
+    let color = isOnline ? ControlTheme.success : ControlTheme.textMuted
     return HStack(spacing: 6) {
       Circle().fill(color).frame(width: 8, height: 8)
-      Text(online ? "Online" : "Offline")
+      Text(isOnline ? "Online" : "Offline")
     }
     .font(.caption.weight(.semibold))
     .foregroundStyle(color)
     .padding(.horizontal, 10)
     .padding(.vertical, 5)
     .background(color.opacity(0.12), in: Capsule())
+  }
+
+  private var isWindows: Bool { device.platform.caseInsensitiveCompare("Windows") == .orderedSame }
+
+  private var windowsStageBoundarySection: some View {
+    SectionCard {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Windows Stage 08 capability boundary").font(ControlTheme.sectionTitle)
+        Label(
+          "Available: authenticated presence, application names, Chrome/Edge tab sharing, chat, notifications, and request-more-time.",
+          systemImage: "checkmark.shield.fill"
+        )
+        .foregroundStyle(ControlTheme.success)
+        Label(
+          "Not available in this release: schedules, usage enforcement, application or website restrictions, lock, logoff, restart, and shutdown.",
+          systemImage: "info.circle.fill"
+        )
+        .foregroundStyle(ControlTheme.accentSoft)
+        Text(
+          "Those Windows enforcement controls belong to Stage 09. Disabled macOS policy editors are hidden here so they cannot imply protection or redirect focus unexpectedly."
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      }
+    }
   }
 
   private var networkSection: some View {
@@ -382,21 +417,21 @@ private struct PairedDeviceDetailView: View {
             store.sendImmediateAction(deviceID: device.id, action: .lock, confirmed: true)
           }
           .disabled(
-            device.state(now: now) != .online || !device.capabilities.contains("lock")
+            !isOnline || !device.capabilities.contains("lock")
               || !secureLockReady)
           Menu("More Actions") {
             Button("Log Out…") { pendingHighImpactAction = .logoff }
               .disabled(
-                device.state(now: now) != .online || !device.capabilities.contains("logoff"))
+                !isOnline || !device.capabilities.contains("logoff"))
             Button("Restart…") { pendingHighImpactAction = .restart }
               .disabled(
-                device.state(now: now) != .online || !device.capabilities.contains("restart"))
+                !isOnline || !device.capabilities.contains("restart"))
             Button("Shut Down…") { pendingHighImpactAction = .shutdown }
               .disabled(
-                device.state(now: now) != .online || !device.capabilities.contains("shutdown"))
+                !isOnline || !device.capabilities.contains("shutdown"))
           }
           Spacer()
-          if device.state(now: now) != .online {
+          if !isOnline {
             Label("Offline — short-lived actions are unavailable", systemImage: "wifi.slash")
               .font(.caption).foregroundStyle(.secondary)
           }
@@ -576,6 +611,10 @@ private struct PairedDeviceDetailView: View {
     guard browserConfiguration.enabled else { return "Browser sharing is disabled." }
     if device.consoleAccountType == "none" {
       return "Browser reporting is paused because no child session is active."
+    }
+    if isWindows {
+      return
+        "No browser metadata received. Open the installed extension in a machine-wide Chrome or Edge profile and confirm it says sharing is enabled. Per-user browser installs and private profiles are not supported."
     }
     return
       "No browser metadata received. Open an enrolled profile in Chrome, Edge, Arc, Brave, Firefox, or Safari and check its extension."

@@ -25,6 +25,7 @@ public struct LocalHubStatus: Codable, Equatable, Sendable {
   public let port: UInt16
   public let certificateFingerprint: String
   public let devices: [HubDeviceRecord]
+  public let connectedDeviceIDs: [String]
   public let invitation: PairingInvitation?
   public let chatMessages: [HubChatMessage]
   public let activity: [HubAppActivity]
@@ -39,6 +40,7 @@ public struct LocalHubStatus: Codable, Equatable, Sendable {
     port: UInt16,
     certificateFingerprint: String,
     devices: [HubDeviceRecord],
+    connectedDeviceIDs: [String] = [],
     invitation: PairingInvitation?,
     chatMessages: [HubChatMessage] = [],
     activity: [HubAppActivity] = [],
@@ -53,6 +55,7 @@ public struct LocalHubStatus: Codable, Equatable, Sendable {
     self.port = port
     self.certificateFingerprint = certificateFingerprint
     self.devices = devices
+    self.connectedDeviceIDs = connectedDeviceIDs
     self.invitation = invitation
     self.chatMessages = chatMessages
     self.activity = activity
@@ -81,7 +84,6 @@ public final class LocalHub: @unchecked Sendable {
   private var invitation: PairingInvitation?
   private var devicePeers: [String: SecureWebSocketPeer] = [:]
   private var peerDevices: [UUID: String] = [:]
-  private var controllerSequence: UInt64 = 0
 
   public var onStatusChange: (@Sendable (LocalHubStatus) -> Void)?
   public var onError: (@Sendable (Error) -> Void)?
@@ -185,11 +187,13 @@ public final class LocalHub: @unchecked Sendable {
     lock.lock()
     let currentPort = port
     let currentInvitation = invitation?.expiresAt ?? .distantPast > now ? invitation : nil
+    let connectedDeviceIDs = devicePeers.keys.sorted()
     lock.unlock()
     return LocalHubStatus(
       port: currentPort,
       certificateFingerprint: tlsIdentity.fingerprint,
       devices: try database.devices(includeRevoked: true),
+      connectedDeviceIDs: connectedDeviceIDs,
       invitation: currentInvitation,
       chatMessages: try database.chatMessages(),
       activity: try database.activity(),
@@ -1043,12 +1047,8 @@ public final class LocalHub: @unchecked Sendable {
     publishStatus()
   }
 
-  private func nextControllerSequence() -> UInt64 {
-    lock.lock()
-    controllerSequence += 1
-    let value = controllerSequence
-    lock.unlock()
-    return value
+  private func nextControllerSequence() throws -> UInt64 {
+    try database.nextControllerSequence()
   }
 
   private func publishStatus() {

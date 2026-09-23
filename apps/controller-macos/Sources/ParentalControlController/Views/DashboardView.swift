@@ -114,7 +114,7 @@ struct DashboardView: View {
             Button {
               openDevice(device.id)
             } label: {
-              DashboardDeviceRow(device: device, now: store.presenceNow)
+              DashboardDeviceRow(device: device, isOnline: store.isDeviceOnline(device))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Open \(device.name) details")
@@ -131,7 +131,7 @@ struct DashboardView: View {
 
 private struct DashboardDeviceRow: View {
   let device: HubDeviceRecord
-  let now: Date
+  let isOnline: Bool
 
   var body: some View {
     SectionCard {
@@ -151,7 +151,7 @@ private struct DashboardDeviceRow: View {
           .lineLimit(1)
         }
         Spacer()
-        HubStatusBadge(state: device.state(now: now))
+        HubStatusBadge(state: isOnline ? .online : .offline)
         Image(systemName: "chevron.right")
           .foregroundStyle(.tertiary)
       }

@@ -3,15 +3,15 @@ param()
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$stageRoot = Join-Path $repoRoot ".artifacts\build\stage-07"
+$stageRoot = Join-Path $repoRoot ".artifacts\build\stage-08"
 $payload = Join-Path $stageRoot "payload"
 $installerOutput = Join-Path $stageRoot "installer"
 $candidateRoot = Join-Path $repoRoot ".artifacts\release-candidate"
-$candidate = Join-Path $candidateRoot "ParentalControlWindows-0.7.0-rc.2-x64.msi"
+$candidate = Join-Path $candidateRoot "ParentalControlWindows-0.8.0-rc.4-x64.msi"
 $solution = Join-Path $repoRoot "agents\endpoint-windows\ParentalControl.Windows.sln"
 $installerProject = Join-Path $repoRoot "agents\endpoint-windows\installer\ParentalControl.Windows.Installer.wixproj"
 
-if ($stageRoot -ne (Join-Path $repoRoot ".artifacts\build\stage-07")) {
+if ($stageRoot -ne (Join-Path $repoRoot ".artifacts\build\stage-08")) {
     throw "Refusing to clean an unexpected build path."
 }
 if (Test-Path $stageRoot) { Remove-Item -LiteralPath $stageRoot -Recurse -Force }
@@ -31,6 +31,12 @@ dotnet publish (Join-Path $repoRoot "agents\endpoint-windows\src\ParentalControl
     --no-restore --configuration Release --runtime win-x64 --self-contained true `
     --output $payload --maxcpucount:2 -p:PublishReadyToRun=false
 if ($LASTEXITCODE -ne 0) { throw "App publish failed." }
+dotnet publish (Join-Path $repoRoot "agents\endpoint-windows\src\ParentalControl.Windows.BrowserHost\ParentalControl.Windows.BrowserHost.csproj") `
+    --no-restore --configuration Release --runtime win-x64 --self-contained true `
+    --output $payload --maxcpucount:2 -p:PublishReadyToRun=false
+if ($LASTEXITCODE -ne 0) { throw "Browser host publish failed." }
+Copy-Item -LiteralPath (Join-Path $repoRoot "agents\endpoint-windows\installer\windows-native-host-manifest.json") `
+    -Destination (Join-Path $payload "windows-native-host-manifest.json") -Force
 
 dotnet restore $installerProject --locked-mode
 if ($LASTEXITCODE -ne 0) { throw "Installer restore failed." }

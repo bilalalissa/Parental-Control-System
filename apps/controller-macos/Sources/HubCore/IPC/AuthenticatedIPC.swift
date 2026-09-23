@@ -351,6 +351,7 @@ extension LocalHubStatus {
       port: port,
       certificateFingerprint: certificateFingerprint,
       devices: devices,
+      connectedDeviceIDs: connectedDeviceIDs,
       invitation: invitation,
       chatMessages: retainedChat,
       activity: recentPrefix(activity),

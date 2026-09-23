@@ -88,7 +88,7 @@ async function publishTabs() {
     await api.storage.local.set({ websitePolicyState: state });
     await nativeMessage({ type: "policy.ack", browser: authorizedBrowser, profile, tabs: [],
       policyVersion: configuration.websitePolicy.version, policyState: state });
-  } else if (configuration.accepted === true) {
+  } else if (configuration.accepted === true && configuration.websitePolicySupported !== false) {
     await nativeMessage({ type: "policy.ack", browser: authorizedBrowser, profile, tabs: [],
       policyVersion: null, policyState: "setup-required" });
   }

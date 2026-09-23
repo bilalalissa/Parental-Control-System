@@ -69,9 +69,197 @@ public sealed class ConfigurationTests
         }
     }
 
+    [TestMethod]
+    public void ProtectedStatePersistsBoundedStageEightRuntimeData()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "parental-control-windows-test-" + Guid.NewGuid());
+        try
+        {
+            var store = new EndpointStateStore(Path.Combine(root, "endpoint.dat"), new TestProtector());
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            store.Update(state => state with
+            {
+                Runtime = new EndpointRuntimeData
+                {
+                    ActivityCollectionEnabled = false,
+                    BrowserCollectionEnabled = true,
+                    BrowserRetentionDays = 14,
+                    BrowserTabs =
+                    [
+                        new WindowsBrowserTab(
+                            "edge", "Default", "Example", "https://example.test", true, now),
+                    ],
+                    Messages =
+                    [
+                        new WindowsChatMessage(
+                            Guid.NewGuid(), Guid.NewGuid(), now, "Parent", "Hello", "delivered",
+                            "direct", true),
+                    ],
+                },
+            });
+
+            EndpointRuntimeData runtime = store.LoadOrCreate().Runtime!;
+            Assert.IsFalse(runtime.ActivityCollectionEnabled);
+            Assert.IsTrue(runtime.BrowserCollectionEnabled);
+            Assert.AreEqual(14, runtime.BrowserRetentionDays);
+            Assert.AreEqual("https://example.test", runtime.BrowserTabs.Single().Origin);
+            Assert.AreEqual("Hello", runtime.Messages.Single().Text);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void UnreadableProtectedStateIsPreservedAndReplacedOnce()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "parental-control-windows-test-" + Guid.NewGuid());
+        string path = Path.Combine(root, "endpoint.dat");
+        try
+        {
+            Directory.CreateDirectory(root);
+            byte[] unreadable = [0x01, 0x02, 0x03, 0x04];
+            File.WriteAllBytes(path, unreadable);
+            var protector = new RejectFirstUnprotectProtector();
+            var store = new EndpointStateStore(path, protector);
+
+            EndpointStateLoadResult recovered = store.LoadOrCreateRecoveringUnreadable();
+
+            Assert.IsTrue(recovered.RecoveredUnreadableState);
+            CollectionAssert.AreEqual(unreadable, File.ReadAllBytes(path + ".unreadable"));
+            EndpointState reopened = store.LoadOrCreate();
+            Assert.AreEqual(recovered.State.DeviceId, reopened.DeviceId);
+            Assert.IsNull(reopened.Controller);
+            Assert.AreEqual(32, Convert.FromBase64String(reopened.PrivateKeyBase64).Length);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void ValidProtectedStateIsNeverQuarantined()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "parental-control-windows-test-" + Guid.NewGuid());
+        string path = Path.Combine(root, "endpoint.dat");
+        try
+        {
+            var store = new EndpointStateStore(path, new TestProtector());
+            EndpointState original = store.LoadOrCreate();
+
+            EndpointStateLoadResult loaded = store.LoadOrCreateRecoveringUnreadable();
+
+            Assert.IsFalse(loaded.RecoveredUnreadableState);
+            Assert.AreEqual(original.DeviceId, loaded.State.DeviceId);
+            Assert.IsFalse(File.Exists(path + ".unreadable"));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void MalformedButDecryptableStateFailsClosedWithoutQuarantine()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "parental-control-windows-test-" + Guid.NewGuid());
+        string path = Path.Combine(root, "endpoint.dat");
+        try
+        {
+            Directory.CreateDirectory(root);
+            File.WriteAllBytes(path, [0x01, 0x02, 0x03, 0x04]);
+            var store = new EndpointStateStore(path, new TestProtector());
+
+            Assert.ThrowsException<System.Text.Json.JsonException>(
+                () => store.LoadOrCreateRecoveringUnreadable());
+            Assert.IsTrue(File.Exists(path));
+            Assert.IsFalse(File.Exists(path + ".unreadable"));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void FailedReplacementRestoresUnreadableState()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "parental-control-windows-test-" + Guid.NewGuid());
+        string path = Path.Combine(root, "endpoint.dat");
+        try
+        {
+            Directory.CreateDirectory(root);
+            byte[] unreadable = [0x01, 0x02, 0x03, 0x04];
+            File.WriteAllBytes(path, unreadable);
+            var store = new EndpointStateStore(path, new RejectUnprotectAndProtectProtector());
+
+            Assert.ThrowsException<System.Security.Cryptography.CryptographicException>(
+                () => store.LoadOrCreateRecoveringUnreadable());
+            CollectionAssert.AreEqual(unreadable, File.ReadAllBytes(path));
+            Assert.IsFalse(File.Exists(path + ".unreadable"));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void ProtectedStateRejectsRuntimeCollectionsBeyondTheirLimits()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "parental-control-windows-test-" + Guid.NewGuid());
+        try
+        {
+            var store = new EndpointStateStore(Path.Combine(root, "endpoint.dat"), new TestProtector());
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            Assert.ThrowsException<InvalidDataException>(() => store.Update(state => state with
+            {
+                Runtime = new EndpointRuntimeData
+                {
+                    Applications = Enumerable.Range(0, 65).Select(index =>
+                        new WindowsApplicationActivity(
+                            $"win32.app-{index}.exe", $"App {index}", null, null, false, now))
+                        .ToArray(),
+                },
+            }));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
     private sealed class TestProtector : ISecretProtector
     {
         public byte[] Protect(ReadOnlySpan<byte> cleartext) => cleartext.ToArray().Reverse().ToArray();
         public byte[] Unprotect(ReadOnlySpan<byte> ciphertext) => ciphertext.ToArray().Reverse().ToArray();
+    }
+
+    private sealed class RejectFirstUnprotectProtector : ISecretProtector
+    {
+        private bool reject = true;
+
+        public byte[] Protect(ReadOnlySpan<byte> cleartext) => cleartext.ToArray().Reverse().ToArray();
+
+        public byte[] Unprotect(ReadOnlySpan<byte> ciphertext)
+        {
+            if (reject)
+            {
+                reject = false;
+                throw new System.Security.Cryptography.CryptographicException("Synthetic unreadable state");
+            }
+            return ciphertext.ToArray().Reverse().ToArray();
+        }
+    }
+
+    private sealed class RejectUnprotectAndProtectProtector : ISecretProtector
+    {
+        public byte[] Protect(ReadOnlySpan<byte> cleartext) =>
+            throw new System.Security.Cryptography.CryptographicException("Synthetic write failure");
+
+        public byte[] Unprotect(ReadOnlySpan<byte> ciphertext) =>
+            throw new System.Security.Cryptography.CryptographicException("Synthetic unreadable state");
     }
 }

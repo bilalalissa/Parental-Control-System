@@ -6,6 +6,7 @@ struct BrowserWebsitePolicyView: View {
   let device: HubDeviceRecord
   let configuration: BrowserConfiguration
   let now: Date
+  let online: Bool
   let store: ControllerStore
   @State private var domains = ""
   @State private var domainsDirty = false
@@ -68,11 +69,11 @@ struct BrowserWebsitePolicyView: View {
             Text(
               report.label(
                 expectedVersion: configuration.websitePolicy?.version, now: now,
-                online: device.state(now: now) == .online)
+                online: online)
             ).font(.caption)
             if report.label(
               expectedVersion: configuration.websitePolicy?.version, now: now,
-              online: device.state(now: now) == .online) == "Not reporting"
+              online: online) == "Not reporting"
             {
               Button("Retire Profile…") { retiringReport = report }
                 .font(.caption)
@@ -125,7 +126,7 @@ struct BrowserWebsitePolicyView: View {
     guard configuration.websitePolicy?.domains.isEmpty == false else { return false }
     return BrowserProtectionCoverage.hasProtectionGap(
       reports: enrolledReports, expectedVersion: configuration.websitePolicy?.version, now: now,
-      online: device.state(now: now) == .online)
+      online: online)
   }
 
   private var protectionGapMessage: String {

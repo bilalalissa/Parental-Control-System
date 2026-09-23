@@ -2,6 +2,35 @@
 
 All notable approved stage deliverables are recorded here. The project uses staged release-candidate versions; approval does not imply merge or public release.
 
+## 0.8.0-rc.4 — 2026-09-22
+
+Status: **STAGE-08 ready for developer retest; not approved, merged, or released**
+
+- Persists the Parent Controller's signed-message sequence in local SQLite so restarting the controller no longer causes an already-paired Windows endpoint to reject new receipts, chat, or browser-sharing configuration as replayed traffic.
+- Seeds upgraded databases with a monotonic Unix-millisecond floor, preserving existing pairing without trusting a rolled-back wall clock after the first persisted value.
+- Bounds Windows connection attempts to ten seconds and restarts an active or stalled socket immediately after network availability or address changes.
+- Keeps the shared Chrome/Edge extension at RC2 because the missing browser activity was caused by rejected controller configuration rather than an extension change.
+
+## 0.8.0-rc.3 — 2026-09-21
+
+Status: **STAGE-08 ready for developer retest; not approved, merged, or released**
+
+- Makes controller presence follow the current authenticated Windows socket and makes the Windows service reconnect promptly after network changes and restart.
+- Enforces one visible Windows UI instance across ordinary and adult-authorized elevated pairing flows.
+- Restores MSI Repair registration and verifies install, health, identity-preserving repair, and uninstall on a native Windows x64 runner.
+- Hides unsupported Windows schedule, lock, app-policy, and website-policy editors and labels those enforcement features as Stage 09 work.
+- Keeps Windows browser support honest and opt-in: enrolled machine-wide Chrome/Edge profiles may share bounded tab titles and origins, while website blocking remains unavailable in Stage 08.
+
+## 0.8.0-rc.1 — 2026-09-15
+
+Status: **STAGE-08 implementing; not approved, merged, or released**
+
+- Adds event-driven, bounded Windows application identity/foreground metadata without window titles, command lines, file access, or process termination.
+- Reuses the visible shared Chromium extension through an origin-bound Chrome/Edge native-messaging host installed and registered by the MSI; only enrolled tab titles and query-free HTTP(S) origins are eligible.
+- Adds bounded protected text chat, content-free notifications, read state, parent message mutations, and request-more-time to the Windows child UI and authenticated LAN transport.
+- Adds parent-controlled collection switches and 1–30-day activity/browser retention while keeping Windows policy enforcement and administrator resistance explicitly out of scope.
+- Candidate verification and native Windows CI are still in progress.
+
 ## 0.7.0-rc.2 — 2026-09-15
 
 Status: **STAGE-07 approved and merged on 2026-09-15; unreleased**

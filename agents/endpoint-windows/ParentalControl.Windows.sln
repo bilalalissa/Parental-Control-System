@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParentalControl.Windows.Ser
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParentalControl.Windows.App", "src\ParentalControl.Windows.App\ParentalControl.Windows.App.csproj", "{CF2B5DDF-C10D-4D60-80A8-E846580EC366}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParentalControl.Windows.BrowserHost", "src\ParentalControl.Windows.BrowserHost\ParentalControl.Windows.BrowserHost.csproj", "{3C30A8A1-8E4B-473A-A5BC-13D35D4259FA}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParentalControl.Windows.Tests", "tests\ParentalControl.Windows.Tests\ParentalControl.Windows.Tests.csproj", "{2D984623-4D08-42C2-B2DD-739AB78D58DB}"
 EndProject
 Global
@@ -29,6 +31,10 @@ Global
 		{CF2B5DDF-C10D-4D60-80A8-E846580EC366}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CF2B5DDF-C10D-4D60-80A8-E846580EC366}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CF2B5DDF-C10D-4D60-80A8-E846580EC366}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3C30A8A1-8E4B-473A-A5BC-13D35D4259FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C30A8A1-8E4B-473A-A5BC-13D35D4259FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C30A8A1-8E4B-473A-A5BC-13D35D4259FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C30A8A1-8E4B-473A-A5BC-13D35D4259FA}.Release|Any CPU.Build.0 = Release|Any CPU
 		{2D984623-4D08-42C2-B2DD-739AB78D58DB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{2D984623-4D08-42C2-B2DD-739AB78D58DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2D984623-4D08-42C2-B2DD-739AB78D58DB}.Release|Any CPU.ActiveCfg = Release|Any CPU

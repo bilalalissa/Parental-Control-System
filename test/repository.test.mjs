@@ -34,8 +34,8 @@ test("stage tracker uses an allowed state and identifies one active stage", asyn
   const active = tracker.stages.filter((stage) => stage.id === tracker.activeStage);
   assert.equal(active.length, 1);
   assert.ok(allowed.includes(active[0].status));
-  assert.equal(active[0].branch, "stage/07-windows-endpoint-foundation");
-  assert.equal(active[0].version, "0.7.0-rc.2");
+  assert.equal(active[0].branch, "stage/08-windows-activity-browser-chat");
+  assert.equal(active[0].version, "0.8.0-rc.4");
   assert.ok(
     ["IMPLEMENTING", "CHANGES_REQUESTED", "READY_FOR_DEVELOPER_TEST", "READY_FOR_RETEST", "APPROVED", "MERGED", "BLOCKED"].includes(
       active[0].status,
@@ -171,20 +171,21 @@ test("macOS packages can use one stable signing identity without requiring CI cr
   }
 });
 
-test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minimal", async () => {
-  const [manifest, nativeManifest, worker, popup, packager, postinstall, authorization, browserHost] = await Promise.all([
+test("shared Chromium extension remains opt-in, bounded, and content-minimal", async () => {
+  const [manifest, nativeManifest, worker, popup, packager, endpointPackager, postinstall, authorization, browserHost] = await Promise.all([
     readJson("browser-extensions/webextension/manifest.json"),
     readJson("browser-extensions/webextension/native-host-manifest.json"),
     read("browser-extensions/webextension/service-worker.js"),
     read("browser-extensions/webextension/popup.html"),
     read("script/package_browser_extension.sh"),
+    read("script/package_endpoint_release.sh"),
     read("agents/endpoint-macos/Installer/postinstall"),
     read("agents/endpoint-macos/Sources/EndpointCore/BrowserNativeMessaging.swift"),
     read("agents/endpoint-macos/Sources/ParentalControlBrowserHost/main.swift"),
   ]);
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.6.5.10");
-  assert.equal(manifest.version_name, "0.6.5-rc.10");
+  assert.equal(manifest.version, "0.8.0.2");
+  assert.equal(manifest.version_name, "0.8.0-rc.2");
   assert.deepEqual(manifest.permissions.sort(), ["alarms", "declarativeNetRequest", "nativeMessaging", "storage", "tabs"]);
   for (const forbidden of ["history", "webRequest", "cookies", "downloads", "debugger"])
     assert.ok(!manifest.permissions.includes(forbidden));
@@ -201,7 +202,10 @@ test("Stage 05 Chromium extension is shared, opt-in, bounded, and content-minima
   assert.match(worker, /runtime\.onStartup/);
   assert.doesNotMatch(worker, /chrome\.(history|webRequest|cookies|debugger)/);
   assert.match(popup, /Private tabs, page contents, forms, cookies, passwords, query strings, fragments/);
-  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-0\.6\.5-rc\.10\.zip"/);
+  assert.match(packager, /VERSION="\$\{BROWSER_PACKAGE_VERSION:-0\.8\.0-rc\.2\}"/);
+  assert.match(packager, /ZIP="\$RC_DIR\/ParentalControlBrowserSharing-\$VERSION\.zip"/);
+  assert.match(packager, /manifest\.version = process\.env\.BROWSER_MANIFEST_VERSION/);
+  assert.match(endpointPackager, /BROWSER_MANIFEST_VERSION="0\.6\.5\.10"/);
   assert.match(packager, /blocked\.html/);
   assert.match(packager, /Refusing an extension package containing signing secrets/);
   assert.match(packager, /\/usr\/bin\/grep/);
@@ -384,11 +388,12 @@ test("Stage 06E installer is versioned, upgrade-safe, and capability-honest", as
     read("agents/endpoint-macos/Installer/ControllerComponents.plist"),
     read("agents/endpoint-macos/Installer/ChildComponents.plist"),
   ]);
-  for (const build of [controllerBuild, endpointBuild]) {
-    assert.match(build, /VERSION="0\.6\.5-rc\.10"/);
-    assert.match(build, /CFBundleVersion string 6510/);
-    assert.match(build, /derived-data\/stage-06e/);
-  }
+  assert.match(controllerBuild, /CONTROLLER_VERSION:-0\.6\.5-rc\.10/);
+  assert.match(controllerBuild, /CONTROLLER_BUILD_NUMBER:-6510/);
+  assert.match(controllerBuild, /derived-data\/stage-06e/);
+  assert.match(endpointBuild, /VERSION="0\.6\.5-rc\.10"/);
+  assert.match(endpointBuild, /CFBundleVersion string 6510/);
+  assert.match(endpointBuild, /derived-data\/stage-06e/);
   assert.match(packaging, /ParentalControlSystem-\$VERSION\.pkg/);
   assert.match(packaging, /--component-plist "\$CONTROLLER_COMPONENTS"/);
   assert.match(packaging, /--component-plist "\$CHILD_COMPONENTS"/);
@@ -559,39 +564,80 @@ test("ignore rules cover generated output without hiding canonical packages", as
 
 test("README and license identify pre-release status and terms", async () => {
   const [readme, license] = await Promise.all([read("README.md"), read("LICENSE")]);
-  assert.match(readme, /STAGE-07 Windows x64 endpoint foundation[\s\S]*0\.7\.0-rc\.2/);
+  assert.match(readme, /STAGE-08 Windows activity, browser sharing, and communication[\s\S]*0\.8\.0-rc\.4/);
   assert.match(readme, /enforce the last valid signed policy while offline/);
   assert.match(readme, /MIT License/);
   assert.match(license, /^MIT License/);
 });
 
-test("Stage 07 Windows foundation is visible, bounded, interoperable, and capability-honest", async () => {
-  const [stage, product, workflow, installer, service, app, runtime, controllerTransport] = await Promise.all([
-    read("docs/stages/stage-07.md"),
+test("Stage 08 Windows metadata and communication are visible, bounded, and capability-honest", async () => {
+  const [product, workflow, installer, installerTest, stateStore, nativeManifest, service, browserCaller, app, appStartup, runtime, controllerTransport, popup] = await Promise.all([
     read("agents/endpoint-windows/src/ParentalControl.Windows.Core/ProductInfo.cs"),
-    read(".github/workflows/stage-07-windows.yml"),
+    read(".github/workflows/stage-08-windows.yml"),
     read("agents/endpoint-windows/installer/Package.wxs"),
+    read("script/test_windows_installer.ps1"),
+    read("agents/endpoint-windows/src/ParentalControl.Windows.Core/EndpointState.cs"),
+    readJson("agents/endpoint-windows/installer/windows-native-host-manifest.json"),
     read("agents/endpoint-windows/src/ParentalControl.Windows.Service/NamedPipeEndpointServer.cs"),
+    read("agents/endpoint-windows/src/ParentalControl.Windows.BrowserHost/BrowserCallerPolicy.cs"),
     read("agents/endpoint-windows/src/ParentalControl.Windows.App/MainWindow.xaml"),
+    read("agents/endpoint-windows/src/ParentalControl.Windows.App/App.xaml.cs"),
     read("agents/endpoint-windows/src/ParentalControl.Windows.Service/EndpointRuntime.cs"),
     read("apps/controller-macos/Sources/HubCore/Transport/SecureWebSocket.swift"),
+    read("browser-extensions/webextension/popup.js"),
   ]);
-  assert.match(stage, /Application activity.*not included/i);
-  assert.match(stage, /Windows x64/i);
   assert.match(product, /MaximumMessageBytes = 64 \* 1024/);
   const capabilities = product.match(/Capabilities\s*=\s*\[([\s\S]*?)\];/)?.[1] ?? "";
-  assert.doesNotMatch(capabilities, /app-activity|browser-tabs|chat|signed-policy/);
+  for (const capability of ["app-activity", "browser-tabs", "chat", "notifications", "request-more-time"])
+    assert.match(capabilities, new RegExp(`"${capability}"`));
+  assert.doesNotMatch(capabilities, /app-use-restrictions|browser-website-policy|signed-policy|lock|shutdown/);
   assert.match(service, /IsAdministrator\(pipe\)/);
+  assert.match(service, /IsActiveConsoleClient\(pipe\)/);
+  assert.match(service, /IsExpectedClient\([\s\S]*?ParentalControl\.Windows\.App\.exe/);
+  assert.match(service, /IsExpectedClient\([\s\S]*?ParentalControl\.Windows\.BrowserHost\.exe/);
   assert.match(service, /PipeSecurity/);
+  assert.match(browserCaller, /ProgramFiles/);
+  assert.match(browserCaller, /Google[\s\S]*?Chrome[\s\S]*?chrome\.exe/);
+  assert.match(browserCaller, /Microsoft[\s\S]*?Edge[\s\S]*?msedge\.exe/);
   assert.match(app, /VISIBLE FAMILY ENDPOINT/);
+  assert.match(app, /Application activity/);
+  assert.match(app, /Request more time/);
+  assert.match(appStartup, /ParentalControl\.Windows\.App\.v1/);
+  assert.match(appStartup, /wait-for-previous-instance/);
   assert.match(product, /HubWebSocketPath = "\/hub"/);
   assert.match(product, /HubWebSocketSubProtocol = "parental-control\.v1"/);
   assert.match(runtime, /AddSubProtocol\(endpoint\.SubProtocol\)/);
+  assert.match(runtime, /attempt\.CancelAfter\(TimeSpan\.FromSeconds\(10\)\)/);
+  assert.match(runtime, /socket\?\.Abort\(\)/);
   assert.match(runtime, /WebSocketMessageType\.Text and not WebSocketMessageType\.Binary/);
   assert.match(controllerTransport, /GET \/hub HTTP\/1\.1/);
   assert.match(controllerTransport, /Sec-WebSocket-Protocol: parental-control\.v1/);
   assert.match(installer, /Start="auto"/);
   assert.match(installer, /Remove="uninstall"/);
+  assert.doesNotMatch(installer, /ARPNOREPAIR/);
+  assert.match(installerTest, /NoRepair/);
+  assert.match(installer, /Name="endpoint\.dat\.unreadable" On="uninstall"/);
+  assert.match(stateStore, /catch \(CryptographicException\) when \(File\.Exists\(path\)\)/);
+  assert.match(stateStore, /File\.Move\(path, unreadablePath\)/);
+  assert.match(installerTest, /configuration\\\.recovered/);
+  assert.match(installerTest, /Unreadable state was not preserved/);
+  assert.match(installer, /Chrome\\NativeMessagingHosts\\com\.bilalalissa\.parental_control/);
+  assert.match(installer, /Edge\\NativeMessagingHosts\\com\.bilalalissa\.parental_control/);
+  assert.equal(nativeManifest.allowed_origins[0], "chrome-extension://pdcjgejgdjomjjemejhjhmdkcabkidmi/");
+  assert.match(nativeManifest.path, /ParentalControl\.Windows\.BrowserHost\.exe$/);
   assert.match(workflow, /runs-on: windows-2025/);
   assert.match(workflow, /retention-days: 7/);
+  assert.match(popup, /Website restrictions are not available on the Windows Stage 08 endpoint/);
+});
+
+test("controller signing sequence survives restart and bridges older in-memory counters", async () => {
+  const [database, hub] = await Promise.all([
+    read("apps/controller-macos/Sources/HubCore/Persistence/HubDatabase.swift"),
+    read("apps/controller-macos/Sources/HubCore/Hub/LocalHub.swift"),
+  ]);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS hub_state/);
+  assert.match(database, /func nextControllerSequence\(now: Date = Date\(\)\) throws -> UInt64/);
+  assert.match(database, /now\.timeIntervalSince1970 \* 1_000/);
+  assert.match(hub, /try database\.nextControllerSequence\(\)/);
+  assert.doesNotMatch(hub, /private var controllerSequence: UInt64 = 0/);
 });

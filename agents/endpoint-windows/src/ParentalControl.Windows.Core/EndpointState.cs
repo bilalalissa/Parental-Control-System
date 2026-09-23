@@ -23,7 +23,8 @@ public sealed record EndpointState(
     ulong Sequence,
     ulong SnapshotVersion,
     ulong ControllerSequence,
-    PairedController? Controller)
+    PairedController? Controller,
+    EndpointRuntimeData? Runtime = null)
 {
     public static EndpointState Create()
     {
@@ -33,11 +34,15 @@ public sealed record EndpointState(
         {
             return new EndpointState(
                 Guid.NewGuid().ToString("D").ToLowerInvariant(),
-                Convert.ToBase64String(privateKey), 0, 0, 0, null);
+                Convert.ToBase64String(privateKey), 0, 0, 0, null, new EndpointRuntimeData());
         }
         finally { CryptographicOperations.ZeroMemory(privateKey); }
     }
 }
+
+public sealed record EndpointStateLoadResult(
+    EndpointState State,
+    bool RecoveredUnreadableState);
 
 public sealed class EndpointStateStore
 {
@@ -61,31 +66,37 @@ public sealed class EndpointStateStore
     {
         lock (gate)
         {
-            if (!File.Exists(path))
-            {
-                EndpointState initial = EndpointState.Create();
-                WriteLocked(initial);
-                return initial;
-            }
+            return LoadOrCreateLocked();
+        }
+    }
 
-            FileInfo info = new(path);
-            if (info.Length is <= 0 or > ProductInfo.MaximumConfigurationBytes)
-            {
-                throw new InvalidDataException("Protected endpoint configuration has an invalid size.");
-            }
-
-            byte[] protectedBytes = File.ReadAllBytes(path);
-            byte[] cleartext = protector.Unprotect(protectedBytes);
+    public EndpointStateLoadResult LoadOrCreateRecoveringUnreadable()
+    {
+        lock (gate)
+        {
             try
             {
-                EndpointState state = JsonSerializer.Deserialize<EndpointState>(cleartext, JsonOptions)
-                    ?? throw new InvalidDataException("Protected endpoint configuration is empty.");
-                Validate(state);
-                return state;
+                return new EndpointStateLoadResult(LoadOrCreateLocked(), false);
             }
-            finally
+            catch (CryptographicException) when (File.Exists(path))
             {
-                CryptographicOperations.ZeroMemory(cleartext);
+                string unreadablePath = path + ".unreadable";
+                if (File.Exists(unreadablePath)) File.Delete(unreadablePath);
+                File.Move(path, unreadablePath);
+                try
+                {
+                    EndpointState replacement = EndpointState.Create();
+                    WriteLocked(replacement);
+                    return new EndpointStateLoadResult(replacement, true);
+                }
+                catch
+                {
+                    if (!File.Exists(path) && File.Exists(unreadablePath))
+                    {
+                        File.Move(unreadablePath, path);
+                    }
+                    throw;
+                }
             }
         }
     }
@@ -121,11 +132,12 @@ public sealed class EndpointStateStore
             return initial;
         }
 
-        byte[] protectedBytes = File.ReadAllBytes(path);
-        if (protectedBytes.Length is <= 0 or > ProductInfo.MaximumConfigurationBytes)
+        FileInfo info = new(path);
+        if (info.Length is <= 0 or > ProductInfo.MaximumConfigurationBytes)
         {
             throw new InvalidDataException("Protected endpoint configuration has an invalid size.");
         }
+        byte[] protectedBytes = File.ReadAllBytes(path);
         byte[] cleartext = protector.Unprotect(protectedBytes);
         try
         {
@@ -191,6 +203,16 @@ public sealed class EndpointStateStore
             {
                 throw new InvalidDataException("Pending pairing metadata is invalid.");
             }
+        }
+        EndpointRuntimeData runtime = state.Runtime ?? new EndpointRuntimeData();
+        if (runtime.ActivityRetentionDays is < 1 or > 30
+            || runtime.BrowserRetentionDays is < 1 or > 30
+            || runtime.Applications.Count > 64
+            || runtime.BrowserTabs.Count > 128
+            || runtime.Messages.Count > 200
+            || runtime.Outbound.Count > 100)
+        {
+            throw new InvalidDataException("Endpoint runtime state exceeds its bounds.");
         }
     }
 }

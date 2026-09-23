@@ -173,6 +173,10 @@ public final class HubDatabase: @unchecked Sendable {
       );
       INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at)
           VALUES(3, strftime('%s','now'));
+      CREATE TABLE IF NOT EXISTS hub_state(
+          key TEXT PRIMARY KEY,
+          integer_value INTEGER NOT NULL
+      );
       """)
     try? execute("ALTER TABLE app_activity ADD COLUMN signing_identifier TEXT;")
     try? execute("ALTER TABLE app_activity ADD COLUMN team_identifier TEXT;")
@@ -239,6 +243,36 @@ public final class HubDatabase: @unchecked Sendable {
     try execute(
       "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(11, strftime('%s','now'));"
     )
+    try execute(
+      "INSERT OR IGNORE INTO hub_schema_migrations(version, applied_at) VALUES(12, strftime('%s','now'));"
+    )
+  }
+
+  /// Returns a controller signing sequence that remains monotonic across controller restarts.
+  ///
+  /// The wall-clock floor repairs databases created before this counter was persisted: an already
+  /// paired endpoint may remember an older in-memory sequence, while Unix milliseconds are safely
+  /// above the short-lived counters emitted by those builds. Once stored, the database value remains
+  /// authoritative even if the wall clock moves backwards.
+  public func nextControllerSequence(now: Date = Date()) throws -> UInt64 {
+    lock.lock()
+    defer { lock.unlock() }
+    let milliseconds = now.timeIntervalSince1970 * 1_000
+    guard milliseconds.isFinite else { throw HubDatabaseError.decode("controller sequence clock") }
+    let floor = Int64(max(0, min(Double(Int64.max - 1), milliseconds.rounded(.down))))
+    let stored = Int64(
+      try scalar(
+        "SELECT COALESCE((SELECT integer_value FROM hub_state WHERE key = 'controller_sequence'), 0);"
+      ))
+    let base = max(stored, floor)
+    guard base < Int64.max else { throw HubDatabaseError.decode("controller sequence exhausted") }
+    let next = base + 1
+    try run(
+      """
+      INSERT INTO hub_state(key, integer_value) VALUES('controller_sequence', ?)
+      ON CONFLICT(key) DO UPDATE SET integer_value = excluded.integer_value;
+      """, [.integer(next)])
+    return UInt64(next)
   }
 
   public func upsertDevice(_ device: HubDeviceRecord) throws {

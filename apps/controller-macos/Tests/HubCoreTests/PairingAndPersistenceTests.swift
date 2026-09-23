@@ -76,6 +76,24 @@ struct PairingAndPersistenceTests {
     #expect(device.state(now: pairedAt.addingTimeInterval(-10)) == .offline)
   }
 
+  @Test("controller signing sequence advances across database restart and clock rollback")
+  func controllerSequencePersistence() throws {
+    let fixture = try TemporaryHubDatabase()
+    defer { fixture.remove() }
+    let firstDate = Date(timeIntervalSince1970: 1_790_000_000)
+    let first: UInt64
+    do {
+      let database = try HubDatabase(path: fixture.path)
+      first = try database.nextControllerSequence(now: firstDate)
+      #expect(first > 1_790_000_000_000)
+    }
+
+    let reopened = try HubDatabase(path: fixture.path)
+    let second = try reopened.nextControllerSequence(
+      now: firstDate.addingTimeInterval(-86_400))
+    #expect(second == first + 1)
+  }
+
   @Test("network metadata excludes public, virtual, and zero-address identifiers")
   func sanitizedNetworkMetadata() {
     #expect(
